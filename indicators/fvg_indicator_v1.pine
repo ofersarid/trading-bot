@@ -1,0 +1,253 @@
+// Fair Value Gap (FVG) Indicator v1
+// Based on Craig Percoco's strategy
+// @version=6
+indicator("Fair Value Gap (FVG)", "FVG", overlay=true, max_boxes_count=500, max_lines_count=500)
+
+// ============================================================================
+// CONSTANTS (edit these for easy customization)
+// ============================================================================
+
+// --- What to show on chart ---
+const bool   DEFAULT_SHOW_BULLISH    = true   // Show green boxes for upward gaps (buy zones)
+const bool   DEFAULT_SHOW_BEARISH    = true   // Show red boxes for downward gaps (sell zones)
+const bool   DEFAULT_SHOW_MITIGATED  = false  // Keep showing FVGs after price fills them? (false = hide when filled)
+const bool   DEFAULT_SHOW_MIDLINE    = true   // Show the 50% line inside each box (Craig's entry level)
+const bool   DEFAULT_EXTEND_BOXES    = true   // Stretch boxes to current candle? (false = fixed width)
+
+// --- How many FVGs to display ---
+const int    DEFAULT_MAX_FVGS        = 10     // Max number of FVG boxes per direction (bull/bear)
+const int    DEFAULT_MAX_AGE_BARS    = 100    // Delete FVGs older than X candles (keeps chart clean)
+
+// --- Colors (transparency: 0 = solid, 100 = invisible) ---
+const color  DEFAULT_BULL_BOX_COLOR     = color.new(color.green, 80)  // Bullish box fill (80 = very transparent)
+const color  DEFAULT_BULL_BORDER_COLOR  = color.green                 // Bullish box outline
+const color  DEFAULT_BULL_MIDLINE_COLOR = color.new(color.green, 50)  // Bullish 50% line (entry level)
+const color  DEFAULT_BEAR_BOX_COLOR     = color.new(color.red, 80)    // Bearish box fill
+const color  DEFAULT_BEAR_BORDER_COLOR  = color.red                   // Bearish box outline
+const color  DEFAULT_BEAR_MIDLINE_COLOR = color.new(color.red, 50)    // Bearish 50% line
+const color  DEFAULT_MITIGATED_COLOR    = color.new(color.gray, 90)   // Color when FVG is filled/used
+
+// --- Filters ---
+const float  DEFAULT_MIN_FVG_SIZE_PCT = 0.0   // Ignore tiny gaps smaller than X% of price (0 = show all)
+
+// --- Box sizing ---
+const int    BOX_EXTEND_BARS         = 10     // How many candles to extend box into the future
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+grp_display = "Display Settings"
+show_bullish = input.bool(DEFAULT_SHOW_BULLISH, "Show Bullish FVGs", group=grp_display)
+show_bearish = input.bool(DEFAULT_SHOW_BEARISH, "Show Bearish FVGs", group=grp_display)
+show_mitigated = input.bool(DEFAULT_SHOW_MITIGATED, "Show Mitigated FVGs", group=grp_display)
+show_midline = input.bool(DEFAULT_SHOW_MIDLINE, "Show 50% Line (CE)", group=grp_display)
+extend_boxes = input.bool(DEFAULT_EXTEND_BOXES, "Extend Boxes to Current Bar", group=grp_display)
+max_fvgs = input.int(DEFAULT_MAX_FVGS, "Max FVGs to Display", minval=1, maxval=100, group=grp_display, tooltip="Craig focuses on recent FVGs, not historical ones")
+max_age_bars = input.int(DEFAULT_MAX_AGE_BARS, "Max FVG Age (bars)", minval=10, maxval=500, group=grp_display, tooltip="Only show FVGs created within this many bars. 0 = no limit")
+
+grp_bull = "Bullish FVG Colors"
+bull_box_color = input.color(DEFAULT_BULL_BOX_COLOR, "Box Color", group=grp_bull)
+bull_border_color = input.color(DEFAULT_BULL_BORDER_COLOR, "Border Color", group=grp_bull)
+bull_midline_color = input.color(DEFAULT_BULL_MIDLINE_COLOR, "50% Line Color", group=grp_bull)
+
+grp_bear = "Bearish FVG Colors"
+bear_box_color = input.color(DEFAULT_BEAR_BOX_COLOR, "Box Color", group=grp_bear)
+bear_border_color = input.color(DEFAULT_BEAR_BORDER_COLOR, "Border Color", group=grp_bear)
+bear_midline_color = input.color(DEFAULT_BEAR_MIDLINE_COLOR, "50% Line Color", group=grp_bear)
+
+grp_filter = "FVG Filters"
+min_fvg_size_pct = input.float(DEFAULT_MIN_FVG_SIZE_PCT, "Min FVG Size (%)", minval=0, maxval=5, step=0.1, group=grp_filter, tooltip="Minimum gap size as percentage of price. 0 = show all")
+
+// ============================================================================
+// FVG DETECTION LOGIC
+// ============================================================================
+
+// Bullish FVG: Gap up - high of candle 2 bars ago is below the low of current candle
+// This creates an imbalance where price "gapped" up
+bullish_fvg = high[2] < low
+
+// Bearish FVG: Gap down - low of candle 2 bars ago is above the high of current candle  
+// This creates an imbalance where price "gapped" down
+bearish_fvg = low[2] > high
+
+// Calculate FVG zones
+bull_fvg_top = low          // Top of bullish FVG (low of current candle)
+bull_fvg_bottom = high[2]   // Bottom of bullish FVG (high of candle 2 bars ago)
+bull_fvg_mid = (bull_fvg_top + bull_fvg_bottom) / 2
+
+bear_fvg_top = low[2]       // Top of bearish FVG (low of candle 2 bars ago)
+bear_fvg_bottom = high      // Bottom of bearish FVG (high of current candle)
+bear_fvg_mid = (bear_fvg_top + bear_fvg_bottom) / 2
+
+// Size filter (percentage of price)
+bull_fvg_size = bull_fvg_top - bull_fvg_bottom
+bear_fvg_size = bear_fvg_top - bear_fvg_bottom
+bull_fvg_size_pct = (bull_fvg_size / close) * 100
+bear_fvg_size_pct = (bear_fvg_size / close) * 100
+
+bull_valid = bullish_fvg and bull_fvg_size_pct >= min_fvg_size_pct
+bear_valid = bearish_fvg and bear_fvg_size_pct >= min_fvg_size_pct
+
+// ============================================================================
+// FVG TRACKING (for mitigation)
+// ============================================================================
+
+// Custom type to store FVG data
+type FVG
+    box fvg_box
+    line mid_line
+    float top
+    float bottom
+    bool is_bullish
+    int bar_created
+
+// Arrays to track FVGs
+var FVG[] bull_fvgs = array.new<FVG>()
+var FVG[] bear_fvgs = array.new<FVG>()
+
+// Track which FVGs have been marked as mitigated (to avoid re-coloring)
+var bool[] bull_fvgs_mitigated = array.new<bool>()
+var bool[] bear_fvgs_mitigated = array.new<bool>()
+
+// Function to check if FVG is mitigated
+check_mitigation(FVG fvg) =>
+    if fvg.is_bullish
+        // Bullish FVG is mitigated when price trades down into it (closes below top)
+        close <= fvg.bottom
+    else
+        // Bearish FVG is mitigated when price trades up into it (closes above bottom)
+        close >= fvg.top
+
+// Function to clean up old FVGs
+cleanup_fvgs(FVG[] fvg_arr, bool[] mitigated_arr, int max_count, bool show_mit, int max_age) =>
+    if array.size(fvg_arr) > 0
+        for i = array.size(fvg_arr) - 1 to 0
+            fvg = array.get(fvg_arr, i)
+            is_mitigated = array.get(mitigated_arr, i)
+            // Remove mitigated FVGs if not showing them
+            should_remove = (not show_mit and is_mitigated)
+            // Remove FVGs older than max_age bars
+            if max_age > 0 and (bar_index - fvg.bar_created) > max_age
+                should_remove := true
+            if should_remove
+                box.delete(fvg.fvg_box)
+                line.delete(fvg.mid_line)
+                array.remove(fvg_arr, i)
+                array.remove(mitigated_arr, i)
+    
+    // Remove oldest if exceeding max
+    while array.size(fvg_arr) > max_count
+        old_fvg = array.shift(fvg_arr)
+        array.shift(mitigated_arr)
+        box.delete(old_fvg.fvg_box)
+        line.delete(old_fvg.mid_line)
+
+// ============================================================================
+// CREATE FVG BOXES
+// ============================================================================
+
+// Create bullish FVG
+if bull_valid and show_bullish
+    new_box = box.new(
+         left=bar_index - 2,
+         top=bull_fvg_top,
+         right=bar_index + BOX_EXTEND_BARS,
+         bottom=bull_fvg_bottom,
+         bgcolor=bull_box_color,
+         border_color=bull_border_color,
+         border_width=1
+         )
+    
+    new_line = line.new(
+         x1=bar_index - 2,
+         y1=bull_fvg_mid,
+         x2=bar_index + BOX_EXTEND_BARS,
+         y2=bull_fvg_mid,
+         color=show_midline ? bull_midline_color : color.new(color.white, 100),
+         style=line.style_dashed,
+         width=1
+         )
+    
+    new_fvg = FVG.new(new_box, new_line, bull_fvg_top, bull_fvg_bottom, true, bar_index)
+    array.push(bull_fvgs, new_fvg)
+    array.push(bull_fvgs_mitigated, false)
+
+// Create bearish FVG
+if bear_valid and show_bearish
+    new_box = box.new(
+         left=bar_index - 2,
+         top=bear_fvg_top,
+         right=bar_index + BOX_EXTEND_BARS,
+         bottom=bear_fvg_bottom,
+         bgcolor=bear_box_color,
+         border_color=bear_border_color,
+         border_width=1
+         )
+    
+    new_line = line.new(
+         x1=bar_index - 2,
+         y1=bear_fvg_mid,
+         x2=bar_index + BOX_EXTEND_BARS,
+         y2=bear_fvg_mid,
+         color=show_midline ? bear_midline_color : color.new(color.white, 100),
+         style=line.style_dashed,
+         width=1
+         )
+    
+    new_fvg = FVG.new(new_box, new_line, bear_fvg_top, bear_fvg_bottom, false, bar_index)
+    array.push(bear_fvgs, new_fvg)
+    array.push(bear_fvgs_mitigated, false)
+
+// ============================================================================
+// UPDATE EXISTING FVGs
+// ============================================================================
+
+// Update bullish FVGs
+if array.size(bull_fvgs) > 0
+    for i = 0 to array.size(bull_fvgs) - 1
+        fvg = array.get(bull_fvgs, i)
+        is_mitigated = array.get(bull_fvgs_mitigated, i)
+        
+        // Check and mark mitigation
+        if not is_mitigated and check_mitigation(fvg)
+            array.set(bull_fvgs_mitigated, i, true)
+            box.set_bgcolor(fvg.fvg_box, color.new(color.gray, 90))
+            box.set_border_color(fvg.fvg_box, color.gray)
+            line.set_color(fvg.mid_line, color.new(color.gray, 70))
+            is_mitigated := true
+        
+        // Extend box if not mitigated
+        if extend_boxes and not is_mitigated
+            box.set_right(fvg.fvg_box, bar_index + BOX_EXTEND_BARS)
+            line.set_x2(fvg.mid_line, bar_index + BOX_EXTEND_BARS)
+
+// Update bearish FVGs
+if array.size(bear_fvgs) > 0
+    for i = 0 to array.size(bear_fvgs) - 1
+        fvg = array.get(bear_fvgs, i)
+        is_mitigated = array.get(bear_fvgs_mitigated, i)
+        
+        // Check and mark mitigation
+        if not is_mitigated and check_mitigation(fvg)
+            array.set(bear_fvgs_mitigated, i, true)
+            box.set_bgcolor(fvg.fvg_box, color.new(color.gray, 90))
+            box.set_border_color(fvg.fvg_box, color.gray)
+            line.set_color(fvg.mid_line, color.new(color.gray, 70))
+            is_mitigated := true
+        
+        // Extend box if not mitigated
+        if extend_boxes and not is_mitigated
+            box.set_right(fvg.fvg_box, bar_index + BOX_EXTEND_BARS)
+            line.set_x2(fvg.mid_line, bar_index + BOX_EXTEND_BARS)
+
+// Cleanup
+cleanup_fvgs(bull_fvgs, bull_fvgs_mitigated, max_fvgs, show_mitigated, max_age_bars)
+cleanup_fvgs(bear_fvgs, bear_fvgs_mitigated, max_fvgs, show_mitigated, max_age_bars)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+alertcondition(bull_valid, "Bullish FVG Formed", "New Bullish FVG detected")
+alertcondition(bear_valid, "Bearish FVG Formed", "New Bearish FVG detected")

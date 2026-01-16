@@ -1,0 +1,1042 @@
+// ============================================================================
+// CHoCH + FVG Strategy v2.4 - Exit Detection Fix + Tighter Trailing + TP/SL Labels
+// Based on Craig Percoco's "The Perfect Beginner DAY TRADING Strategy"
+// ============================================================================
+// @version=6
+//
+// v2.4 Changes (BUG FIX + OPTIMIZATION):
+// - Fixed: Exit reason detection now uses high/low (not close) to match stop triggers
+// - Changed: Default trail offset from 2.0R → 1.0R (tighter profit protection)
+// - Enhanced: Exit logging now shows high/low/close for better debugging
+// - Added: TP and SL labels now displayed on chart alongside entry labels
+//
+// v2.3 Changes (SIMPLIFICATION):
+// - Changed: Trailing stop activates IMMEDIATELY upon entry (not after BOS)
+// - Simplified: Only TP and trailing SL control exits (removed BOS dependency)
+// - Rationale: Cleaner logic, better protection, eliminates premature exit risk
+//
+// v2.2 Changes (CRITICAL FIX):
+// - Fixed: Exit orders now use consistent ID (was causing conflicting exit orders)
+// - Fixed: Exit orders placed on EVERY bar (ensures orders remain active)
+// - Fixed: Proper exit order replacement (not creating multiple concurrent exits)
+//
+// v2.1 Changes:
+// - Fixed: Prevented setup detection while in position (avoids variable corruption)
+// - Added: Trailing stop logic with configurable offset
+// - Enhanced: Improved exit logging with detailed reasons and trailing status
+//
+// STRATEGY OVERVIEW
+// -----------------
+// This strategy identifies trend reversals using Change of Character (CHoCH) 
+// and enters at Fair Value Gap (FVG) retracements.
+//
+// THE 3-STEP SETUP (Craig Percoco):
+// 1. IDENTIFY TREND    - Look for 2+ Break of Structures (BOS) confirming direction
+// 2. SPOT REVERSAL     - CHoCH = price fails to make new extreme, breaks opposite way
+// 3. ENTER AT FVG      - Position at 50% of FVG (Consequential Encroachment level)
+//
+// QUALITY-BASED POSITION SIZING (Phase 2)
+// ---------------------------------------
+// Position size scales with setup quality:
+//
+//   A+ Grade (5/5 factors) → 80% of equity (default)
+//   A  Grade (4/5 factors) → 70% of equity
+//   B  Grade (3/5 factors) → 60% of equity
+//   C  Grade (2/5 factors) → 50% of equity
+//   F  Grade (0-1 factors) → NO TRADE
+//
+// MINIMUM CRITERIA (Craig's Basic Requirements):
+// 1. Confirmed trend (2+ BOS before CHoCH) ← MANDATORY
+// 2. Valid CHoCH ← MANDATORY
+// 3. Valid FVG ← MANDATORY
+// 4. FVG not filled immediately on next bar ← MANDATORY
+//
+// QUALITY FACTORS for Position Sizing (5 total):
+// 1. Strong displacement candle (1.5x average size)
+// 2. Failed new extreme before CHoCH
+// 3. Significant FVG size (larger than average candle)
+// 4. Recent market structure (BOS within 10 bars)
+// 5. FVG completely untouched (price hasn't wicked into it)
+//
+// AGGRESSIVE GROWTH MODE
+// ----------------------
+// Goal: Grow $100 → $1,000
+// - Min position: 50% (C-grade setups)
+// - Max position: 80% (A+-grade setups)
+// - All percentages configurable via settings
+//
+// RISK MANAGEMENT RULES
+// ---------------------
+// 1. Stop loss ALWAYS defined before entry
+// 2. After first BOS in our direction → activate trailing stop (default: 2R trail)
+// 3. Initial target = 4× risk
+// 4. Trailing stop locks in profits while letting winners run
+// 5. Higher quality = bigger position = faster growth
+//
+// ============================================================================
+
+strategy("CHoCH + FVG Strategy", "CHoCH-FVG", overlay=true, 
+     default_qty_type=strategy.cash,
+     default_qty_value=100,
+     initial_capital=100,
+     commission_type=strategy.commission.percent,
+     commission_value=0.06,
+     slippage=1,
+     max_boxes_count=500,
+     max_lines_count=500,
+     max_labels_count=500,
+     calc_on_every_tick=true)
+
+// ============================================================================
+// CONSTANTS (edit these for easy customization)
+// ============================================================================
+
+// --- Risk Management (CRITICAL - aggressive growth mode) ---
+const float  DEFAULT_ACCOUNT_SIZE      = 100.0   // Starting account size in USD
+// Individual grade risk defaults are set directly in inputs:
+// A+ = 50%, A = 40%, B = 25%, C = 10%
+
+// --- Quality Grading Thresholds (out of 5 factors) ---
+const int    GRADE_A_PLUS_MIN          = 5       // 5/5 factors = A+ (max risk)
+const int    GRADE_A_MIN               = 4       // 4/5 factors = A
+const int    GRADE_B_MIN               = 3       // 3/5 factors = B
+const int    GRADE_C_MIN               = 2       // 2/5 factors = C (min risk, still tradeable)
+
+// --- Strategy Defaults ---
+const float  DEFAULT_RISK_REWARD       = 4.0     // Target 4x what you risk (Craig's initial target)
+const bool   DEFAULT_USE_TRAILING_STOP = true    // Use trailing stop instead of break-even
+const float  DEFAULT_TRAIL_OFFSET_R    = 1.0     // Trail by 1R (1× initial risk) - tighter protection
+const bool   DEFAULT_REQUIRE_TREND     = false   // Now handled by quality grading
+
+// --- Swing Detection ---
+const int    DEFAULT_SWING_LENGTH      = 5       // Bars to look left/right for swing highs/lows
+
+// --- FVG Settings ---
+const float  DEFAULT_MIN_FVG_PCT       = 0.0     // Min FVG size as % of price (0 = show all, matches indicator)
+const float  DEFAULT_FVG_ENTRY_PCT     = 50.0    // Entry at 50% of FVG (Consequential Encroachment)
+const int    DEFAULT_MAX_FVGS          = 10      // Max FVG boxes to display per direction (matches indicator)
+const int    DEFAULT_MAX_AGE_BARS      = 100     // Delete FVGs older than X candles (matches indicator)
+const bool   DEFAULT_SHOW_MITIGATED    = false   // Show FVGs after price fills them
+
+// --- Visual Defaults ---
+const bool   DEFAULT_SHOW_FVGS         = true    // Show FVG boxes on chart
+const bool   DEFAULT_SHOW_STRUCTURE    = true    // Show swing points and CHoCH labels
+const bool   DEFAULT_SHOW_ENTRY_ZONES  = true    // Show entry price lines
+const color  DEFAULT_BULL_COLOR        = color.green
+const color  DEFAULT_BEAR_COLOR        = color.red
+const color  DEFAULT_ENTRY_COLOR       = color.blue
+const color  DEFAULT_CHOCH_BULL_COLOR  = color.teal
+const color  DEFAULT_CHOCH_BEAR_COLOR  = color.orange
+
+// --- Label Sizes ---
+const string DEFAULT_LABEL_SIZE        = size.normal  // size.tiny, size.small, size.normal
+
+// --- Box Extension ---
+const int    BOX_EXTEND_BARS           = 10      // How many candles to extend FVG boxes
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+grp_risk = "💰 Position Size % Per Grade"
+// Note: Initial Capital is set in Strategy Properties tab (gear icon > Properties > Initial Capital)
+risk_pct_a_plus = input.float(80.0, "A+ Grade Position %", minval=5, maxval=100, step=5, group=grp_risk, tooltip="Invest this % of equity for A+ setups (5-6 quality factors)")
+risk_pct_a = input.float(70.0, "A Grade Position %", minval=5, maxval=100, step=5, group=grp_risk, tooltip="Invest this % of equity for A setups (4 quality factors)")
+risk_pct_b = input.float(60.0, "B Grade Position %", minval=5, maxval=100, step=5, group=grp_risk, tooltip="Invest this % of equity for B setups (3 quality factors)")
+risk_pct_c = input.float(50.0, "C Grade Position %", minval=5, maxval=100, step=5, group=grp_risk, tooltip="Invest this % of equity for C setups (2 quality factors)")
+
+grp_quality = "⭐ Setup Quality Settings"
+use_quality_grading = input.bool(true, "Enable Quality-Based Risk", group=grp_quality, tooltip="Adjust position size based on setup quality")
+min_grade_to_trade = input.string("C", "Minimum Grade to Trade", options=["A+", "A", "B", "C"], group=grp_quality, tooltip="Only take setups at or above this grade")
+show_grade_label = input.bool(true, "Show Grade Label on Chart", group=grp_quality, tooltip="Display A+/A/B/C grade on setup")
+show_quality_breakdown = input.bool(true, "Show Quality Factor Breakdown", group=grp_quality, tooltip="Display which quality factors passed/failed for each setup")
+
+grp_strategy = "Strategy Settings"
+risk_reward = input.float(DEFAULT_RISK_REWARD, "Risk:Reward Ratio", minval=1.0, maxval=10.0, step=0.5, group=grp_strategy)
+use_trailing_stop = input.bool(DEFAULT_USE_TRAILING_STOP, "Use Trailing Stop", group=grp_strategy, tooltip="Activates immediately upon entry - protects profits as they develop")
+trail_offset_r = input.float(DEFAULT_TRAIL_OFFSET_R, "Trail Offset (R)", minval=0.5, maxval=5.0, step=0.5, group=grp_strategy, tooltip="Distance to trail behind price, as multiples of initial risk. E.g., 2.0 = trail 2R behind highest/lowest point")
+// Note: Confirmed Trend (2+ BOS) is now ALWAYS required per Craig's minimum criteria
+
+grp_swing = "Swing Detection"
+swing_length = input.int(DEFAULT_SWING_LENGTH, "Swing Length", minval=1, maxval=20, group=grp_swing)
+
+grp_fvg = "FVG Settings"
+min_fvg_size_pct = input.float(DEFAULT_MIN_FVG_PCT, "Min FVG Size (%)", minval=0, maxval=5, step=0.1, group=grp_fvg, tooltip="Minimum FVG size as percentage of price. 0 = show all")
+fvg_entry_pct = input.float(DEFAULT_FVG_ENTRY_PCT, "Entry at FVG %", minval=0, maxval=100, group=grp_fvg, tooltip="Where to enter within FVG (50 = midpoint)")
+max_fvgs = input.int(DEFAULT_MAX_FVGS, "Max FVGs to Display", minval=1, maxval=50, group=grp_fvg, tooltip="Max number of FVG boxes per direction")
+max_age_bars = input.int(DEFAULT_MAX_AGE_BARS, "Max FVG Age (bars)", minval=10, maxval=2000, group=grp_fvg, tooltip="Remove FVGs older than this many bars")
+show_mitigated = input.bool(DEFAULT_SHOW_MITIGATED, "Show Mitigated FVGs", group=grp_fvg, tooltip="Keep showing FVGs after price fills them")
+
+grp_visual = "Visuals"
+hide_all_visuals = input.bool(false, "Hide All Strategy Visuals (use indicators instead)", group=grp_visual, tooltip="Enable this if you're using the FVG and Market Structure indicators separately")
+show_fvg_boxes = input.bool(DEFAULT_SHOW_FVGS, "Show FVG Boxes", group=grp_visual)
+show_structure = input.bool(DEFAULT_SHOW_STRUCTURE, "Show Market Structure", group=grp_visual)
+show_entry_zones = input.bool(DEFAULT_SHOW_ENTRY_ZONES, "Show Entry Zones", group=grp_visual)
+keep_past_entries = input.bool(true, "Keep Past Entry Lines", group=grp_visual, tooltip="Keep entry lines visible after trades execute (helpful for reviewing past setups)")
+bull_color = input.color(DEFAULT_BULL_COLOR, "Bullish Color", group=grp_visual)
+bear_color = input.color(DEFAULT_BEAR_COLOR, "Bearish Color", group=grp_visual)
+entry_color = input.color(DEFAULT_ENTRY_COLOR, "Entry Zone Color", group=grp_visual)
+
+grp_time = "Session Filter"
+use_session = input.bool(false, "Use Session Filter", group=grp_time)
+session_start = input.session("0930-1600", "Trading Session", group=grp_time)
+
+// ============================================================================
+// SESSION FILTER
+// ============================================================================
+
+in_session = use_session ? not na(time(timeframe.period, session_start)) : true
+
+// ============================================================================
+// SWING POINT DETECTION
+// ============================================================================
+
+pivot_high = ta.pivothigh(high, swing_length, swing_length)
+pivot_low = ta.pivotlow(low, swing_length, swing_length)
+
+var float last_swing_high = na
+var float last_swing_low = na
+var float prev_swing_high = na
+var float prev_swing_low = na
+var int last_swing_high_bar = na
+var int last_swing_low_bar = na
+
+if not na(pivot_high)
+    prev_swing_high := last_swing_high
+    last_swing_high := pivot_high
+    last_swing_high_bar := bar_index - swing_length
+
+if not na(pivot_low)
+    prev_swing_low := last_swing_low
+    last_swing_low := pivot_low
+    last_swing_low_bar := bar_index - swing_length
+
+// ============================================================================
+// TREND & BOS TRACKING
+// ============================================================================
+
+var int trend_state = 0  // 1 = uptrend, -1 = downtrend
+var int bos_count = 0
+var int previous_trend_bos_count = 0  // Track BOS count before trend change
+var bool bullish_bos = false
+var bool bearish_bos = false
+
+bullish_bos := false
+bearish_bos := false
+
+// Bullish BOS
+if not na(last_swing_high) and close > last_swing_high and close[1] <= last_swing_high
+    bullish_bos := true
+    if trend_state == 1
+        bos_count += 1
+    else
+        // Trend is changing from bearish to bullish - save previous trend's BOS count
+        previous_trend_bos_count := bos_count
+        bos_count := 1
+    trend_state := 1
+    log.info("⬆️ BULLISH BOS | Bar: " + str.tostring(bar_index) + " | BOS Count: " + str.tostring(bos_count) + " | Previous Trend BOS: " + str.tostring(previous_trend_bos_count) + " | Broke above: " + str.tostring(last_swing_high, "#.##"))
+
+// Bearish BOS
+if not na(last_swing_low) and close < last_swing_low and close[1] >= last_swing_low
+    bearish_bos := true
+    if trend_state == -1
+        bos_count += 1
+    else
+        // Trend is changing from bullish to bearish - save previous trend's BOS count
+        previous_trend_bos_count := bos_count
+        bos_count := 1
+    trend_state := -1
+    log.info("⬇️ BEARISH BOS | Bar: " + str.tostring(bar_index) + " | BOS Count: " + str.tostring(bos_count) + " | Previous Trend BOS: " + str.tostring(previous_trend_bos_count) + " | Broke below: " + str.tostring(last_swing_low, "#.##"))
+
+// ============================================================================
+// CHANGE OF CHARACTER (CHoCH)
+// ============================================================================
+
+var bool bullish_choch = false
+var bool bearish_choch = false
+
+// Reset each bar
+bullish_choch := bullish_bos and trend_state[1] == -1
+bearish_choch := bearish_bos and trend_state[1] == 1
+
+// Debug: Log CHoCH detection
+if bullish_choch
+    log.info("🔄 BULLISH CHoCH | Bar: " + str.tostring(bar_index) + " | Previous Trend BOS: " + str.tostring(previous_trend_bos_count) + " | Current BOS: " + str.tostring(bos_count))
+if bearish_choch
+    log.info("🔄 BEARISH CHoCH | Bar: " + str.tostring(bar_index) + " | Previous Trend BOS: " + str.tostring(previous_trend_bos_count) + " | Current BOS: " + str.tostring(bos_count))
+
+// ============================================================================
+// FVG DETECTION
+// ============================================================================
+
+// Bullish FVG: high[2] < low (gap up)
+bullish_fvg = high[2] < low
+bull_fvg_top = low
+bull_fvg_bottom = high[2]
+bull_fvg_size = bull_fvg_top - bull_fvg_bottom
+bull_fvg_size_pct = (bull_fvg_size / close) * 100
+
+// Bearish FVG: low[2] > high (gap down)
+bearish_fvg = low[2] > high
+bear_fvg_top = low[2]
+bear_fvg_bottom = high
+bear_fvg_size = bear_fvg_top - bear_fvg_bottom
+bear_fvg_size_pct = (bear_fvg_size / close) * 100
+
+// Valid FVGs (meet size requirement)
+valid_bull_fvg = bullish_fvg and bull_fvg_size_pct >= min_fvg_size_pct
+valid_bear_fvg = bearish_fvg and bear_fvg_size_pct >= min_fvg_size_pct
+
+// Debug: Log FVG detection
+if valid_bull_fvg
+    log.info("📦 BULLISH FVG | Bar: " + str.tostring(bar_index) + " | Size: " + str.tostring(bull_fvg_size_pct, "#.##") + "% | Top: " + str.tostring(bull_fvg_top, "#.##") + " | Bottom: " + str.tostring(bull_fvg_bottom, "#.##"))
+if valid_bear_fvg
+    log.info("📦 BEARISH FVG | Bar: " + str.tostring(bar_index) + " | Size: " + str.tostring(bear_fvg_size_pct, "#.##") + "% | Top: " + str.tostring(bear_fvg_top, "#.##") + " | Bottom: " + str.tostring(bear_fvg_bottom, "#.##"))
+
+// ============================================================================
+// FVG TRACKING (matches indicator logic)
+// ============================================================================
+
+// Custom type to store FVG data
+type FVG
+    box fvg_box
+    line mid_line
+    float top
+    float bottom
+    bool is_bullish
+    bool is_mitigated
+    int bar_created
+
+// Arrays to track FVGs
+var FVG[] bull_fvgs = array.new<FVG>()
+var FVG[] bear_fvgs = array.new<FVG>()
+
+// Function to check if FVG is mitigated
+check_mitigation(FVG fvg) =>
+    if fvg.is_bullish
+        close <= fvg.bottom
+    else
+        close >= fvg.top
+
+// Function to clean up old FVGs
+cleanup_fvgs(FVG[] fvg_arr, int max_count, bool show_mit, int max_age) =>
+    if array.size(fvg_arr) > 0
+        for i = array.size(fvg_arr) - 1 to 0
+            fvg = array.get(fvg_arr, i)
+            should_remove = (not show_mit and fvg.is_mitigated)
+            if max_age > 0 and (bar_index - fvg.bar_created) > max_age
+                should_remove := true
+            if should_remove
+                box.delete(fvg.fvg_box)
+                line.delete(fvg.mid_line)
+                array.remove(fvg_arr, i)
+    
+    while array.size(fvg_arr) > max_count
+        old_fvg = array.shift(fvg_arr)
+        box.delete(old_fvg.fvg_box)
+        line.delete(old_fvg.mid_line)
+
+// ============================================================================
+// MINIMUM CRITERIA CHECK (Craig's Basic Requirements)
+// ============================================================================
+// These MUST be true for ANY setup to be valid:
+// 1. Confirmed trend (2+ BOS in PREVIOUS trend before CHoCH)
+// 2. Valid CHoCH
+// 3. Valid FVG
+// 4. FVG not filled immediately (Craig's invalidation rule)
+fvg_not_filled_immediately_bull = valid_bull_fvg and close > bull_fvg_bottom
+fvg_not_filled_immediately_bear = valid_bear_fvg and close < bear_fvg_top
+
+// Use previous_trend_bos_count because CHoCH resets the count to 1
+minimum_criteria_met_bull = previous_trend_bos_count >= 2 and bullish_choch and valid_bull_fvg and fvg_not_filled_immediately_bull
+minimum_criteria_met_bear = previous_trend_bos_count >= 2 and bearish_choch and valid_bear_fvg and fvg_not_filled_immediately_bear
+
+// Debug: Log when we detect potential setups but fail minimum criteria
+if bullish_choch and valid_bull_fvg
+    if previous_trend_bos_count < 2
+        log.warning("⚠️ LONG REJECTED | Bar: " + str.tostring(bar_index) + " | Reason: Previous trend had only " + str.tostring(previous_trend_bos_count) + " BOS (need 2+)")
+    else if not fvg_not_filled_immediately_bull
+        log.warning("⚠️ LONG REJECTED | Bar: " + str.tostring(bar_index) + " | Reason: FVG filled immediately (close " + str.tostring(close, "#.##") + " <= FVG bottom " + str.tostring(bull_fvg_bottom, "#.##") + ")")
+    else if minimum_criteria_met_bull
+        log.info("✅ LONG MINIMUM CRITERIA MET | Bar: " + str.tostring(bar_index) + " | Previous Trend BOS: " + str.tostring(previous_trend_bos_count) + " | Proceeding to quality grading...")
+
+if bearish_choch and valid_bear_fvg
+    if previous_trend_bos_count < 2
+        log.warning("⚠️ SHORT REJECTED | Bar: " + str.tostring(bar_index) + " | Reason: Previous trend had only " + str.tostring(previous_trend_bos_count) + " BOS (need 2+)")
+    else if not fvg_not_filled_immediately_bear
+        log.warning("⚠️ SHORT REJECTED | Bar: " + str.tostring(bar_index) + " | Reason: FVG filled immediately (close " + str.tostring(close, "#.##") + " >= FVG top " + str.tostring(bear_fvg_top, "#.##") + ")")
+    else if minimum_criteria_met_bear
+        log.info("✅ SHORT MINIMUM CRITERIA MET | Bar: " + str.tostring(bar_index) + " | Previous Trend BOS: " + str.tostring(previous_trend_bos_count) + " | Proceeding to quality grading...")
+
+// ============================================================================
+// QUALITY FACTOR DETECTION (Position Sizing Only)
+// ============================================================================
+// These 5 factors determine position size for setups that pass minimum criteria:
+// 1. Strong displacement candle (1.5x average size)
+// 2. Failed new extreme before CHoCH
+// 3. Significant FVG size (above average gap size)
+// 4. Recent market structure (BOS within 10 bars)
+// 5. FVG still unfilled (not immediately filled)
+
+// Calculate average candle size for comparison
+avg_candle_size = ta.sma(high - low, 20)
+
+// Factor 1: Strong displacement candle (FVG-creating candle is 1.5x+ average)
+displacement_candle_size = math.abs(close[1] - open[1])
+factor_strong_displacement = displacement_candle_size > (avg_candle_size * 1.5)
+
+// Factor 2: Failed new extreme before CHoCH
+// Bullish CHoCH: previous bar failed to make lower low
+// Bearish CHoCH: previous bar failed to make higher high
+factor_failed_extreme_bull = bullish_choch and low[1] > nz(last_swing_low, low[1])
+factor_failed_extreme_bear = bearish_choch and high[1] < nz(last_swing_high, high[1])
+
+// Factor 3: Significant FVG size (gap is larger than average candle)
+factor_significant_fvg_bull = valid_bull_fvg and bull_fvg_size > avg_candle_size
+factor_significant_fvg_bear = valid_bear_fvg and bear_fvg_size > avg_candle_size
+
+// Track last BOS bar (must be declared before use)
+var int last_bos_bar = na
+if bullish_bos or bearish_bos
+    last_bos_bar := bar_index
+
+// Factor 4: Recent structure (recent BOS within last 10 bars confirms direction)
+factor_recent_structure = bar_index - nz(last_bos_bar, 0) < 10
+
+// Factor 5: FVG completely untouched (price hasn't even wicked into it)
+// For bullish: low hasn't touched the FVG bottom yet (stronger than just unfilled)
+// For bearish: high hasn't touched the FVG top yet (stronger than just unfilled)
+factor_fvg_untouched_bull = valid_bull_fvg and low > bull_fvg_bottom
+factor_fvg_untouched_bear = valid_bear_fvg and high < bear_fvg_top
+
+// Calculate quality score for current setup (out of 5 factors)
+calc_quality_score_long() =>
+    score = 0
+    if factor_strong_displacement
+        score += 1
+    if factor_failed_extreme_bull
+        score += 1
+    if factor_significant_fvg_bull
+        score += 1
+    if factor_recent_structure
+        score += 1
+    if factor_fvg_untouched_bull
+        score += 1
+    score
+
+calc_quality_score_short() =>
+    score = 0
+    if factor_strong_displacement
+        score += 1
+    if factor_failed_extreme_bear
+        score += 1
+    if factor_significant_fvg_bear
+        score += 1
+    if factor_recent_structure
+        score += 1
+    if factor_fvg_untouched_bear
+        score += 1
+    score
+
+// Convert score to grade
+get_grade(int score) =>
+    if score >= GRADE_A_PLUS_MIN
+        "A+"
+    else if score >= GRADE_A_MIN
+        "A"
+    else if score >= GRADE_B_MIN
+        "B"
+    else if score >= GRADE_C_MIN
+        "C"
+    else
+        "F"
+
+// Convert grade to risk percentage (uses individual settings per grade)
+get_risk_for_grade(string grade) =>
+    if grade == "A+"
+        risk_pct_a_plus
+    else if grade == "A"
+        risk_pct_a
+    else if grade == "B"
+        risk_pct_b
+    else if grade == "C"
+        risk_pct_c
+    else
+        0.0  // F grade = no trade
+
+// Check if grade meets minimum requirement
+grade_meets_minimum(string grade) =>
+    if min_grade_to_trade == "A+"
+        grade == "A+"
+    else if min_grade_to_trade == "A"
+        grade == "A+" or grade == "A"
+    else if min_grade_to_trade == "B"
+        grade == "A+" or grade == "A" or grade == "B"
+    else
+        grade != "F"  // C allows all except F
+
+// Generate quality factor breakdown text for LONG setups
+get_quality_breakdown_long() =>
+    string result = "MINIMUM CRITERIA: ✓ Passed\n"
+    result += "(2+ BOS, CHoCH, Valid FVG)\n\n"
+    result += "QUALITY FACTORS:\n"
+    result += (factor_strong_displacement ? "✓" : "✗") + " Strong Move\n"
+    result += (factor_failed_extreme_bull ? "✓" : "✗") + " Failed Low\n"
+    result += (factor_significant_fvg_bull ? "✓" : "✗") + " Big FVG\n"
+    result += (factor_recent_structure ? "✓" : "✗") + " Recent BOS\n"
+    result += (factor_fvg_untouched_bull ? "✓" : "✗") + " FVG Untouched"
+    result
+
+// Generate quality factor breakdown text for SHORT setups
+get_quality_breakdown_short() =>
+    string result = "MINIMUM CRITERIA: ✓ Passed\n"
+    result += "(2+ BOS, CHoCH, Valid FVG)\n\n"
+    result += "QUALITY FACTORS:\n"
+    result += (factor_strong_displacement ? "✓" : "✗") + " Strong Move\n"
+    result += (factor_failed_extreme_bear ? "✓" : "✗") + " Failed High\n"
+    result += (factor_significant_fvg_bear ? "✓" : "✗") + " Big FVG\n"
+    result += (factor_recent_structure ? "✓" : "✗") + " Recent BOS\n"
+    result += (factor_fvg_untouched_bear ? "✓" : "✗") + " FVG Untouched"
+    result
+
+// Store current setup grade
+var string current_grade = "F"
+var float current_risk_pct = 0.0
+var int current_quality_score = 0
+
+// ============================================================================
+// ENTRY SIGNALS
+// ============================================================================
+
+// Track if we have a pending setup
+var bool pending_long = false
+var bool pending_short = false
+var float entry_price = na
+var float stop_loss = na
+var float take_profit = na
+var float fvg_top = na
+var float fvg_bottom = na
+var float initial_risk = na  // Track initial risk for trailing stop calculation
+var bool trailing_active = false  // Track if trailing stop is active
+
+// Track entry zone visuals (to avoid creating multiples)
+var line entry_line = na
+var label entry_label = na
+var line tp_line = na
+var label tp_label = na
+var line sl_line = na
+var label sl_label = na
+
+// Long setup: Must pass minimum criteria FIRST (2+ BOS, CHoCH, Valid FVG)
+// CRITICAL: Don't detect ANY new setups while already in a position
+long_setup_raw = minimum_criteria_met_bull and in_session and strategy.position_size == 0 and not pending_short
+
+// Calculate quality for long setup (only if minimum criteria met)
+long_quality_score = long_setup_raw ? calc_quality_score_long() : 0
+long_grade = get_grade(long_quality_score)
+long_risk_pct = get_risk_for_grade(long_grade)
+long_passes_filter = grade_meets_minimum(long_grade)
+
+// Only proceed if setup passes minimum grade filter
+long_setup = long_setup_raw and (not use_quality_grading or long_passes_filter)
+
+// CRITICAL: Triple-check we're flat before allowing any setup logic to run
+if long_setup and strategy.position_size == 0 and not pending_short
+    pending_short := false
+    fvg_top := bull_fvg_top
+    fvg_bottom := bull_fvg_bottom
+    // Store quality info
+    current_quality_score := long_quality_score
+    current_grade := long_grade
+    current_risk_pct := use_quality_grading ? long_risk_pct : risk_pct_a_plus
+    // Entry at specified % of FVG (default 50% = midpoint)
+    entry_price := fvg_bottom + (fvg_top - fvg_bottom) * (fvg_entry_pct / 100)
+    // Stop loss below the FVG or swing low
+    stop_loss := math.min(fvg_bottom, nz(last_swing_low, fvg_bottom)) - (fvg_top - fvg_bottom) * 0.1
+    // Take profit at R:R ratio
+    risk = entry_price - stop_loss
+    take_profit := entry_price + (risk * risk_reward)
+    
+    // Calculate position size based on grade
+    // Position % is: A+ = 80%, A = 70%, B = 60%, C = 50% (configurable in inputs)
+    position_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
+    position_value = strategy.equity * (position_pct / 100)
+    position_qty = position_value / entry_price
+    
+    log.info("🔵 LONG SETUP DETECTED | Bar: " + str.tostring(bar_index) + " | Grade: " + current_grade + " | Entry: " + str.tostring(entry_price, "#.##") + " | Stop: " + str.tostring(stop_loss, "#.##") + " | Position: " + str.tostring(position_pct, "#") + "% of $" + str.tostring(strategy.equity, "#.##") + " = " + str.tostring(position_qty, "#.######") + " units")
+    
+    // Check if price already touched entry zone on this bar
+    if low <= entry_price
+        // Price already touched entry - enter immediately
+        log.info("✅ LONG ENTERED IMMEDIATELY | Bar: " + str.tostring(bar_index) + " | Qty: " + str.tostring(position_qty, "#.######"))
+        strategy.entry("Long", strategy.long, qty=position_qty)
+        strategy.exit("Long Exit", "Long", stop=stop_loss, limit=take_profit)
+        initial_risk := entry_price - stop_loss  // Store initial risk for trailing
+        trailing_active := use_trailing_stop  // Activate trailing immediately if enabled
+        if use_trailing_stop
+            log.info("🔄 TRAILING ACTIVATED | Bar: " + str.tostring(bar_index) + " | Long position - trailing by " + str.tostring(trail_offset_r, "#.#") + "R from entry")
+        pending_long := false
+    else
+        // Price hasn't touched entry yet - set pending
+        log.info("⏳ LONG PENDING | Bar: " + str.tostring(bar_index) + " | Waiting for retrace to: " + str.tostring(entry_price, "#.##"))
+        pending_long := true
+    // Create entry visuals (delete old ones first if not keeping past entries)
+    if not keep_past_entries
+        line.delete(entry_line)
+        label.delete(entry_label)
+        line.delete(tp_line)
+        label.delete(tp_label)
+        line.delete(sl_line)
+        label.delete(sl_label)
+    if not hide_all_visuals and show_entry_zones
+        grade_text = show_grade_label ? " [" + current_grade + "]" : ""
+        // Entry line and label
+        entry_line := line.new(bar_index, entry_price, bar_index + BOX_EXTEND_BARS, entry_price,
+             color=entry_color, style=line.style_dashed, width=2)
+        entry_label := label.new(bar_index + BOX_EXTEND_BARS, entry_price, "Entry " + str.tostring(entry_price, "#.##") + grade_text,
+             style=label.style_label_left, color=color.new(entry_color, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+        
+        // Take Profit line and label
+        tp_line := line.new(bar_index, take_profit, bar_index + BOX_EXTEND_BARS, take_profit,
+             color=color.green, style=line.style_solid, width=2)
+        tp_label := label.new(bar_index + BOX_EXTEND_BARS, take_profit, "TP " + str.tostring(take_profit, "#.##") + " (" + str.tostring(risk_reward, "#.#") + "R)",
+             style=label.style_label_left, color=color.new(color.green, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+        
+        // Stop Loss line and label
+        sl_line := line.new(bar_index, stop_loss, bar_index + BOX_EXTEND_BARS, stop_loss,
+             color=color.red, style=line.style_solid, width=2)
+        sl_label := label.new(bar_index + BOX_EXTEND_BARS, stop_loss, "SL " + str.tostring(stop_loss, "#.##"),
+             style=label.style_label_left, color=color.new(color.red, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+    
+    // Show quality factor breakdown (positioned well below the SETUP label to avoid overlap)
+    if not hide_all_visuals and show_quality_breakdown
+        breakdown_text = "📊 LONG " + current_grade + " (" + str.tostring(current_quality_score) + "/5)\n" + get_quality_breakdown_long()
+        // Position breakdown label further below to avoid overlapping SETUP label
+        breakdown_y = low - (high - low) * 3.0
+        label.new(bar_index, breakdown_y, breakdown_text, 
+             style=label.style_label_center, color=color.new(color.black, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+        // Draw connecting line from setup to breakdown
+        line.new(bar_index, low, bar_index, breakdown_y, color=bull_color, width=1, style=line.style_dotted)
+
+// Short setup: Must pass minimum criteria FIRST (2+ BOS, CHoCH, Valid FVG)
+// CRITICAL: Don't detect ANY new setups while already in a position
+short_setup_raw = minimum_criteria_met_bear and in_session and strategy.position_size == 0 and not pending_long
+
+// Calculate quality for short setup (only if minimum criteria met)
+short_quality_score = short_setup_raw ? calc_quality_score_short() : 0
+short_grade = get_grade(short_quality_score)
+short_risk_pct = get_risk_for_grade(short_grade)
+short_passes_filter = grade_meets_minimum(short_grade)
+
+// Only proceed if setup passes minimum grade filter
+short_setup = short_setup_raw and (not use_quality_grading or short_passes_filter)
+
+// CRITICAL: Triple-check we're flat before allowing any setup logic to run
+if short_setup and strategy.position_size == 0 and not pending_long
+    pending_long := false
+    fvg_top := bear_fvg_top
+    fvg_bottom := bear_fvg_bottom
+    // Store quality info
+    current_quality_score := short_quality_score
+    current_grade := short_grade
+    current_risk_pct := use_quality_grading ? short_risk_pct : risk_pct_a_plus
+    // Entry at specified % of FVG (default 50% = midpoint)
+    entry_price := fvg_top - (fvg_top - fvg_bottom) * (fvg_entry_pct / 100)
+    // Stop loss above the FVG or swing high
+    stop_loss := math.max(fvg_top, nz(last_swing_high, fvg_top)) + (fvg_top - fvg_bottom) * 0.1
+    // Take profit at R:R ratio
+    risk = stop_loss - entry_price
+    take_profit := entry_price - (risk * risk_reward)
+    
+    // Calculate position size based on grade
+    // Position % is: A+ = 80%, A = 70%, B = 60%, C = 50% (configurable in inputs)
+    position_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
+    position_value = strategy.equity * (position_pct / 100)
+    position_qty = position_value / entry_price
+    
+    log.info("🔴 SHORT SETUP DETECTED | Bar: " + str.tostring(bar_index) + " | Grade: " + current_grade + " | Entry: " + str.tostring(entry_price, "#.##") + " | Stop: " + str.tostring(stop_loss, "#.##") + " | Position: " + str.tostring(position_pct, "#") + "% of $" + str.tostring(strategy.equity, "#.##") + " = " + str.tostring(position_qty, "#.######") + " units")
+    
+    // Check if price already touched entry zone on this bar
+    if high >= entry_price
+        // Price already touched entry - enter immediately
+        log.info("✅ SHORT ENTERED IMMEDIATELY | Bar: " + str.tostring(bar_index) + " | Qty: " + str.tostring(position_qty, "#.######"))
+        strategy.entry("Short", strategy.short, qty=position_qty)
+        strategy.exit("Short Exit", "Short", stop=stop_loss, limit=take_profit)
+        initial_risk := stop_loss - entry_price  // Store initial risk for trailing
+        trailing_active := use_trailing_stop  // Activate trailing immediately if enabled
+        if use_trailing_stop
+            log.info("🔄 TRAILING ACTIVATED | Bar: " + str.tostring(bar_index) + " | Short position - trailing by " + str.tostring(trail_offset_r, "#.#") + "R from entry")
+        pending_short := false
+    else
+        // Price hasn't touched entry yet - set pending
+        log.info("⏳ SHORT PENDING | Bar: " + str.tostring(bar_index) + " | Waiting for retrace to: " + str.tostring(entry_price, "#.##"))
+        pending_short := true
+    // Create entry visuals (delete old ones first if not keeping past entries)
+    if not keep_past_entries
+        line.delete(entry_line)
+        label.delete(entry_label)
+        line.delete(tp_line)
+        label.delete(tp_label)
+        line.delete(sl_line)
+        label.delete(sl_label)
+    if not hide_all_visuals and show_entry_zones
+        grade_text = show_grade_label ? " [" + current_grade + "]" : ""
+        // Entry line and label
+        entry_line := line.new(bar_index, entry_price, bar_index + BOX_EXTEND_BARS, entry_price,
+             color=entry_color, style=line.style_dashed, width=2)
+        entry_label := label.new(bar_index + BOX_EXTEND_BARS, entry_price, "Entry " + str.tostring(entry_price, "#.##") + grade_text,
+             style=label.style_label_left, color=color.new(entry_color, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+        
+        // Take Profit line and label
+        tp_line := line.new(bar_index, take_profit, bar_index + BOX_EXTEND_BARS, take_profit,
+             color=color.green, style=line.style_solid, width=2)
+        tp_label := label.new(bar_index + BOX_EXTEND_BARS, take_profit, "TP " + str.tostring(take_profit, "#.##") + " (" + str.tostring(risk_reward, "#.#") + "R)",
+             style=label.style_label_left, color=color.new(color.green, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+        
+        // Stop Loss line and label
+        sl_line := line.new(bar_index, stop_loss, bar_index + BOX_EXTEND_BARS, stop_loss,
+             color=color.red, style=line.style_solid, width=2)
+        sl_label := label.new(bar_index + BOX_EXTEND_BARS, stop_loss, "SL " + str.tostring(stop_loss, "#.##"),
+             style=label.style_label_left, color=color.new(color.red, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+    
+    // Show quality factor breakdown (positioned well above the SETUP label to avoid overlap)
+    if not hide_all_visuals and show_quality_breakdown
+        breakdown_text = "📊 SHORT " + current_grade + " (" + str.tostring(current_quality_score) + "/5)\n" + get_quality_breakdown_short()
+        // Position breakdown label further above to avoid overlapping SETUP label
+        breakdown_y = high + (high - low) * 3.0
+        label.new(bar_index, breakdown_y, breakdown_text, 
+             style=label.style_label_center, color=color.new(color.black, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+        // Draw connecting line from setup to breakdown
+        line.new(bar_index, high, bar_index, breakdown_y, color=bear_color, width=1, style=line.style_dotted)
+
+// ============================================================================
+// POSITION SIZING (Quality-Based)
+// ============================================================================
+// Position size is calculated as X% of current equity based on setup grade:
+// A+ = 80% of equity (highest conviction)
+// A  = 70% of equity
+// B  = 60% of equity
+// C  = 50% of equity (lowest conviction)
+// These values are configurable in the "Position Size % Per Grade" inputs
+
+// ============================================================================
+// TRADE EXECUTION
+// ============================================================================
+// Check for pending orders and retraces on each bar
+// This ensures trades execute even if limit orders don't fill automatically
+
+// Check if pending long order should fill (price retraced to entry)
+if pending_long and strategy.position_size == 0 and not na(entry_price) and not na(stop_loss) and not na(take_profit)
+    if low <= entry_price
+        // Calculate position size based on grade and CURRENT equity
+        position_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
+        position_value = strategy.equity * (position_pct / 100)
+        position_qty = position_value / entry_price
+        
+        log.info("✅ LONG RETRACE FILLED | Bar: " + str.tostring(bar_index) + " | Entry: " + str.tostring(entry_price, "#.##") + " | Position: " + str.tostring(position_pct, "#") + "% of $" + str.tostring(strategy.equity, "#.##") + " = " + str.tostring(position_qty, "#.######") + " units")
+        strategy.entry("Long", strategy.long, qty=position_qty)
+        strategy.exit("Long Exit", "Long", stop=stop_loss, limit=take_profit)
+        initial_risk := entry_price - stop_loss  // Store initial risk for trailing
+        trailing_active := use_trailing_stop  // Activate trailing immediately if enabled
+        if use_trailing_stop
+            log.info("🔄 TRAILING ACTIVATED | Bar: " + str.tostring(bar_index) + " | Long position - trailing by " + str.tostring(trail_offset_r, "#.#") + "R from entry")
+        log.info("📊 LONG ORDER PLACED | Bar: " + str.tostring(bar_index) + " | Position size after: " + str.tostring(strategy.position_size) + " | Equity: $" + str.tostring(strategy.equity, "#.##"))
+        pending_long := false
+        if not keep_past_entries
+            line.delete(entry_line)
+            label.delete(entry_label)
+            line.delete(tp_line)
+            label.delete(tp_label)
+            line.delete(sl_line)
+            label.delete(sl_label)
+
+// Check if pending short order should fill (price retraced to entry)
+if pending_short and strategy.position_size == 0 and not na(entry_price) and not na(stop_loss) and not na(take_profit)
+    if high >= entry_price
+        // Calculate position size based on grade and CURRENT equity
+        position_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
+        position_value = strategy.equity * (position_pct / 100)
+        position_qty = position_value / entry_price
+        
+        log.info("✅ SHORT RETRACE FILLED | Bar: " + str.tostring(bar_index) + " | Entry: " + str.tostring(entry_price, "#.##") + " | Position: " + str.tostring(position_pct, "#") + "% of $" + str.tostring(strategy.equity, "#.##") + " = " + str.tostring(position_qty, "#.######") + " units")
+        strategy.entry("Short", strategy.short, qty=position_qty)
+        strategy.exit("Short Exit", "Short", stop=stop_loss, limit=take_profit)
+        initial_risk := stop_loss - entry_price  // Store initial risk for trailing
+        trailing_active := use_trailing_stop  // Activate trailing immediately if enabled
+        if use_trailing_stop
+            log.info("🔄 TRAILING ACTIVATED | Bar: " + str.tostring(bar_index) + " | Short position - trailing by " + str.tostring(trail_offset_r, "#.#") + "R from entry")
+        log.info("📊 SHORT ORDER PLACED | Bar: " + str.tostring(bar_index) + " | Position size after: " + str.tostring(strategy.position_size) + " | Equity: $" + str.tostring(strategy.equity, "#.##"))
+        pending_short := false
+        if not keep_past_entries
+            line.delete(entry_line)
+            label.delete(entry_label)
+            line.delete(tp_line)
+            label.delete(tp_label)
+            line.delete(sl_line)
+            label.delete(sl_label)
+
+
+// ============================================================================
+// TRAILING STOP LOGIC
+// ============================================================================
+// NOTE: Trailing stop activates immediately upon entry (set during entry logic above)
+// No need for BOS confirmation - TP and trailing SL are the only exit conditions
+
+// ============================================================================
+// EXIT MANAGEMENT
+// ============================================================================
+// CRITICAL: Exit orders must be placed on EVERY bar to remain active
+
+// For LONG positions
+if strategy.position_size > 0
+    if use_trailing_stop and trailing_active and not na(initial_risk)
+        // Trailing stop is active - calculate trailing stop
+        trail_distance = initial_risk * trail_offset_r
+        new_stop = high - trail_distance
+        // Only move stop up, never down
+        current_stop = na(stop_loss) ? strategy.position_avg_price : stop_loss
+        if new_stop > current_stop
+            stop_loss := new_stop
+            log.info("📈 TRAILING STOP UPDATED | Bar: " + str.tostring(bar_index) + " | New Stop: " + str.tostring(stop_loss, "#.##") + " | High: " + str.tostring(high, "#.##"))
+    // Place/update exit order (whether trailing or fixed)
+    strategy.exit("Long Exit", "Long", stop=stop_loss, limit=take_profit)
+
+// For SHORT positions
+if strategy.position_size < 0
+    if use_trailing_stop and trailing_active and not na(initial_risk)
+        // Trailing stop is active - calculate trailing stop
+        trail_distance = initial_risk * trail_offset_r
+        new_stop = low + trail_distance
+        // Only move stop down, never up
+        current_stop = na(stop_loss) ? strategy.position_avg_price : stop_loss
+        if new_stop < current_stop
+            stop_loss := new_stop
+            log.info("📉 TRAILING STOP UPDATED | Bar: " + str.tostring(bar_index) + " | New Stop: " + str.tostring(stop_loss, "#.##") + " | Low: " + str.tostring(low, "#.##"))
+    // Place/update exit order (whether trailing or fixed)
+    strategy.exit("Short Exit", "Short", stop=stop_loss, limit=take_profit)
+
+// ============================================================================
+// EXIT LOGGING
+// ============================================================================
+
+// Track position closures and log exit reasons
+var float last_position_size = 0.0
+var float exit_price = na
+
+if last_position_size != 0 and strategy.position_size == 0
+    // Position just closed - reset all position-specific flags
+    trailing_active := false
+    initial_risk := na
+    
+    exit_price := close
+    exit_pnl = strategy.netprofit - nz(strategy.netprofit[1], 0)
+    exit_pnl_pct = last_position_size > 0 ? ((exit_price - strategy.position_avg_price[1]) / strategy.position_avg_price[1]) * 100 : ((strategy.position_avg_price[1] - exit_price) / strategy.position_avg_price[1]) * 100
+    
+    // Determine exit reason
+    // NOTE: Stops are triggered by wicks (high/low), not close prices
+    exit_reason = ""
+    price_tolerance = 50.0  // Wider tolerance to account for wick-based stops vs close-based detection
+    
+    if last_position_size > 0
+        // Was long - stop triggered by LOW, TP triggered by HIGH
+        if not na(take_profit[1]) and high >= (take_profit[1] - price_tolerance)
+            exit_reason := "Take Profit Hit"
+        else if not na(stop_loss[1]) and low <= (stop_loss[1] + price_tolerance)
+            exit_reason := trailing_active[1] ? "Trailing Stop Hit" : "Stop Loss Hit"
+        else
+            exit_reason := "Manual Close (Close:" + str.tostring(exit_price, "#.##") + " | H:" + str.tostring(high, "#.##") + " | L:" + str.tostring(low, "#.##") + " | SL:" + str.tostring(stop_loss[1], "#.##") + " | TP:" + str.tostring(take_profit[1], "#.##") + ")"
+    else
+        // Was short - stop triggered by HIGH, TP triggered by LOW
+        if not na(take_profit[1]) and low <= (take_profit[1] + price_tolerance)
+            exit_reason := "Take Profit Hit"
+        else if not na(stop_loss[1]) and high >= (stop_loss[1] - price_tolerance)
+            exit_reason := trailing_active[1] ? "Trailing Stop Hit" : "Stop Loss Hit"
+        else
+            exit_reason := "Manual Close (Close:" + str.tostring(exit_price, "#.##") + " | H:" + str.tostring(high, "#.##") + " | L:" + str.tostring(low, "#.##") + " | SL:" + str.tostring(stop_loss[1], "#.##") + " | TP:" + str.tostring(take_profit[1], "#.##") + ")"
+    
+    direction = last_position_size > 0 ? "LONG" : "SHORT"
+    trailing_status = trailing_active[1] ? "ACTIVE" : "INACTIVE"
+    log.info("🚪 " + direction + " EXIT | Bar: " + str.tostring(bar_index) + " | Reason: " + exit_reason + " | Trailing: " + trailing_status + " | P&L: " + str.tostring(exit_pnl_pct, "#.##") + "% | Equity: $" + str.tostring(strategy.equity, "#.##"))
+
+last_position_size := strategy.position_size
+
+// ============================================================================
+// FVG BOX MANAGEMENT (matches indicator behavior)
+// ============================================================================
+
+// Create bullish FVG with tracking
+if valid_bull_fvg and show_fvg_boxes and not hide_all_visuals
+    bull_mid = (bull_fvg_top + bull_fvg_bottom) / 2
+    new_box = box.new(bar_index - 2, bull_fvg_top, bar_index + BOX_EXTEND_BARS, bull_fvg_bottom,
+         bgcolor=color.new(bull_color, 80), border_color=bull_color)
+    new_line = line.new(bar_index - 2, bull_mid, bar_index + BOX_EXTEND_BARS, bull_mid,
+         color=color.new(bull_color, 50), style=line.style_dashed, width=1)
+    new_fvg = FVG.new(new_box, new_line, bull_fvg_top, bull_fvg_bottom, true, false, bar_index)
+    array.push(bull_fvgs, new_fvg)
+
+// Create bearish FVG with tracking
+if valid_bear_fvg and show_fvg_boxes and not hide_all_visuals
+    bear_mid = (bear_fvg_top + bear_fvg_bottom) / 2
+    new_box = box.new(bar_index - 2, bear_fvg_top, bar_index + BOX_EXTEND_BARS, bear_fvg_bottom,
+         bgcolor=color.new(bear_color, 80), border_color=bear_color)
+    new_line = line.new(bar_index - 2, bear_mid, bar_index + BOX_EXTEND_BARS, bear_mid,
+         color=color.new(bear_color, 50), style=line.style_dashed, width=1)
+    new_fvg = FVG.new(new_box, new_line, bear_fvg_top, bear_fvg_bottom, false, false, bar_index)
+    array.push(bear_fvgs, new_fvg)
+
+// Update existing bullish FVGs
+if array.size(bull_fvgs) > 0
+    for i = 0 to array.size(bull_fvgs) - 1
+        fvg = array.get(bull_fvgs, i)
+        if not fvg.is_mitigated and check_mitigation(fvg)
+            fvg.is_mitigated := true
+            box.set_bgcolor(fvg.fvg_box, color.new(color.gray, 90))
+            box.set_border_color(fvg.fvg_box, color.gray)
+            line.set_color(fvg.mid_line, color.new(color.gray, 70))
+        if not fvg.is_mitigated
+            box.set_right(fvg.fvg_box, bar_index + BOX_EXTEND_BARS)
+            line.set_x2(fvg.mid_line, bar_index + BOX_EXTEND_BARS)
+
+// Update existing bearish FVGs
+if array.size(bear_fvgs) > 0
+    for i = 0 to array.size(bear_fvgs) - 1
+        fvg = array.get(bear_fvgs, i)
+        if not fvg.is_mitigated and check_mitigation(fvg)
+            fvg.is_mitigated := true
+            box.set_bgcolor(fvg.fvg_box, color.new(color.gray, 90))
+            box.set_border_color(fvg.fvg_box, color.gray)
+            line.set_color(fvg.mid_line, color.new(color.gray, 70))
+        if not fvg.is_mitigated
+            box.set_right(fvg.fvg_box, bar_index + BOX_EXTEND_BARS)
+            line.set_x2(fvg.mid_line, bar_index + BOX_EXTEND_BARS)
+
+// Cleanup old/mitigated FVGs
+cleanup_fvgs(bull_fvgs, max_fvgs, show_mitigated, max_age_bars)
+cleanup_fvgs(bear_fvgs, max_fvgs, show_mitigated, max_age_bars)
+
+// ============================================================================
+// VISUAL PLOTTING (can be disabled if using separate indicators)
+// ============================================================================
+
+// Plot swing points
+plotshape(not hide_all_visuals and show_structure and not na(pivot_high) ? pivot_high : na, 
+     title="Swing High", style=shape.triangledown, 
+     location=location.absolute, color=bear_color, size=size.small, offset=-swing_length)
+
+plotshape(not hide_all_visuals and show_structure and not na(pivot_low) ? pivot_low : na, 
+     title="Swing Low", style=shape.triangleup, 
+     location=location.absolute, color=bull_color, size=size.small, offset=-swing_length)
+
+// Draw CHoCH labels
+if not hide_all_visuals and show_structure and bullish_choch
+    label.new(bar_index, high, "CHoCH↑", style=label.style_label_down, 
+         color=color.new(DEFAULT_CHOCH_BULL_COLOR, 60), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+
+if not hide_all_visuals and show_structure and bearish_choch
+    label.new(bar_index, low, "CHoCH↓", style=label.style_label_up, 
+         color=color.new(DEFAULT_CHOCH_BEAR_COLOR, 60), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+
+// Entry zone visuals are now created once when setup triggers (see ENTRY SIGNALS section)
+
+// Plot SETUP labels with grade
+if not hide_all_visuals and long_setup
+    setup_text = "SETUP " + (show_grade_label ? "[" + current_grade + "] " + str.tostring(current_risk_pct, "#") + "%" : "")
+    label.new(bar_index, low, setup_text, style=label.style_label_up,
+         color=bull_color, textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+
+if not hide_all_visuals and short_setup
+    setup_text = "SETUP " + (show_grade_label ? "[" + current_grade + "] " + str.tostring(current_risk_pct, "#") + "%" : "")
+    label.new(bar_index, high, setup_text, style=label.style_label_down,
+         color=bear_color, textcolor=color.white, size=DEFAULT_LABEL_SIZE)
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+
+// Move info table to bottom right to avoid overlap with TradingView's strategy panel
+var table info = table.new(position.bottom_right, 2, 11, bgcolor=color.new(color.black, 85), border_width=2)
+
+if barstate.islast and not hide_all_visuals
+    // Clear the table before repopulating to avoid overlapping text
+    table.clear(info, 0, 0, 1, 10)
+    
+    trend_text = trend_state == 1 ? "UPTREND" : trend_state == -1 ? "DOWNTREND" : "RANGING"
+    trend_col = trend_state == 1 ? bull_color : trend_state == -1 ? bear_color : color.gray
+    confirmed_text = bos_count >= 2 ? "YES" : "NO"
+    
+    // Grade color
+    grade_col = current_grade == "A+" ? color.lime : current_grade == "A" ? color.green : current_grade == "B" ? color.yellow : current_grade == "C" ? color.orange : color.red
+    
+    // Equity color (green if up, red if down from initial)
+    equity_col = strategy.equity >= strategy.initial_capital ? color.lime : color.red
+    pnl_pct = ((strategy.equity - strategy.initial_capital) / strategy.initial_capital) * 100
+    
+    // Row 0: Equity
+    table.cell(info, 0, 0, "💰 Equity:", text_color=color.white, text_size=size.normal)
+    table.cell(info, 1, 0, "$" + str.tostring(strategy.equity, "#.##"), text_color=equity_col, text_size=size.normal)
+    
+    // Row 1: Trend with BOS count
+    table.cell(info, 0, 1, "📈 Trend:", text_color=color.white, text_size=size.normal)
+    table.cell(info, 1, 1, trend_text, text_color=trend_col, text_size=size.normal)
+    
+    // Row 2: BOS Count (Current / Previous)
+    table.cell(info, 0, 2, "BOS (Cur/Prev):", text_color=color.white, text_size=size.normal)
+    table.cell(info, 1, 2, str.tostring(bos_count) + " / " + str.tostring(previous_trend_bos_count), text_color=trend_col, text_size=size.normal)
+    
+    // Row 3: Confirmed Trend
+    table.cell(info, 0, 3, "Confirmed:", text_color=color.white, text_size=size.normal)
+    table.cell(info, 1, 3, confirmed_text, text_color=bos_count >= 2 ? color.lime : color.red, text_size=size.normal)
+    
+    // Row 4: Pending
+    table.cell(info, 0, 4, "Pending:", text_color=color.white, text_size=size.normal)
+    table.cell(info, 1, 4, pending_long ? "LONG" : pending_short ? "SHORT" : "NONE", 
+         text_color=pending_long ? bull_color : pending_short ? bear_color : color.gray, text_size=size.normal)
+    
+    // Row 5: R:R
+    table.cell(info, 0, 5, "R:R:", text_color=color.white, text_size=size.normal)
+    table.cell(info, 1, 5, "1:" + str.tostring(risk_reward, "#.#"), text_color=color.white, text_size=size.normal)
+    
+    // Row 6: Grade
+    table.cell(info, 0, 6, "⭐ Grade:", text_color=color.yellow, text_size=size.normal)
+    table.cell(info, 1, 6, current_grade + " (" + str.tostring(current_quality_score) + "/5)", text_color=grade_col, text_size=size.normal)
+    
+    // Row 7: Position %
+    table.cell(info, 0, 7, "Position %:", text_color=color.white, text_size=size.normal)
+    display_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
+    table.cell(info, 1, 7, str.tostring(display_pct, "#.#") + "%", text_color=grade_col, text_size=size.normal)
+    
+    // Row 8: Min Grade + Size Range combined
+    table.cell(info, 0, 8, "Min Grade:", text_color=color.white, text_size=size.normal)
+    table.cell(info, 1, 8, min_grade_to_trade, text_color=color.white, text_size=size.normal)
+    
+    // Row 9: Size Range
+    table.cell(info, 0, 9, "Size Range:", text_color=color.white, text_size=size.normal)
+    table.cell(info, 1, 9, str.tostring(risk_pct_c, "#") + "% - " + str.tostring(risk_pct_a_plus, "#") + "%", text_color=color.white, text_size=size.normal)
+    
+    // Row 10: Weekly Average Trades
+    // Calculate weeks elapsed since first bar (estimate based on bars and timeframe)
+    bars_elapsed = bar_index + 1
+    // Approximate bars per week: 7 days * 24 hours * 4 (15min bars per hour) = 672 bars/week for 15min charts
+    // For hourly: 7 * 24 = 168 bars/week
+    // Use a generic approximation: 1 week = 168 hours of market time
+    bars_per_week = timeframe.in_seconds(timeframe.period) == 0 ? 672 : 604800 / timeframe.in_seconds(timeframe.period)
+    weeks_elapsed = math.max(1, bars_elapsed / bars_per_week)
+    trades_per_week = weeks_elapsed > 0 ? strategy.closedtrades / weeks_elapsed : 0
+    table.cell(info, 0, 10, "📊 Trades/Week:", text_color=color.white, text_size=size.normal)
+    table.cell(info, 1, 10, str.tostring(trades_per_week, "#.#"), text_color=color.aqua, text_size=size.normal)
+
+// ============================================================================
+// ALERTS (use alert() for strategies, not alertcondition())
+// ============================================================================
+
+if long_setup
+    alert("CHoCH + FVG Long Setup detected! Entry zone at 50% of FVG", alert.freq_once_per_bar)
+
+if short_setup
+    alert("CHoCH + FVG Short Setup detected! Entry zone at 50% of FVG", alert.freq_once_per_bar)
+
+if bullish_choch
+    alert("Bullish Change of Character - Watch for FVG", alert.freq_once_per_bar)
+
+if bearish_choch
+    alert("Bearish Change of Character - Watch for FVG", alert.freq_once_per_bar)

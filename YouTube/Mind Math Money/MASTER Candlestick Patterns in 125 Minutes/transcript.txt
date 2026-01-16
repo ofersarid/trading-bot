@@ -1,0 +1,1235 @@
+in this ultimate video course you will learn everything you need to know about Candlestick patterns for trading stocks
+Forex crypto or any other Financial Market by watching the full course you
+will not only be able to trade Candlestick patterns like a pro but you will also gain the edge to profit in
+both Bull and bar markets so hello guys and welcome to
+What you will Learn in this Course
+this Candlestick pattern trading course this right here is going to be a pretty long video so make sure to you know grab
+a pen and paper perhaps grab a coffee as well and without further Ado let's get
+started here and let's begin here by super quickly taking a look at what you can expect to learn from this course we
+will start this course off by taking a look at both how to read but also how to
+understand candlesticks and Candlestick patterns we will take a look at the very Basics but we will also look at Concepts
+like Candlestick strength Candlestick momentum we will take a look at Wicks and much more after chapter one
+when we have a good understanding of the basics it's time for chapter 2 and in this chapter we will take a look at
+Candlestick pattern classifications in order to master Candlestick patterns it's of course very important to
+understand you know what type of Candlestick patterns you are trading what types do you want to focus on what
+types do you want to avoid and so on and so on so chapter 2 here is very important and this will be a quick
+chapter um because every single candas pattern has three different categories
+every pattern has a complexity level every pattern has a direction and a type
+and as I said don't worry if this sounds a little bit complicated right now it will be clear very very soon in chapter
+3 we are going to take a look at the best reversal Candlestick patterns and
+we will not only look at the patterns but we will also take a look at trading strategies for every single Candlestick
+pattern and reversal Candlestick patterns are one of the most effective Candlestick types and if you learn all
+of these patterns and even more importantly if you also learn about the trading strategies for these patterns
+I'm sure you will become a much better Trader and for example if you take a look at this image right here in the
+upper right corner this right here is an example of a reversal Candlestick pattern and we will take a look at that
+exact pattern and how to trade it later on in this video and so much more uh but
+now in chapter 4 it's time to take a look at the best continuation
+Candlestick patterns and we will of course also take a look at trading strategies for every single pattern
+understanding continuation patterns is something you pretty much can't do without as a Trader and in chapter 4 I
+will talk about multiple continuation patterns including one of my personal
+favorite patterns of all time so make sure to stay tuned for that and last but
+definitely not least we're going to take a look at the dogee and the spinning top
+candles and these are a specific family of Candlestick patterns that is super
+important uh to understand as a Trader these are patterns that happens all the time in the market and they can provide
+significant signals uh both warning signs but also ENT signals that we as
+Traders need to be able to utilize but all right guys let's get started here with chapter one all right so before we
+How to Read Candlestick Charts (step-by-step)
+start looking at all the Candlestick patterns and you know everything you need to know about the actual
+candlesticks we of course have to start here with the basics and that is of
+course how do we read candlesticks and how do we read Candlestick charts well
+first things first we have two different types of candles we have a red candle which is also
+called a bearish candle and we have a green candle which is also called a
+bullish candle sometimes if you see a black and white chart it is the green
+candle that is white and the Black Candle is red and the difference between these candles is that during the red
+candle the price goes down and during the green candle the price goes up and
+each candle can represent different time periods so one Candlestick can be for
+example one day uh but one Candlestick can also represent for example 1 hour uh
+I'm sorry for my ugly writing here but I hope you can see uh and one candle can for example represent one minute and
+these different time periods right here is what we call time frames and when you are looking at the chart in for example
+trading view you can choose what type of time frame you want to trade so for
+example if you choose a daily time frame then every Candlestick on the chart will
+represent one day but if you choose a for example one minute time frame then
+every Candlestick you see on the chart will represent 1 minute and so on and so
+on but to make this example simple we can think about every Candlestick right here as representing one day and now and
+this is very important every single Candlestick has four different points we
+have a high we have a open we have a close and we have a low and for the red
+candle remember that during this candle the price Falls so the candle opens
+right here or in other words if this is a daily candle the open price is the price level at the start of the day the
+high right here is the highest point the price reached during the day so perhaps
+the price opened right here it went up all the way up here to the high then the
+next Point here is the low that is the lowest point the price reached during the day so as I said the price might
+start right here it went up to the high but then during the day the price went down all the way down here to the lowest
+point I hope you can see all the way down to the lowest point and then before the end of the day the price went up all
+the way way here to the close so during that red candle the price might have
+moved something like this right and when you understand the bearish Candlestick you will also very easily understand the
+bullish Candlestick this is basically the exact same thing but the opposite so in this case the price opens or starts
+all the way down here during the candle the price went down here to our lowest
+point all the way down here and during the day the price went up all all the
+way up here to a highest point all the way up here and before the day ended the
+price came down here to the closing price so this right here is basically how you read the candlesticks uh but we
+have a few important uh Concepts we also need to learn about the first concept is
+what we call a wick or a shadow and you can see that we have these both at the
+top or we can have them at the top and the bottom and the Wicks and the Shadows
+are simply these small lines right here that are either above or below the
+candles and these small points show us the highest and lowest point of the
+period or in other words the time frame uh last but not least we have something
+called the body uh this is also sometimes called the real body uh but in
+very simple terms the body is the wide part here of the candles and remember
+the wide parts of the candle determine the closing and the opening price and
+one last thing here I just want to mention is that these names open high
+low and close these points are for short called oh LC so if you ever stumble upon
+something called ohlc you know that this means open high
+low close and this is based on the candlesticks all right then so now when
+Bullish and Bearish Candle Strength
+we have a basic understanding of how to read candlesticks now we are ready to talk about something called bullish and
+bearish strength and now I want you all to focus on this image right here and
+the first thing I want you guys to notice about these candles is that for all of these candles the highest points
+are at the exact same level right and we can also notice here that for all of these candles the lowest points so the
+low here are also at the exact same Lev level so the only difference between all
+of these candles is the body of the candles right and the bodies of the candles are very very important because
+they are one of the most important factors they're actually one of two factors that determines how bullish or
+bearish a Candlestick is so for example if we take a look at the Candlestick all the way to the to the left here we can
+see that the candle opens all the way down here and during the candle it pushed up to the highest point all the
+way up here so this basically represents a very strong movement here towards the upside but if you take a look at the
+candle all the way to the right here you can see that the opposite is true it open all the way up here and during the
+candle it pushed down all the way down here but now I want to talk about a very
+important thing here and that is that even if we see a Candlestick that looks for example like this candle right here
+this doesn't mean that the candle during the day fell in a straight line like
+this it could have moved something like this remember it might have open all the way up here and then during the candle
+it might have moved you know something like this something like a trend here towards the downside the only thing we
+know for certain about this candle is that it opened here it closed here and
+since we have no Wicks so we have no Wicks like this and like this we also know that the highest point during the
+day was this point and the lowest point during the day was this point but now if
+you take a look at for example this Candlestick right here instead we can still see that the highest point of the
+candle and the lowest point of the candle is at the exact same level but
+this candle right here tells us a very different story about the price because
+during this candle it opened right here and then we fell we fell all the way
+down here right but before the candle closed the Bulls manag to take control and
+actually reverse the price all the way up to this point so while this candle right here is very bearish and shows
+lots of bearish strength this candle this candle is actually much more
+bullish and this candle is actually almost something we call a hammer and
+that's actually a bullish reversal candle and we will talk more about the hammer and we will talk about a hammer
+trading strategy later on in this video but for now all you need to know here is that this candle is much more bullish
+but now let's actually focus on this candle right here you can see in this case we have a very very small body of
+the candle uh but at the same time we have very long Wicks you can see we have
+a long upper Wick and we have a long lower Wick so during this candle perhaps the price moved something like this it
+started here during the candle we went all all the way up here uh during the candle we also fell all the way down
+here right but before the candles to close we pretty much closed here at the
+exact same place where the candles stick started so these kind of candles when we
+have very small bodies and very long Wicks these candles are actually neutral
+so they don't really show any bullish or any bearish strength what they basically show us is something called indecision
+or in other words that neither the Bulls or the Bears are in control of the
+market and this specific handle is actually something we call a dogee candle and I will talk more about dogee
+candles and why they are so important later on in this course all right so now
+Candlestick Wick Analysis
+it's time to actually switch the attention here and take a look at something called candlestick Wick
+analysis and as you can see here on the screen we have two different candles but
+they are actually very similar if we look closely we can see that the high point here for all the candles are at
+the exact same level we can also see that the candle opened at the exact same
+price and the candles also closed at the exact same price so the only difference
+between these two candles is that for the candle to the left here we had a low
+Point all the way down here but for the Candlestick to the right right here we had a low Point down here and this
+difference here between the low points are actually more important than you
+might think so let's actually visualize these two candles so for the candle to the right uh we can imagine that the
+price opened right here uh but then during the candle we can see that the price reached a point all the way all
+the way down here and then it quickly pushed up all the way up to the highest
+point and before the candle closed we closed all the way down here uh but if you take a look at the candle to the
+right here we can see that it has a similar start but during the candle it went down to this point it went up to
+this point and then it went down so here for the Candlestick to the right you can
+see that the move we saw from the low to the high was much much longer compared
+to the move we saw here to the right you can see this move was only this far
+while the move to the left was much stronger and that means that this candle is actually more bullish compared to
+this candle because we need more bullish strength to push the price from all the way down here up to this point compared
+to the strength we need to push the price from this point to this point and when you look at the chart especially as
+a beginner you might feel like these two candles are basically the same thing but
+it is these sort of small differences like the Candlestick Wick right here
+that can really make a difference and especially let's say that we for example
+have a support area right here then these type of candles when the price
+Wicks below and then quickly pushes above the support this becomes even more
+important because this tells us that we actually found buying pressure coming in at the support level which is yet
+another bullish sign and now let's really quickly here take a look at another example this one is pretty
+similar as you can see we have the lowest point for both of these candles are at the
+exact same level uh we have the open here at the exact same level and we also
+have the close at the same level once again the difference between these two
+candles is that to the right we had a very long upper Wick right or upper
+Shadow and to the right here we have a very short uh upper shadow so now as an
+exercise I want you guys to drop a comment down below and tell me which of these candles are the most barish feel
+free to pause the video right now if you want to well the answer here is that the candle to the left is more bearish
+because during this candle the price open here during the candle we pushed all the way up to this point but the
+bars took full control here and managed to push the price all the way down to
+this point while in the other candle we we had a much sort of uh weaker movement
+this is still a bearish movement but the price moved something like this right
+and you can see that this movement right here is much more bearish compared to this movement right here and once again
+this becomes even more important if we for example have a resistance area right here because in this case the candle to
+the left confirms that the resistance is holding all right so now the time has
+The Power of Candlestick Momentum
+come to take a look at one of the most important Concepts when it comes to
+candlesticks and Candlestick patterns and that is Candlestick momentum analysis and first of all we need to of
+course understand here what is momentum what does momentum mean when we talk about Candlestick patterns well in
+simple terms we can think about momentum as the speed or velocity of price
+movement or in other words we're talking about how sort of fast is the price
+moving compared to the previous candles so in this example you can see that the
+very first candle is a red one and it is a pretty strong red candle the next
+candle here is you know getting a little bit weaker and we can see that because
+the length of the real body of the candle is getting a bit smaller if we
+take a look at the third candle right here we can see that the real body is even smaller here and we also have some
+pretty long upper and lower wigs and you know from earlier in this course that
+when we have small real bodies and long Wicks here this basically signals
+uncertainty or in other words that neither the Bulls or the bars are in control and if we take a look at this
+last candle right here you can see that the real body is pretty much non-existent we have a very small real
+body the Candlestick opens and closes at the same level uh so this right here is
+a dogee candle so for this downtrend right here we can see that the momentum is decreasing and if you want a simple
+tip to determine the momentum of a candle I recommend to focus here on the
+real bodies the longer the real body the stronger the momentum in general you
+need to also consider the Wicks here it's also important but as a rule of thumb the longer real body we have the
+stronger than momentum so by looking at the real bodies here we can see that the momentum is decreasing and now I want
+you guys to learn a very important concept and that is something called
+momentum candle and what is a momentum candle well different Traders have some
+different definitions when it comes to momentum candles but I like to Define
+momentum candles as a Candlestick that is at at least two times larger compared
+to the previous candles so for example if we look at these three previous candles right here we can see that the
+real body of the green candle right here is more than twice the size of the
+previous candles so that's why I consider this right here as a momentum
+candle and momentum candles are very important because they can provide strong signals when we trade and I will
+talk more about momentum candles later on in this video but for now uh all you need to know is that momentum can be
+determined by the real bodies of the candle and momentum candles in general
+can be defined as a Candlestick that is at least two twice the size of the previous candle but preferably we want
+to see a candle that is you know maybe three times as large or even you know five times sometimes it can be even five
+times as large as the previous candles and then we are talking about a very
+strong momentum candle all right so at this point in the course you already have a you know pretty good
+Classification of Candlestick Patterns (Complexity, Direction, and Type)
+understanding of how to read candlesticks you know about you know uh Wick analysis you know about momentum
+and strength so now we are very soon ready to start taking a look at our Candlestick patterns and also our
+Candlestick pattern trading strategies uh but real quick before we look look at that we need to learn about the
+classification of Candlestick patterns so first of all all candisc patterns has
+three different classifications the first classification is called complexity and a candles pattern can be
+either simple or complex and a simple Candlestick pattern is a Candlestick
+pattern that consist of only one candle so for example uh we have been talking
+about earlier about dogee candles that look something like this this right here is an example of a simple Candlestick
+pattern uh we also have a pattern that is called the hammer it looks something
+like this the hammer is another example of a simple Candlestick pattern another
+Candlestick pattern is the shooting star it looks something like this this is yet another example of a simple one but even
+for simple Candlestick patterns like right here if you just see a Candlestick pattern appearing randomly on the chart
+it doesn't actually mean a lot the context or in other words where on the
+chart the patterns appear is very important and we will talk about that later on and a complex Candlestick
+pattern is basically a Candlestick pattern that consists of two or more candlesticks sometimes it can be you
+know even five or more candlesticks but an example of a complex pattern is the
+barish engulfing pattern it looks something like this the first candle here is green the second candle here is
+red this is an example of a bearish reversal pattern so before this pattern up here we have an uptrend this pattern
+indicates then that the price will reverse to the downside so all patterns that are two or more Candlestick uh are
+complex patterns so for example here on the image you can see that all of these Candlestick patterns are one candle
+patterns so these are simple patterns and you can see that all of the two Candlestick patterns like all of these
+all of these three plus Candlestick patterns all of these are complex but now the next uh classification is the
+direction and here the direction can be either bullish bearish or neutral a
+bullish pattern indicates that the price will go up after the pattern a bearish
+pattern indicates that the price uh will go down after the pattern and a neutral pattern indicates that we don't really
+know here if the price will go up or down after the pattern however depending on the context of the neutral pattern
+these patterns can actually also tell us something about where the price will go
+next so for example remember that the dogee is a neutral pattern but if we have before the dogee let's say that we
+have a strong downtrend so this right here are red candles and then a doe pattern appears like this in this case
+even though this right here is a neutral pattern it can actually indicate a reversal to the upside especially if we
+have some sort of support right right here we perhaps have some sort of indicator that also confirms the bullish
+bias the third classification we have right here is the type and here we have
+reversal patterns and we have continuation patterns a reversal pattern
+basically means that if we have a downtrend and then the pattern appears
+so let's say that this is a random pattern then the goal of this pattern is to reverse the price so reverse the
+price in the opposite direction C while a continuation pattern means that let's once again say that we have a downtrend
+then the pattern appears the goal of a continuation pattern is to continue the price to the downside so for example
+this pattern right here is a bullish reversal pattern because it indicates a
+reversal to the upside and this right here is a bearish continuation pattern right
+because it indicates a continuation of the trend to the downside and we also of
+course have bearish reversal patterns and we also have bullish continuation
+patterns so we basically have four different combinations all right so now we are finally ready to start taking a
+Best Reversal Candlestick Patterns
+look at Candlestick patterns and let's actually begin here by taking a look at the best reversal Candlestick patterns
+and first of all what is a reversal pattern well reversal patterns indicates
+a trend shift so either from bullish to bearish or from bearish to bullish so it
+can reverse the price from down to up or from up to down and reversal patterns
+can be either simple or complex and as you know simple patterns consist of one
+Candlestick complex pattern consist of two or more and here and this is super
+important the context for the patterns is very very important or in other words
+where on the chart the patterns appear is crucial when it comes to reversal
+patterns so with this three rules in mind now we are ready to take a look at our first pattern so the very first
+The Bullish Engulfing Pattern
+pattern we're going to take a look at is called the bullish engulfing pattern and as you can see here on the bottom and I
+will do this for every single pattern I list the complexity the direction and
+the type and in this case it's a complex pattern because it consists of more than one candle it's a bullish pattern
+because it indicates a move towards the upside and it's a reversal because it
+reverses the price from a downtrend to an uptrend so now then how do we
+identify a bullish engulfing pattern well step one here is that we need to see a downtrend and after the downtrend
+these two candles appear I hope you can see here that the candles before the pattern uh has a slightly different
+color and also the candle here here after the pattern has a slightly different color and I will do this for
+all patterns but the actual patterns are these two candles right here the first
+candle in this pattern is a red one and preferably we want the real body of the red one to be relatively small it
+doesn't have to be super small but it's often a good sign when we have a small real body as for the wigs here it
+doesn't matter too much these wigs can be longer or shorter it will not have a big big impact on the pattern the next
+candle of the pattern here is more important it's this green candle right here and in order to find a bullish
+engulfing we want the next candle to be a green one and it needs to open below
+the close of the red one so it needs to open below this point right here and the
+green candle needs to close above the open of the red candle and this is why
+it's called an engulfing pattern because the green candle is larger and engulfes
+the previous red candle if you're trading for example crypto where the closing and the open prices are at the
+same level it's enough to see a pattern that looks something like this let's say that this is the first red candle right
+here and this right here is the second candle in crypto and some other markets the next candle will open at the same
+place as where the previous candle closed so in these scenarios what you are looking out for to confirm bullish
+engulfing is simply to see a Candlestick that closes above the previous red one
+when the green candle closes then the pattern is confirmed and as I said the
+pattern indicates a reversal to the upside now let's take a look at the bullish engulfing pattern and how to
+trade it in a real Market all right so right here we have a chart and remember
+Bullish Engulfing Trading Strategy
+it doesn't really matter what time frame this chart is I think in this case it's a daily chart but you can use
+Candlestick patterns on any time frame and if you want to you can try to find the bullish engulfing pattern on your
+own so feel free to pause the video right now did you find the pattern well
+the bullish engulfing pattern at least the most obvious pattern is this one right here you can see that before the
+pattern appeared we had a strong movement to the downside we actually saw a little bounce but then we saw yet
+another push towards the downside the first candle is a small red one and the
+next candle the green candle oh opens below right and closes above the
+previous red candle the most common entry point is to enter when the candle
+closes so at the candle close of this green candle but where do we set our
+stop- loss well the most common level here is to set the stop loss just below
+the lowest point of the pattern so in this case the lowest point comes from this Wick right here but if the red
+candle has a lower Wick we usually set the stop loss below that Wick another
+important point to consider when you place your stop-loss is previous Market structure and what do I mean by this
+well in this case you can actually see that we had a low right here as well and
+you can pretty much see that we have a sort of double bottom looking structure here and when we have another low at the
+around same level what I like to do is to actually place the stop loss below
+the sort of support created by that level so this case you can see that these two lows are pretty much at the
+same level but if one low is slightly lower I like to place the stop loss
+below so in this case I would set the stop loss around here uh as you also can
+see I usually leave some wiggle room right here so if the price you know
+comes down to the support once again we have some room for the price to bounce
+here before we get stopped out but what about your target level well here you
+can keep it simple and use a risk to reward ratio a risk to reward ratio
+tells us how much do we gain compared to how much we lose when we take the trade
+so for example a risk reward ratio of 1 to2 means that we risk $1 for every $2
+in profit or in other words the distance here from the stop loss to our entry
+point should be half the length of the distance up to to the profit Target so
+in this case our profit Target would be around here now let's switch the
+The Bearish Engulfing Pattern
+attention here and take a look at the bearish engulfing pattern once again the bearish engulfing pattern is a complex
+pattern because it consists of two candlesticks uh the direction here is bearish because the goal of the pattern
+is to push the price down and this is yet again A reversal pattern so in this case before the pattern appears we need
+to see an uptrend then we see a green candle appearing here with a relatively
+small real body uh but in this case you can see that they actually chose to put the Wicks here you can see we have a
+wick all the way up here and a wick all the way down here the important thing about the first candle is that the real
+body is small and even more importantly what we want to see for the beish engulfing is that the red candle opens
+above the body of the green candle and closes below the body of the green
+candle so in this case even though the Wicks are above and below the real body
+of the red candle this is still a bearish Eng engulfing pattern and when the candle closes the pattern is
+confirmed and it indicates a reversal to the downside so now let's take a look at
+Bearish Engulfing Trading Strategy
+the barish engulfing trading strategy once again feel free to try to identify
+the pattern on your own in this case the pattern is pretty clearly visible on the
+chart so hopefully you can identify the pattern patter did you find it Well the
+bearish engulfing pattern is this one right here you can see that before the pattern appeared we had a strong move to
+the upside then we saw a small green candle and especially the candle had a
+small real body we had a pretty long lower Wick but the real body is small
+then the next massive candle came in here and opened far above the previous
+green candle and closed Far Below so this right here is a very clear bearish
+engulfing in this case however we did not have any resistance level so the
+optimal scenario is let's say that the high were all the way up here and perhaps we had a resistance uh like this
+this would be the optimal scenario the bearish engulfing pattern is more significant when it happens at a
+resistance level but you can still use the pattern on its own you can for example combine the pattern with other
+technical variables like indicators and Market structure but okay so what about
+the entry point well once again the most common entry for the barish Eng engulfing pattern is to enter at the
+candle close of the red candle the stop- loss we usually place above the highest
+point of the pattern and in this case we can see that the highest point is right here once again you can see that I leave
+uh some space here for some wiggle room and as I said remember to keep other Market structure in mind so for example
+if we have a resistance all the way up here you might want to set your stop- loss above that resistance as for your
+Target level to keep it simple we usually use a risk reward ratio a common risk a very common risk reward ratio is
+to use a 2 to one so we measure this length right here and our Target length
+should be twice as long uh from the entry so in this case our Target would
+be right around here another interesting thing to notice about this chart is let's actually take a look at this
+pattern right here well here we actually have a bullish engulfing because the first candle is a red one the second
+candle is a green one that opens below right opens below the body and closes
+above the body of the previous red candle and we can actually see that this bullish engulfing pattern marked the low
+of this down move and it actually reversed the price here to the upside all right so now the time has come to
+The Hammer Pattern
+take a look at one of my personal favorite patterns and this right here is
+the hammer pattern this pattern is a simple pattern because it consists of only one Candlestick the direction here
+is bullish and the type is reversal so to identify a hammer pattern what we
+first need to see remember it's a reversal pattern so before the hammer appears we need to see a move towards
+the downside then the actual Hammer appears and that is this candle right here to find a valid Hammer pattern what
+we're looking out for is that we're looking out for a small real body like right here and we're looking out for a
+long lower Wick and specifically what we want to see here is that the wick the
+lower Wick of the pattern should be at least twice the size of the real body
+and preferably it should be you know maybe three times or even four times as
+large as the real body you can see in this case the wick is maybe three times as large so this right here is a good
+Hammer another thing about the hammer is that we want the upper Wick right here
+to be preferably very small or the best case scenario here is when we have
+pretty much no Wick at all so if we have a pattern that looks you know like this uh and we have no Wick uh this right
+here is a perfect hammer and another thing that might sound a bit counterintuitive is that the color of
+the pattern can actually be either green or red so it doesn't have to be a green
+real body it can be red and still be a valid Hammer so hammer can look
+something like this with a red real body however if we you know have to choose
+between these patterns the green Hammer is more bullish and is a stronger signal
+so preferably we want to see a green candle and once again when the candle
+closes the pattern is confirmed and and it indicates a reversal to the upside so
+Hammer Pattern Trading Strategy
+now then let's take a look at the hammer pattern trading strategy and here on the
+chart we actually have three uh valid Hammer patterns so once again if you
+want to pause the video and try to identify the patterns all right so the first Hammer we can identify is this
+candle right here you can see this green candle that has a pretty small real body
+and a long lower Wick and the important part about this candle is that you can clearly see that the wick here is more
+than twice the size compared to the real body and here you can also see that before the hammer appeared we actually
+saw a massive massive drop towards the downside so when we see a very strong
+movement before the hammer appears it can actually make the hammer even stronger this right here is a very
+strong reversal signal but what about the other hammers well right here we
+actually have another Hammer this one is a bit more you know debatable if this is
+a hammer or not but what you can see first of all is that we we do have a
+small real body and you can also see that the lower Wick of this pattern is
+clearly more than twice the size of the real body but what makes this pattern a
+bit shaky here or you know some people might not consider this a hammer and
+that is because the upper Wick here is pretty pretty long but in my opinion I
+would I would probably still consider this a hammer because the lower Wick is so much longer compared to the upper
+week so this could still be considered a hammer and what we also can notice is that before the hammer appeared we saw a
+strong move towards the downside and that is a good sign another candle that you might consider a hammer is this
+candle right here you can see once again we have a very small real body and we have a long lower Wick but in this case
+I would actually not consider this a hammer and that is because we are actually in a move towards the upside
+yes we have a small move here before the hammer appears uh but this is not really
+enough for me to consider this a reversal pattern preferably before before the pattern appears we want to
+see a clear move here towards the downside but the last valid Hammer
+pattern here in my opinion is this one right here once again you can see we
+have a very small real body we have a very tiny upper Wick right and we have a
+very long lower Wick the body is red but remember that doesn't matter this is
+still a valid Hammer so in this case what about the entry point the exit point and our Target level well once
+again and this is common for many patterns the most common way to enter is to enter at the candle close here of the
+pattern and remember this is a red body so we enter at the lowest point of the
+body that is when the candle closes but what about the stop loss well in this
+case you can actually see that we have some sort of support because we have a low right here we have another low right
+here and we have another low right here so what we can do here is that we can
+drag a sort of support area I prefer to draw areas rather than uh rather than
+sort of lines in this case we can draw a pretty broad support area right here and in this case I think it makes sense here
+to place the stop loss below the support area and I also leave some wiggle room
+so I leave some wiggle room here between the support and the entry point just
+like this and as for our Target level once again we can keep it simple with a 2 to1 risk to reward we measure this
+part our Target level should be around twice the length of this part right here
+and that would give us a Target around here once again when it comes to Target
+levels we can also use support and resistance levels so in this case we can see that we have some sort of resistance
+resistance resistance so here we have some sort of resistance area right here so it it can make sense when you have a
+resistance area like this to actually Place The Target just below oops uh
+wrong tool here just below the resistance so in this case you can actually you know adjust your support
+your so in this case you can actually adjust your target a bit here to take targets before the resistance appears
+because when we reach a resistance it's pretty common that the price will reverse in this case you can actually
+see that we did get a pretty strong reaction of this resistance area it went a tiny bit higher here but definitely
+keep support and resistance levels in mind all right so now let's take a look at the shooting star pattern this is one
+The Shooting Star Pattern
+of my favorite bearish patterns so make sure to really pay attention to this one
+once again this is a simple pattern because the pattern consists of one can stick the direction is bearish and the
+type is a reversal and because this is a bearish reversal that means that before
+the pattern appears we want to see an uptrend then this right here is the
+actual pattern and after the pattern the goal is to reverse the price to the downside to identify a shooting star
+pattern we want to look out for a small real body and a long upper Weck what we
+also want to see is that we want the lower Wick to be either non-existent or to be very small like we're seeing right
+here and here and this is very important the upper Wick of the shooting star just
+as the hammer we want this this one to be at least twice the size or preferably
+even longer compared to the real body here and in this case we can see that
+the upper Wick is just barely twice the size as the previous candle so if if
+this week was a little bit shorter so if we had a pattern that look something like this instead where the upper week
+is you know maybe like this now we are not really seeing a shooting star
+anymore so when you're looking out for shooting stars definitely pay close attention to the upper Wick of the
+Shooting Star Trading Strategy
+pattern all right so now then how do we trade the shooting star well in this
+case the shooting star can actually be pretty hard to spot but the most valid
+shooting star right here in my opinion is actually this green candle right here
+and I actually forgot to mention this but for the shooting star it doesn't matter if the body is green or red it's
+still a valid shooting star however a red candle is a bit more bearish but the
+important part here is that we have a small real body and a long lower Wick in
+this case you can see that the wick is just barely twice the size of the real
+body and what we also can see is that before the pattern appeared we had a clear move towards the upside as for
+your entry level once again we enter here at the candle close of the pattern and because this is a green body we
+enter at the top of the real body um your stoploss level here once again we
+want to look out for previous Market structure you can see that we actually have a high right here so we can drag a
+resistance like this in this case we can actually see that the shooting star us
+quickly peaked above the resistance and then reversed this is actually a special
+type of pattern that we call a wof up thrust and these can be very strong
+reversal signals and by the way guys if you want to learn more about support and resistance and how to combine support
+and resistance with other technical tools to create a trading strategy I highly recommend to watch my support and
+resistance trading course here on the channel I will make sure to link that video up in the corner in the eye so now
+then where we place our stop- loss well because the highest point of the shooting star is above the resistance we
+actually want to place the stop loss used slightly above that point once again I leave a tiny bit of wiggle room
+between the highest point of the shooting star and the stop loss and as for our Target level we keep it simple
+with a 2 to one for this pattern as well so we measure this move right here and
+we take a 2 to one so the target should be twice the size and we lock in our profits around here in this case we can
+see that the price actually continued further down but that is no guarantee so it's very important to plan out your
+trade set your you know stop loss and set your Target and stick to your plan
+another interesting thing you can notice about this chart is that we pretty much had a shooting star pattern appearing
+right here right you can see we had a small real body we had a long upper week
+but what makes this pattern a bit you know shaky is that yet this we saw a move towards the upside right here but
+before the shooting star appeared we had more of a sideways movement a more value
+pattern in my opinion would have been this candle right here but in this case you can see that if you traded this
+pattern you would have entered right here and you would have probably set your stop loss right here so in this
+case this would have been a losing trade and that is a very important point to consider not all patterns will be
+successful some patterns will fail and then it's very important to respect your stop- loss and exit the trade without
+any hesitation another important thing to remember here is that when we use a risk reward ratio of 1 to2 this means
+that we can actually lose more trades than what we win and still make money so
+losing trades doesn't have to be a bad thing it's simply a part of the game all right so now it's time for a very iconic
+The Morning Star Pattern
+and pretty complex reversal pattern and this is the Morning Star pattern this
+pattern right here is indeed complex and it's a bullish reversal pattern so
+before the pattern appears we want to see a downtrend then the actual pattern appears here and as you can see this
+pattern consists of three candlesticks and the goal of this pattern is to reverse the price to the upside so how
+do we identify the Morning Star well the first Candlestick of the Morning Star is
+a pretty strong red candle and it's a continuation of of the previous move
+towards the downside the next candle is a green Candlestick with a small real
+body and the wick here can be either small or long but here and this is very
+important between the candle close of the red candle and the opening of the
+green candle so in this space right here we actually want to see a Gap a gap is
+when we either have distance between the body of the candle or another gap which
+is called a wick Gap is when we actually have distance between the Wicks of the
+candles as well and I will talk more about that later on in this video we actually have some patterns where we
+need to see uh Wick gaps but in this case all you need to see is that we want to see a gap between the bodies of the
+candles and the third and the final candle of the pattern is a strong green
+candle and here we once again want to see a gap between the small green candle
+and the large green candle so we want to see a gap between the real bodies of these two candles yet another thing we
+want to see with the green candle is that preferably we want the green candle to close well within the real body of
+the red candle and a rule you can use if this right here is 50% or in other words
+it's in the middle of the red candle we want the green candle to close above
+this Mark right here and when the green candle closes above the 50% Mark the
+Morning Star pattern is confirmed all right so now let's take a look at the Morning Star Trading strategy and The
+Morning Star Trading Strategy
+Morning Star can be identified right here and this one can be a little bit
+tricky to spot here but let's take a look at this pattern together so the first candle is a strong red candle that
+clearly comes after a downtrend a very strong movement here towards the
+downside the second candle of this pattern has first of all it has a very
+small uh real body that is a good sign and you can see here that we actually have a pretty long lower week so what
+pattern is this pretty much well it's actually pretty much a hammer pattern so you can actually find a hammer pattern
+inside a Morning Star pattern and it's a bit hard to see here but we actually created some space SP between the real
+body of the first candle and the second candle between candle 2 and candle 3
+here we have a much clearer Gap here you can see we clearly have a gap between the red candle and the green one and
+what you also can notice here is that the green candle closes above the candle
+close here is above the 50% Mark of the first red candle so as for our entry
+point the most common way to enter is to enter at the candle close of the shooting star so to enter right there in
+this case when we have a hammer pattern you could have actually entered all the way down here on the Hammer as well but
+in this example we are showing off the Morning Star so let's stick with entry example number one let's take a look at
+our stop- loss here we don't really have any clear support level and when we don't have any clear support we usually
+place the stop here below the lowest point of the pattern so we place it below this point right here we also
+leave some wiggle room space between the low and the the and the stop loss so if
+the price falls down here we can actually retest the the hammer pattern
+and still you know not get stopped out as for your Target level we can keep it simple and use a 2 to one this would
+give us a Target around here or we can actually use previous Market structure so in this case you can see that we have
+a pretty clear resistance all the way up here you can see we have One Touch two
+touches so it's actually possible to set your target just below that resistance
+I'm not really sure here but if I remember correctly I do think that we saw a move towards the upside and then down and then this target eventually got
+The Evening Star Pattern
+reached all right so now let's take a look at the evening star pattern the evening star is a complex pattern
+because it consists of three candlesticks the direction is bearish and this is once again A reversal
+pattern so before the pattern appears we have an uptrend then the actual pattern is this one right here consisting of
+three candles and the goal of the pattern is to reverse the price to the downside the first candle of this
+pattern is a strong green one so we want to see a long body here and we can also
+see some Wicks the important part about the first candle is that we have a long green body the next candle is a candle
+with a small real body so in this case you can see that we have a very small real body here uh we can also have uh
+both both lower and upper Wicks this is not super important the most important part here is that we have a small real
+body we can even have a canos sticks that looks something like this where the real body is so small that you can't
+even see it anymore this right here is a doe candle and we will talk more about
+dogee candles and why they are so important later on in this video and also this candle can be either green or
+red but one could consider the pattern a bit more bearish if we see a red candle
+between the body of the first candle and the second candle and this is very important we need to see a gap so
+between this point and this point we want to see a gap here between the real
+bodies the third candle here is a strong red candle and once again between the
+real body of candle 2 and the real body of candle 3 we want to see a gap like
+this and to confirm that the third candle is strong and to confirm the pattern we want the red Candlestick or
+candle 3 to close below this point right here and in this particular example you
+can see that the red candle closed far below the 50% Mark and this confirms the
+evening star pattern all right then so how do we actually trade the evening star well the first thing we need to do
+Evening Star Trading Strategy
+is of course to identify the pattern so if you want to try to do this yourself and pause the video did you manage to
+find the pattern well the evening star is this pattern right here you can see
+that the first candle is a strong green one that comes after a move towards the upside the second candle right here has
+a small real body in this case the real body was green but remember the body can be either green or red and this pattern
+on its own is actually something we call a hanging man pattern and we will cover that pattern later on in this course but
+for now all we need to notice is that we do have a small pattern and also very importantly we do have a gap here
+between the real body of the green one and the real body of the first candle so you can see we have a pretty clear Gap
+right here the third candle is a strong bearish candle that's exactly what we want to see and even though it's tiny we
+can see that we do have a gap here between candle 2 and candle 3 and also
+the red candle closes below the 50% Mark of candle one so you can see that the
+candle close is clearly below that point so we have all our criteria and this
+pattern is confirmed as for your entry point we usually enter here at the candle close of the third candle and for
+the stop loss once again we don't really have any clear support and resistance here so our stop loss we want to place
+above this point so we place it above we leave some wiggle room right here and we
+use a risk to reward ratio uh we can use for example a 2 to one could also use a
+3:1 a 3:1 risk reward simply means that the reward uh the length down to the
+Target so the length down to this point right here should be three times as long
+as this length right here all right so now the time has come to take a look at the piercing pattern and the piercing
+The Piercing Pattern
+pattern is yet another Super useful uh reversal pattern and this pattern is complex because it consists of two
+candlesticks the direction here is bull and as I said the type here is reversal
+so before the pattern appears we need to see a downtrend then these two candles right here are the actual pattern and
+the goal of the pattern is to reverse the price to the upside the first Candlestick of this pattern is a red one
+preferably a pretty strong red candle but it can be either strong or sort of
+medium strength and the red candle is a continuation of the previous move to the
+downside the next Candlestick is a strong green candle it can have a upper
+Wick and a lower Wick but the most important thing about this green candle
+is that we need to close above remember just as with the morning and evening
+star we have this 50% line from the red candle and this line goes from the
+middle of the previous red candle and what we want to see in order to confirm the piercing pattern is that we want the
+green candle to close above this line when we see the candle close the pattern
+is confirmed and indicates the reversal to the upside what I also forgot to mention here is that the red previous
+candle can also have a upper and a lower Wick so now let's take a look at the
+Piercing Pattern Trading Strategy
+piercing pattern trading strategy and as always you can as an exercise try to
+find the pattern here on your own but the piercing pattern can be found right
+here you can see that before the pattern appeared we had a pretty significant move here towards the downside candle
+one here is a strong red candle we have a slight upper Wick and lower Wick but
+that's okay the next candle here is a strong green candle you can see that we
+do have a very long lower week and we do have a very long upper week but that's
+completely fine because remember the most important part about this pattern is that the green candle needs to close
+up Above This 50% line we have right here and you can see that the candle
+close was quite far above the 50% line so when this candle closes the pattern
+is confirmed another important thing to notice about the piercing pattern is that this is pretty much a early stage
+of a bullish engulfing because if the piercing pattern pushes a bit higher here and closes above the opening of the
+red candle then we actually have a bullish engulfing pattern instead so this is pretty much an early sort of
+bullish engulfing pattern but now let's take a look at where do we enter where do we set our stop loss and where do we
+place our Target well the most common entry point is as usual at the candle
+close so we enter here when the pattern confirms as for our stop-loss we usually
+look at the very lowest point of the pattern and in this case remember we have a very sort of long lower Weck so
+what we usually do is that we actually set the stop loss all the way down here all the way below the lower week and I
+also like as you know by now I like to leave some wiggle room here this allows
+us for the pattern to go down and test the low once again and then bounce and
+we will still not get stopped out and as always you also want to look out for the previous Market structure in this case
+you can see we have a low right here uh and we have a lower low uh in this case
+uh we don't have an indicator right now but just by looking at the price I can actually sense a sort of Divergence
+right here if you want to learn more about divergences to improve your Candlestick pattern trading even more I
+actually have a full course about the RSI indicator that I highly recommend watching I will make sure to leave a
+link to that video somewhere up in the corner but now then what about the target well our usual method here is to
+measure the length between the entry and the stop stop loss and we use a risk
+reward ratio a risk reward ratio of two would give us a target maybe somewhere around here so this is where our Target
+is and where we lock in profit all right so now we're going to take a look at the dark cloud cover this right here is an
+The Dark Cloud Cover Pattern
+important bearish pattern that every Trader needs to know about this pattern is complex because it consists of two
+candles the direction is bearish and the type is reversal so before the pattern
+we want to see an uptrend these two candles right here are the actual pattern and the goal of this pattern is
+to reverse the price down the first candle of this pattern is this candle right here and this is a pretty strong
+green candle it can be either very strong or medium size it doesn't matter
+here if we have an upper Wick and a lower Wick the most important part here is that we have a clear continuation of
+the uptrend the next candle candle two is a strong bearish candle and in this
+example you can see that we have no upper week and this is completely fine but we have a pretty long lower week and
+that's also completely fine the Wicks of this pattern are not the most important part the most important part is that the
+red candle needs to close below this 50% Mark of the green candle so once again
+the 50% Mark is drawn from the middle of the body of the green candle and what
+we're looking out for here is that we are looking out for a candle close below this line when we see a candle close
+below the 50% line the pattern is confirmed and indicates a reversal so
+Dark Cloud Cover Trading Strategy
+now then let's take a look at the dark cloud cover trading strategy and the first thing we need to do is that we
+need to identify the pattern and the dark cloud cover can actually be found
+right here and this right here is pretty much a special case of the dark cloud
+cover because the second candle here is you know a massive massive candle and as
+you can see first of all we had a very clear move towards the upside before the pattern appears and the first candle
+here is a pretty strong green one and importantly it's a continuation of the uptrend in this particular case we have
+no upper Wick and we have no lower Wick but that's completely fine the second
+candle in this case was a massive massive bearish candle and the very interesting thing about this candle is
+that during the candle the price pushed all the way up here but before the
+candle closed the bars managed to push the price all the way down here and even
+more importantly the bars managed to push the price and close below the 50%
+Mark of the previous green candle so this actually confirms that we have a dark cloud cover and even though we have
+such a large candle and such a large large upper lower week this is still a dark cloud cover but now then how do we
+trade a dark cloud cover with you know such a big bearish candle well the first
+step is to find our entry point here and once again the most common entry is to enter here at the candle close of this
+pattern but as for the stop- loss here it gets a bit more tricky we still have
+the most common stop- loss that is you know if we take a look at the absolute highest point of the pattern as you guys
+know from previous patterns the most common way to set your stop- loss is to set your stop- loss just above this
+point but now since the highest week is so high up some Traders highly prefer to
+to not have such a wide stop loss so when you see a a large second candle
+like we're seeing right here another method to set your stop- loss is to actually place it above the candle close
+of the pattern so some Traders might prefer for this stop loss you can see we set the stop loss just above the uh real
+body of the pattern and as always we also leave some wiggle room so here you
+have two uh pretty valid options for your stop- loss you have the higher stop loss and you have the lower stop- loss
+and what stop loss you decide to choose here basically depends on your own trading style if we choose the lower
+stop loss then our Target level using a 2 to one would probably take us down
+around here so this right here is Target Target one but if you're using the wider
+stop loss and still aim to get a 2 to1 risk reward ratio you also of course
+have to increase the target so in this case your target level might be all the
+The Inverted Hammer Pattern
+way down here all right so the next pattern we're going to take a look at is the inverted Hammer pattern and this
+pattern is you know very important to understand because it can be quite uh counterintuitive
+because this right here is a simple bullish pattern and it is a reversal pattern but many uh especially new
+Traders look at this pattern and say isn't this a bearish pattern well it's
+actually considered a bullish pattern and we will talk about why this is considered a bullish pattern very soon
+but first how do we identify the pattern well since this is a bullish reversal before the pattern we need to see a
+downtrend and in this case the context this very important so it is important that we have a down move before the
+pattern then the actual pattern appears and the goal of the pattern is to quickly push the price towards the
+upside the pattern itself consists of one single candle with a very small real
+body and a long upper Wick and here just
+as with the hammer pattern we want the wick to be at least twice the size
+compared to the real body and in this case you can see that the wick is maybe you know four times as large as the real
+body so that is a very good sign but now you may of course wonder why is this
+even a bullish pattern because if you remember from earlier in the video when we talk about talked about the shooting
+star you can actually see that this right here is the same candle as the
+shooting star because as you can see the candle open all the way down here during
+the candle the Bulls started off good they managed to push the price all the
+way up here but before the candle closed the bars took control once again and
+pushed the price all the way down to this point right here but the reason this is still considered a bullish
+pattern is because of the context because before the pattern appeared we had a clear move towards the downside
+and because the Bulls during the next candle managed to push the price all the way up here this gives us an indication
+that the back s from the downtrend might be losing control so if you see this
+pattern appear after a downtrend it's a bullish pattern but if you see the
+pattern appear after an uptrend it's a bearish pattern so the context is very
+important but when this candle closes the candle is confirmed and indicates a reversal to the upside when trading the
+inverted Hammer many Traders will actually wait for a confirmation candle and what is a confirmation candle well
+in this case this right here is a confirmation candle it's a candle that
+appears after the pattern that confirms the direction we want to see and in this
+case we want to see a move towards the upside and we can see here that the next candle confirmed this move so some
+Traders will wait for this next candle close before they enter their trade and
+in my opinion waiting for a confirmation candle when it comes to the inverted Hammer is not about idea because this
+pattern is you know slightly less bullish compared to for example the hammer pattern and as you can hear on
+the name the inverted Hammer pattern is basically a hammer upside down so now
+Inverted Hammer Trading Strategy
+let's take a look at the inverted Hammer trading strategy and if you want to pause the video and try to find the
+pattern on your own did you guys succeed well the inverted Hammer here can be
+pretty hard to spot but it can be found right here you can see that before the
+inverted Hammer appeared we had a pretty significant move towards the downside
+especially the last candle here before the inverted Hammer was a very strong bearish one then as you can see right
+here we saw an inverted Hammer up here why is this an inverted Hammer well we have a small real body and a long upper
+Wick and this Wick needs to be at least twice the size of the real body and in
+this case we can see that it is slightly more than twice the size of the body but how do we actually trade this pattern
+well in this case we have two different ways to enter the first potential entry
+point is to enter here at the Cano close of the inverted Hammer but as we talked about a second way to enter is to wait
+for a confirmation candle in this case this next Green candle here is a
+confirmation candle it confirms the pattern because it pushes in a bullish Direction and that is exactly what this
+pattern indicates and what about our stop-loss level well the most sensible
+uh stop- loss Point here at least in my opinion is to look out for the lowest point of the candle that happened before
+the inverted Hammer when you see candles like this that Wicks below the actual
+pattern uh you know before the pattern appears a good way to set your stop- loss is to place it below this point and
+also of course I leave some wiggle room here so if the buyers take control here we we actually have a chance of a bounce
+at the low and still not get stopped out as for your Target level here if you use
+the first entry you can see that we have a very tight stop loss uh this is something that you know some Traders
+prefer and some Traders like to avoid and when we use such a tight stop- loss you can see that if we use our risk
+reward ratio of two you can see that our Target uh gets reached very very quickly
+so if you are a Trader that likes to get in and out of the market quickly tight stop losses can be a good idea if we
+instead use the confirmation candle entry here we will have a much wider
+Target if we once again use a risk reward reward of 2 to one you can see that our Target would some be probably
+be somewhere up here and this is a pretty interesting point because this uh as you can see between this candle and
+this candle we actually had a very large gap and we will talk more about price
+gaps later on in this video but a common principle here is that price gaps tends to be filled so the
+highest point of the Gap here can actually many times act as resistance so
+it does make sense here to set your target level here uh just before the Gap
+close or in other words before the resistance because when the price reaches or if the price reaches all the
+way up there it's very possible that we can actually see a reaction all right so now let's take a look at the hanging man
+The Hanging Man Pattern
+pattern uh the hanging man is a pretty pretty wild name here uh but the pattern
+is a simple pattern it consists of only one Candlestick the direction here is
+bearish and the type is a reversal so before the pattern appears we have an
+uptrend then this right here is the actual pattern and the goal here is to reverse the price to the downside and
+the hanging man pattern is another pretty counter intuitive pattern because as you can see this pattern actually
+looks like a hammer right it's pretty much the exact same candle as a hammer
+the key difference between the hanging man and a hammer pattern is the context
+so where on the chart does the pattern appear and in this case it's very important that in order to have a
+hanging man it needs to appear after an uptrend the pattern itself consists of a
+small real body and a long lower Wick and what we want to see here is that we
+want the wick here to be at least twice the length of the real body so at least
+twice the length here uh in this particular case it looks to be more like three times uh and that is a good sign
+but why is this a bearish pattern well remember here that before the pattern we have an uptrend and then the pattern
+appears here and during this pattern we can see that the bulls actually took lots of control and managed to push the
+the price all the way down here we can actually see that in this particular case the bulls actually quickly managed
+to break the lowest point of the previous candle but before the candle closes uh the price pushed all the way
+up here so even though the Bulls took control here this is still a bearish pattern because the bearish move all the
+way down here shows a clear uh disruption in the uptrend and just as
+with the inverted Hammer some Traders when they see a hanging man wants to see
+a confirmation candle so they find this pattern uh this pattern confirms with
+the candle close but then they wait for one more bearish candle before they
+actually enter the trade and also the color of the real body can actually be
+either red or green but for the hanging man pattern I personally uh highly
+prefer when we see a red body because if we see a green body it's very possible
+that this move is just a continuation of the uptrend all right so here we have a
+Hanging Man Trading Strategy
+real life example of the hanging man pattern and this chart right here can be
+you know pretty hard to read so it's pretty impressive if you can find the
+hanging man pattern on your own here so where's the hanging man well we can
+identify the hanging man right here and one reason why this hanging Man is Hard
+to spot here is because the move you can see before the pattern appeared we did have a strong move here towards the
+upside but you can see that we actually have a slightly bearish candle just before the pattern appears and this
+right here is something we actually don't prefer we prefer to see a green candle before the hanging man but the
+most important part here is that the overall move before the hanging man is a
+move towards the upside and here we can still see that the overall move before the pattern is an upwards movement and
+if we take a look at the actual pattern we can see that we have a small real body the body is red so that is a good
+sign and we also have a long lower Wick that looks to be around uh three times
+the size of the real body when it comes to the entry point for this pattern it can also be a little bit tricky as
+always the most straightforward entry point is to enter right here at the candle close of the hanging man but
+remember that the other strategy was to wait for a confirmation candle and you can see that this next candle right here
+was a red candle but this is actually not a confirmation candle because in order to be a confirmation candle we
+want to confirm a a move towards the downside after the pattern and in order
+to confirm a move towards the downside we want to see you know a candle that at least closes lower than the uh hanging
+man so this candle is not good enough to be a confirmation candle however if we
+take a look at the next candle here we can see that the price gapped down you can see we created a gap here between
+these two candles and we clearly pushed lower so in this case the second entry would actually be all the way down here
+at least in my opinion but what about our stop-loss level well here we also
+have some important Market structure you can see we have one high right here and
+we have another high right here so here we can actually mark up a resistance area on the chart and when a bearish p
+appears at or very close a resistance level what I like to do is to place the
+stop loss just above the resistance because then we can allow uh for the
+price to go up here and get reacted and still be within a winning trade but what
+about our Target level well as usual we want to measure the distance between the
+stop loss and the entry point and if we use a risk reward ratio of two our Target would be somewhere around here
+and if we use a risk reward ratio of three then our Target would be somewhere down here um your choice of risk reward
+will depend a bit on your trading style a lower risk reward like a one to two
+will make it more likely that you trade suceed but if you use a risk reward of
+for example 1 to three like we do right here it will be less likely that your
+trade succeed but when you actually get a successful trade you will win much more all right so so now it's time to
+Best Continuation Candlestick Patterns
+switch the attention and take a look at the best continuation Candlestick patterns and first of all what are
+continuation patterns well continuation patterns indicate that the trend will
+continue or in other words they indicate that we will go from a bullish to a
+bullish Trend or from bearish to a bearish trend and continuation patterns
+can be super effective because you are trading in the same direction as the trend and as you guys know the trend is
+your friend when it comes to continuation patterns the patterns are often complex or in other words the
+patterns will very seldom consist of only one Candlestick they will pretty much always be uh you know a bit larger
+patterns and when it comes to continuation pattern the location on the chart or in other words the context of
+the patterns are super super important so when we talk about continuation patterns make sure to you know pay extra
+attention to the context and location of the patterns okay so let's take a look
+The Rising Three Methods Pattern
+at the rising three methods pattern and as you guys can see this right here is a pretty large pattern so it's definitely
+a complex pattern because this one consists of five candlesticks the direction of this pattern is bullish and
+the type here is continuation so it's very important that before this pattern appears we need to see an uptrend then
+all of these candles together are the actual pattern and the goal of this pattern is to continue the trend towards
+the upside and the first candle of the Rising 3 methods is a strong bullish
+candle and this pattern indicates that the Bulls are still in control of the uptrend but after this candle what we
+are looking out for here is that we are looking out for three small bearish
+candles so we're looking out for a small move that goes in the opposite direction
+of the trend or in in other words we're actually looking out for a small pullback and these three candles should
+preferably be within this range so if we take from the highest point to the
+lowest point of the previous bullish candle we want the red candles here to
+be within this range as for the Wicks here of the small red candles it's okay
+here to have Wicks on all of these candles the important Point here is that we want to have small real bodies of
+these candles the last candle of the Rising 3 methods is very important here
+we want to see a strong bullish candle and what we want to see here is that we want this bullish candle to close above
+the close of the first candle so you can see right here we have the close of the
+first candle and we want the final candle to close above this line when we
+get this candle close the rising three methods is confirmed and in indicates a continuation up okay so now how do we
+Rising Three Methods Trading Strategy
+actually trade the rising three methods well the first thing we need to do is that we need to identify the pattern and
+the rising three methods can actually be found right here first of all you can
+see that before the pattern appears we have a very strong movement towards the upside once again you can see that we
+actually have a gap here we have a massive massive Gap and we will talk more about gaps later on in this video
+it's important to learn about gaps but for now let's focus here on the Rising 3 methods and we can also see here that
+the first candle is a strong green candle in this case we have you know a pretty long Wick but that's completely
+fine the next three candles you can see here that we have three small red
+candles with very small real bodies and that is exactly what we want to see but
+here and this is actually on the edge we can see that the third red candle is
+almost pushing a bit too low here if we take a look here we can see that the real body the the red real body is
+contained within the first green and that is exactly what we want to see I
+think I forgot to mention this in the previous slide but you can see that the important part here is that the real
+bodies of the red candles uh should be contained within this range it's not the
+end of the world if we have a lower Wick right here but preferably we want at least the real bodies of the candles to
+be contained within that last but not least we have the final candle and remember in order to have a valid Rising
+three methods we want that final candle to close above this line right here and
+here you can see that this candle just slightly slightly managed to close above
+that point and that confirms the rising three methods as for your entry point the most common way to enter is to enter
+here at the candle close of the last candles some Traders wait for a confirmation here but because this last
+candle is a strong bullish one I definitely don't think you need to wait for confirmation for the Rising 3
+methods entering at the candle close of the fifth candle is often a good idea as
+for your stop- loss the most common way to place it is to place it below the lowest point of the whole pattern and in
+this case you can see that the lowest point of the whole pattern is right here but sometimes the lowest point of the
+pattern will actually be created from the first candle as well so here you need to be a little bit flexible uh but
+in this case because we had the third red candle wicking below uh we actually
+have the stoploss placement right there I always leave some space here for some wiggle room so I set my stop loss around
+there to get your target level here we actually have because we have a continuation pattern we have many different methods uh the first method is
+to use a use a fixed wrist reward so we measure this movement uh if we use a 2
+to one our Target will be right around here but when it comes to continuation patterns we can also use something
+called a measured move so what we basically do is that we measure the whole impulse that created the whole
+sort of move towards the upside before the pattern and then we take this exact measurement and measure uh the same
+length so the length of this arrow and this Arrow should be the same length and then we take our Target all the way up
+here this method is something called the 100% measured move and I talk more about
+that in our Market structure trading course here on the Channel all right so now it's time to take a look at the
+The Falling Three Methods Pattern
+following three methods pattern and this right here is a pretty large pattern
+consisting of five candlesticks or in other words it's a complex pattern the
+direction is bearish and the type is continuation so before this pattern
+appears we need to see a downtrend then we see the actual pattern and the goal of the pattern is to continue to push
+the price down the first Candlestick of the pattern is a large red candle or at
+least a medium length red candle and this candle is simply the continuation
+of the previous downtrend it's okay to have a upper Weck and it's okay to have a lower Weck and it's not too important
+if these Wicks are long or short after the first candle what we're looking out for here is we're looking out for three
+small candles that goes in the opposite direction or in other words we're
+talking about a pullback these candles can also have wicks for example this candle right here you can see have
+pretty large Wicks and to be specific this right here is actually a spinning top candle and we will talk more about
+spinning tops and why they are important later on in this video but the important
+part about these three candles is that the real bodies of these candles should
+be contained between between the low of the first candle and the high of the
+first candle it's fine if we do see a wick below or even a week above but
+preferably we want all of the bodies of the candles to be within this range the
+final candle of the pattern is yet another strong bearish one once again we can have Wicks on this candle but the
+most important part here is that the fifth candle closes below the candle
+close of the first candle so the candle close of the first candle is right here
+so we want the last candle to at least close below this point and you can see
+in this particular example we got a candle close far below uh the close of
+the first candle so that is a very good sign this final red candle indicates that this sort of pullback is over and
+that we are likely to see a continuation to the downside all right so now let's
+Falling Three Methods Trading Strategy
+take a look at the falling three methods in in a real market and as always the very first thing we need to do is to
+identify the pattern you can try to identify the pattern on your own and pause the video now did you find the
+pattern well the following three methods can be found right here you can see
+these five candles as we can see here the first candle is a strong bearish
+candle and this is a continuation of the downtrend next we have 1 2 and three
+small green candles that creates a pullback or consolidation within the
+downtrend and remember here we want the real bodies of these three green candles
+to be contained within this range and here we can see that all of these green
+candles are indeed in this range right here the final candle should be a strong red candle and we can see that we found
+a strong red candle right here and remember this candle needs to close
+below the close of the first candles so we need to close below this point and
+here we can once again clearly see that we got a candle close below so now then where do we enter and where do we place
+our stop loss and where do we take our profits well the entry point is pretty straightforward the most common entry
+point is to enter at the close of the fifth candle so you enter right here and
+as we have been talking about some Traders wait for a confirmation candle but for the folling three methods I think uh personally that the best entry
+point is used to enter at the fifth candle as for your stop loss you want to place your stop loss above the highest
+point so here this right here is the highest point of all the candles within
+the pattern so we place our stop- loss just above this point and we also leave
+some wiggle room right here as for your Target level you can either keep it simple with a risk reward ratio so you
+measure this length right here you take this measurement you double it and your target will be somewhere around here
+yet another way to take targets is to measure the whole impulsive move down and then you take this exact measurement
+and you measure from the high of the pattern uh and you take the Target down here so in this case the second target
+would be a little bit earlier right around here the important thing about the second target method is that the
+length of this move and the length of this move should be equal size all right
+The Bullish Momentum Candle
+so the next pattern we're going to take a look at is the bullish momentum um pattern and this right here is one of my
+favorite patterns because it's pretty easy to identify and they can also provide very strong signals so let's
+first take a look at this pattern so this pattern we can actually consider a simple pattern Because the actual
+pattern is only one Candlestick however the it's very important that we compare
+this Candlestick with the previous candles and I will talk more about that later on and as we can hear on the name
+this right here is a bullish pattern and this right here is a continuation
+pattern I would say but you can actually also use this pattern as a reversal
+pattern uh but most commonly I would say it's a continuation pattern so let's classify this as a continuation so
+before this pattern we preferably want to see an uptrend but after this uptrend
+the price should enter a sort of sideways or consolidation face this
+movement can be slightly upwards or it can actually also be sideways or even
+slightly downwards then the actual pattern appears and the goal of this pattern is to continue the price upwards
+and how do we identify this pattern well what we're looking out for here is that we're looking out for a strong green
+candle so we want the real body of the candle to be very long um the upper week
+we can have a upper Weck and we can have a longer week but for the momentum pattern I actually prefer if we have a
+shorter weeks but we can have longer weeks as well but the most important part about this pattern is that we want
+this Candlestick right here to be at least two times as large as the real
+bodies of the previous candles and here the question is of course you know how many candles should we measure Traders
+have slightly different methods but I recommend that you measure measure at least three candles before the pattern
+appears so we want the candle to be twice the size uh the real body should
+be twice the size as at least the three previous candles I hope this doesn't
+sound confusing but what we basically do for this pattern is that we compare the size of the Candlestick bodies so now
+Bullish Momentum Trading Strategy
+let's take a look at a bullish momentum trading strategy and as always the first thing we need to do is to identify the
+pattern so remember remember to find a bullish momentum candle we need to compare candles with previous candles
+and actually if you look at this candle right here you can see that this right here is a pretty strong bullish candle
+it's for example it's not as strong as this candle and not as strong as this candle but what is important about this
+candle is that the real body is twice the size compared to all of the previous
+candles so we can actually consider this right here a bullish momentum candle and
+another thing that is very important in this case is that we actually have you can see we have a resist pretty clear
+resistance level right here you can see the price got reacted you know one time two time three time and here the price
+was just hovering very close to the resistance and another thing we can notice is that the price is actually
+printing as you can see higher lows into the resistance as well so in this
+particular case it looks like like we actually have some sort of ascending triangle pattern and by the way guys if
+you want to learn more about chart patterns I actually have a full chart pattern trading course here on my
+YouTube channel so I will make sure to link that video somewhere up in the corner in the eye and I highly recommend
+that you guys check that video out after you are done with this video but now then so how do we trade this pattern
+well the most common method is to Simply enter at the candle close of the
+momentum candle some Traders wait for confirmation but in this case I think the confirmation you know after the
+confirmation we are already very high up and most of the times I actually prefer to enter right after the momentum candle
+when it comes to your stop-loss level for your momentum candle here it's very important to consider the market
+structure so remember here we actually have a sort of triangle pattern with
+consecutive higher lows and in this case I would actually place my stop loss
+below the most recent low this is the common method for the ascending triangle
+and I would I would actually handle this as an ascending triangle so the stop loss level I would actually place just
+slightly below this point so as always we leave some wiggle room and as for our
+Target we can either measure uh the length up to the entry we take this
+measurement with a 2 to1 risk reward our Target would be right around around here another method is to actually measure
+the the um triangle here so you can take this measurement measure from the breakout and you will also get to Target
+something like this so what I did right here if it wasn't clear is that I took
+this exact length uh I sort of took that exact length and I measured from the
+breakout point I took that measurement and our Target level would have been around here but now a question you all
+might have at this point is you know can't we find any other momentum candles
+right here for example isn't this right here a momentum candle because we can see that this candle is a very strong
+green candle well if we look closely here at the previous candles we can
+actually see that the real body of this candle right here is probably you know
+at least half the size compared to this candle so this isn't really a momentum
+candle once again if we look at this candle right here we can see that we have a strong bullish candle the candle
+is clearly uh twice the size of this candle and this candle but if you look
+at the third candle this candle right here we you see that the size of that candle is actually smaller the only real
+uh momentum candle we can actually find here is this barish candle right here uh
+or we actually only have two candles visible here but I'm pretty sure the third candle was also uh less than half
+the size of this candle right here so this was probably a bearish momentum candle and we will talk more about
+bearish momentum candles next all right guys so now it's time to take a look at the bearish momentum pattern this right
+The Bearish Momentum Candle
+here is a very useful pattern because it appears so frequently in the market the
+pattern is a simple pattern because it consists of only one Candlestick so Weir
+the pattern appears on the chart is key the direction for this pattern is bearish and the type is continuation uh
+once again this pattern can also act in some cases as a reversal pattern but most common this is a continuation
+pattern so before the pattern appears preferably we want to see a move towards the downside then we want to see at
+least three candles with relatively small bodies and this candle right here
+is the actual pattern and when this pattern confirms it indicates a continuation of the downtrend so now
+then how do we identify the bearish momentum pattern well what we're looking out for here is that we're looking out
+for a strong bearish candle and specifically we want the body of this
+candle to be at least twice the size of the previous candles I'm using three
+candles here as a rule of thumb but it's even better if the body of the bearish candle is more than twice the size than
+maybe the prev previous four candles or even the previous you know five candles
+the more candles the better and the more candles the stronger the bearish momentum is we also preferably want to
+see the real body of the red candle be perhaps you know three times as large or even four times as large as the previous
+candles so now let's take a look at the bearish momentum trading strategy and as
+Bearish Momentum Trading Strategy
+always the very first thing we need to do is that we need to identify the pattern and in this case the bearish
+momentum pattern can be found right here as you guys can see on this red candle
+we have a very long real body and the body is definitely more than twice the
+size compared to all of these previous candles and remember that I said that this is most often a continuation
+pattern so before the pattern preferably we want to see a downtrend but in this case you can actually see that the price
+were in a trading range before the pattern appears and this is also
+completely fine you can actually trade the bearish momentum candle both as continuations but also reversals but now
+what about the entry point the stop- loss and Target level well the most straightforward entry point is where the
+momentum candle closes so enter right here as for your stop- loss we have a
+few different options here one stop- loss is to place the stop uh just above
+the highest point of the moment momentum candle but what we also can do is that we can look at previous Market structure
+so in this case remember that we had a trading range so we found some sort of resistance resistance resistance
+resistance so what we can do here is that we can actually draw a resistance Zone and one option is to actually place
+the stop loss all the way above the resistance but as you can see when we have the stop loss all the way up there
+the stop will be very very wide so yet another option here is to actually
+Define the low of the range so we can Define the sort of support uh area right
+here so if you prefer a tighter stop you can set the stop loss just above the previous support because a common
+principle in trading is that when we break previous support many times it will flip to become resistance in the
+future so if we use this stop placement we can actually allow for the price to come up and test this previous support
+as as resistance and we are still within a winning trade as for your profit
+Target you can either as always you can either use a risk reward ratio so you take this measurement and you measure
+using a risk reward ratio of two your target would be right around here right
+but when we have trading ranges we can actually also measure the the range so
+from high to low of the range and then we take this measurement and measure here from the breakout so we take the
+same length and our Target would be right around here all right guys so now it's finally time to take a look at the
+The Bull Flag Pattern
+bull flag pattern and this right here is one of the best uh Candlestick patterns
+out there uh you may wonder why well this pattern appears super frequently in
+the market it's a reliable pattern and if you understand it it's also relatively simple to trade but first of
+all this right here is a complex pattern because it consists of multiple candlesticks the direction here as you
+can hear on the name is bullish and the type here is continuation so before the
+pattern appears we need to see an uptrend then the actual pattern appears and the goal of this pattern is to
+continue the price towards the upside to identify the bull flag pattern what we're looking out for the first candle
+here is a green candle this candle can be uh you know either strong or medium
+size it doesn't matter too much and we can have Wicks uh both an upper week and
+a lower week the next part of the pattern is that we want to see multiple small candles that goes in the opposite
+direction so for the bull flag we want to see multiple red candles preferably
+but it can also be a mix here between red and green candles the most important part is that the overall direction of
+these small candles should be either down or it can almost go sideways as
+well these candles can have both upper and lower Wicks but the important part here is that we wanted the candles to
+have relatively small real bodies the last candle of this pattern is a green candle and we want this green candle to
+be at least medium siiz preferably we want to see a strong green candle but
+what we are looking out for here is that we want we want the green candle to close above the opening of the last
+candle in the pullback so you can see the last candle open right here so we want the green candle to close above
+this point and in this case you can see that the green candle clearly closed above that point after this the pattern
+is confirmed and it indicates continuation to the upside so now let's take a look at the bull flag training
+Bull Flag Trading Strategy
+strategy and as always the first thing we need to do is to identify the pattern so feel free to pause the video and try
+to do this on your own did you find any flag well in my opinion the most obvious
+flag is this moment right here here you can see that before the pattern we had a
+clear uptrend then we saw 1 2 3 and four
+small candles that went in the opposite direction of the trend and this right
+here was actually far from a perfect bull flag but it's important to understand that when you are trading in
+real markets you will very seldom find these sort of textbook perfect patterns
+more often than not the patterns will not be perfect and we as Traders need to be able to trade regardless and you may
+wonder why is this pattern not perfect well in my opinion the real body of this
+candle right here is a bit too large preferably we want this candle uh at
+least the real body of the candle to be smaller but this is still good enough
+after the four candles you can see that we do see a green candle finally emerging and what you also can notice is
+that this green candle closes above this line right here remember this line is
+Crea from the opening of the last Red candle and it is when this candle closes
+the bull flag is confirmed so how do we enter how do we place our stop- loss and how do we take targets well the most
+common entry point for the bull flag is to Simply enter at the candle close of
+the green candle some Traders also wait for a confirmation candle so they wait to enter all the way up here but many
+times it's enough to enter at the candle close of the green candle as for your stop- loss the stop- loss is usually set
+below the lowest point of the flag so right here we have the lowest point of the flag so we set our stop loss below
+that point we leave some wiggle room and when it comes to the Target level here we actually have multiple options one
+target option is to actually take profits already at this point which is the high of the uptrend in this uptrend
+you can see we have a high right here we have a high we printed another high and a common method is to take either
+partial profits meaning that you offload some of your position at this point or
+that you take full profit at this level another Target method is to use something called a measured move
+objective and what you do here is that you measure the impulsive move of the trend so you measure from low to high
+and you take that exact length and you measure from the low of the pattern so this would give you guys a Target around
+here and as I said some Traders use this right here as the first Target so they take some profits at this level and then
+they might take the rest of the profit all the way up here all right so now it's time to take a look at the bare
+The Bear Flag Pattern
+flag pattern and the bar flag is a complex pattern because it consists of more than one Candlestick the direction
+here is bearish and the type is continuation so before the pattern
+appears we want to see a downtrend then we see the actual pattern and the goal here is to continue the price towards
+the downside to identify the bar flag the first Candlestick we're looking out for is a red candle uh preferably we
+want to see either a strong red candle or a medium siiz red candle it can have
+an upper Wick in this case it doesn't it can have a lower Wick the next part here of the pattern is that we want to
+identify multiple candles three or more that goes in the opposite direction of
+the actual Trend these candles can be either green or red and they can also be dogee candles like we're seeing right
+here this right here is a dogee this right here is a dogee but the important part here is that we want to see small
+real bodies of the candles and we want the movement to be in the opposite direction the last candle of the pattern
+is a relatively strong red candle and the general rule here is that we want the red candle to close below the
+opening of the last candle right here but you can see that uh and this is very important in this particular case you
+can see that if the red candle closes maybe around here you can see that the
+real body of the the red candle uh would be very small and this is something we we don't want to see we want the red
+candle to at least have a medium siiz real body so now let's take a look at
+Bear Flag Trading Strategy
+how to actually trade the bare flag as always we will take a look at the entry level the stop- loss and the target but
+the first thing we need to do is of course to find the pattern and here on
+the chart we can see that we have a very clear downtrend we are printing both consecutive lower highs and we're also
+printing consecutive lower lows and here the most clear bare flag is this
+movement right here as you can see before the pattern appeared we had a strong movement towards the downside
+then we saw one two and three candles that went in the opposite direction once
+again this candle this green candle right here preferably we want the real
+body of this candle to be a little bit smaller but it's important to remember that markets are very seldom perfect so
+this pattern right here is at least in my opinion good enough what we can also see here is that the last candle of the
+pattern is a strong red candle that is a good sign and we can also see that the red candle clearly closes below the
+opening of the last green candle as for your entry point the most common way to enter is to enter at the candle close of
+the last Red candle for your stop- loss you usually want to place it above the
+highest point of the pattern so this right here is the highest point of the pattern and you want to place your stop
+loss uh just above that point when it comes to Target levels we have multiple options one way to set your target is to
+actually set it already at this point right here but you can see in this case when we enter right here you can see
+that the distance to the profit is very very small so in this case it might not
+make sense to use this profit Target instead you can use something called the
+100% measure move so you measure from the swing High to swing low before the
+pattern then you take this exact measurement you copy the length and perhaps your profit Target would be
+around this point so what's important here is that the length of this move and
+the length to your target should be the same size all right so now it's time to
+The Bullish Runaway Gap
+take a look at the bullish runaway Gap pattern and this right here is a very
+powerful pattern so make sure to really pay attention when it comes comes to the complexity for this pattern it's
+actually pretty hard to categorize but I'm calling this a simple pattern Because the actual pattern itself
+doesn't really consist of candlesticks but rather it consists of a gap however
+the direction for this pattern is bullish and the type here is continuation so before the pattern
+appears we want to see an uptrend then we identify the actual pattern and the
+goal of this pattern is to continue to push the price towards the upside all right so identifying this pattern is
+actually pretty simple all we need to look out for here is a move towards the upside and then we want to see a gap you
+can see this right here the space in between the highest point of this candle
+and the lowest point of this candle is considered a gap and this type of Gap
+where we have nothing in between the candles you can see not even the Wicks are touching is called a true Gap so
+what we're looking out for when it comes to the runway Gap here is that we want to see a true Gap so for example we
+don't want it to look like this let's say that this right here is the first candle and this right here is the second
+candle you can see that in this case we have a gap here between the real bodies of the candles so this right here is one
+type of Gap but what we're looking out for here is that we want not even the Wicks to touch and this pattern is
+confirmed already when this candle open opens so as you guys know for most
+Candlestick patterns the patterns will confirm at a candle close but for the bullish runaway Gap the pattern confirms
+at the open after the Gap and that is very important to have in mind so now let's take a look at the bullish runaway
+Bullish Gap Trading Strategy
+Gap trading strategy and the first thing we need to do here is of course to identify the pattern and on this chart
+the only real runaway Gap that can be found is right here you can see if you
+look closely on this chart you can see that we have multiple of these other gaps you can see for example right here
+we have a gap between the real bodies of the candles and for example right here
+as well and right here you can see that these other types of gaps when we have a gap between the real bodies is pretty
+common but to find a gap where not even the Wicks are touching is a more rare signal another thing that is important
+to notice here is that before the runaway Gap we need to see an uptrend and in this case we indeed saw an
+uptrend before the Gap then the Gap appeared and remember the the pattern
+confirms when this Candlestick opens so how do we trade this pattern well the
+most common entry point is to enter here at the open after the Gap as for your
+stop- loss you usually want to place the stop loss here below the lowest point of
+the Gap so this black line is the lowest point of the Gap and a common way to set your stop loss is to place it below this
+point uh why do we do this well it's not super uncommon for the price to actually
+pull back and test the low of the Gap this right here is what we call a gap
+fill and when we set the stop loss below this point we can actually allow for a gap fill and still not get stopped out
+and as for your Target you can use a simple risk W ratio so you can measure this movement right here you can take
+the measurement using a 2: one would give a Target around there using a 3:
+one would give a Target around there so now let's switch to attention here and take a look at the bearish runaway Gap
+The Bearish Runaway Gap
+we can consider this pattern a simple pattern because it consists basically of zero candlesticks it depends on you know
+how you define it but I Define this as a simple pattern the direction here is bearish and the type is continuation so
+to identify the pattern we need to first see a downtrend what we then want to
+identify is that we want to identify a true Gap so remember a true Gap is when
+we have space in between two candles where not even the Wicks are touching
+this pattern confirms already at the open of the Candlestick after the Gap so
+this pattern is confirmed already at this point and it indicates a continuation to the downside so now then
+Bearish Gap Trading Strategy
+how do we trade The bearish Runaway Gap well the first thing we need to do is that we need to identify the Gap and if
+you want to you can try to do this yourself and pause the video right now
+well guys did you find any Gap um in my opinion the most obvious Gap can be found right here you can see we have
+some complete space in between these two candles right so here we have a bearish
+runaway Gap you could also maybe argue that we have a tiny tiny Gap right here
+but preferably when we see these runaway gaps we don't really want to see very
+small gaps like right here we definitely prefer to see larger gaps like in this
+case as for your entry point the most common way to enter is to enter already at the open of the first candle after
+the gap for the stop loss we usually place the stop loss just slightly above
+the highest point of the Gap so the highest point of the Gap is right there and we place our stop loss just above
+this point and we also leave some wiggle room so if the price goes up to retest
+the Gap we still have some good chances here to not get stopped out and still be
+within a winning trade for your Target you can use a risk reward ratio so you can measure from the stop loss to the
+entry point you take this measurement and a 2:1 Target would give us a Target
+down here while a 3:1 would give us a a Target all the way down here all right
+Doji and Spinning Top Candles
+guys so now it's time to switch the T and take a look at a very important
+family of candlesticks and I'm talking about dogee and spinning top candles so
+now let's spend a little bit of time talking about what these candles are and why they are so important so first of
+all dogee and spinning toop candles are part of a specific group that we call
+indecision candles and indecision candles indicate uncertainty in the
+market and they can signal potential shifts in the sentiment and we will talk
+more about that very soon and what's common about in decision candles is that these candles typically have small real
+bodies and long Wicks and this reflects that neither the Bulls or the bars are
+in full control and these type of candles can be useful in many different ways they can be used to identify
+potential reversals and they can also be used to provide warning signals so for
+example if you are in a trade whether you are trading long or short these dogey and spinning toop candles can give
+us warning signs that it might be time to actually exit the trade and so on and
+so on so now let's dive a little bit deeper into doy candles and as you can
+Doji Candles (Classic, Long-Legged, Dragonfly, Gravestone, Four Price)
+see here on the screen we have many different types of dogies they all have
+different and pretty funny names uh but the most important part about the the DOI candle is that if you take a look at
+the body of all the dois here you can see that the body is you know pretty
+much only a line which means that the candles open uh during the candle it
+moves up and down but the candle closes pretty much at the exact same level
+where it opened however it is okay for ad do candle to have a very very slight
+real body so it might look something like this but we do want to see the real body either being a complete line or
+have a very very small real body and now let's talk a little bit about the different types of dois because
+depending on where the real body is located the doy candles can actually be
+either bullish or bearish so for the first candle the candle right here this is called a classic dogee and this is
+where the price you know during the candle moves up and down but it go goes down here and closes pretty much in the
+middle of the candle so the classic dogee indicates indecision or in other
+words uncertainty in the market as for the next candle the longle dogee we can
+see that the real body here has shifted a slight bit up uh you can also have a
+long leg dogee where you have the body of the candle down here for example but
+what's important to learn here is that the higher up the body is the more
+bullish the candle will become and the lower the body the more bearish the doe candle
+will become so a longleg doe can be either more bearish or more bullish
+depending on where you find the body the next candle is called the dragonfly do
+and you can see that this is a case where the real body has been pushed all
+the way to the highest point of the candle so let's imagine how the price moved within this candle you can see
+that the price opened all the way up here during the candle the bars managed
+to push the price pretty far down but before the close of the candle the Bulls
+took control once again and actually managed to push the price all the way up to the top so this makes it so that the
+dragonfly dogee is actually considered a bullish candle however as with all
+patterns it it's important where the candle actually appears so this pattern
+if it comes off after an uptrend it doesn't really signal too much but if
+you find a dragonfly dogee after a downtrend in this case it can actually
+act as a reversal candle pretty similar to the hammer and as you know about the
+hammer it indicates a reversal to the upside the next dogee candle the gravestone dogee is pretty much the
+opposite of the dragonfly you can see in this case it open all the way down here the Bulls managed to push the price up
+but for the close of the candle the bars took full control once again and managed
+to push the price down to the opening price so this right here is a bearish reversal pattern especially if it comes
+after an uptrend the last do candle is a very weird one it's uh you can't see it
+right now let me actually move my camera so you can see the name the last candle here is called the four price DOI and
+this one is not too important to learn because it's very rare it's very very rare to find this four price dogee in
+the markets but this pattern is basically when the price opens and close at the same level and during the candle
+it doesn't really move at all so this is one of these candles that definitely signal uncertainty um and often when you
+see a four price dogee um they often indicate that you know this is something
+we actually don't want to trade all right so now let's take a look at how we can trade using the dogee candle on this
+Doji Candle Trading Strategy
+particular chart you can see that we have a downtrend because we printed consecutive lower highs and we also
+printed lower lows and you can see that after this massive bearish uh this was a
+bearish momentum candle appeared you can actually see that we saw multiple
+multiple DOI candles emerging and remember that dogee candles at least
+regular dogee candles signals uncertainty so if you are in this short
+trade or in other words if you are betting against the direction of the market and then you see these multiple do
+candles up this can actually act as a warning signal and that you should perhaps at least sell some of your
+position or at least you know proceed with caution if we take a close look at the doy candle right here you can
+actually see that we had pretty much a dragonfly DOI right so if you are in a short trade this right here is
+definitely a warning sign however it's important to notice here that this is not enough justification for a long
+position and a reversal trade it's more like a signal to proceed with caution
+and as you can see after this doy candles appeared the price didn't reverse to the upside but it also did
+not continue the downtrend after the DOI candles we actually entered a trading range all right so last but definitely
+Spinning Top Candles
+not least let's also take a look here at the spinning top candles and the spinning top candle is very similar to
+the dogee but the difference here is that for the spinning top candle we allow for larger real bodies so you can
+see that all of these four examples are examples of spinning top candles and here compared to the doe candle we have
+larger real bodies with that said in order to have spinning top candles we
+still want the Wicks here of the candles to be larger than the real body so A
+good rule of thumb here is that you want the wick both the upper and and the lower Wick to be at least bigger than
+the real body but now you might wonder you know what about if we have a spinning top candle with a very long for
+example lower Wick and you know a extremely short upper Wick isn't it this
+right here a spinning top candle well you could consider this a spinning top
+candle but if you look closely at this pattern you will see that this pattern is actually pretty much a hammer instead
+so what we have a spinning top candle with either a very short upper or lower
+week these patterns will actually act as you know Hammer pattern or you know shooting stars or hanging mans depending
+on where the candles appear here on the chart but what does you know all of
+these candles tell us about the price well once again they give us a similar meaning as the doy candle or in other
+words they indicate indecision in the market that neither the Bulls or the bars are in control so if we see you
+know multiple doie candles appearing you know that we're talking about a pretty uncertain market and that can act as a
+signal to either Exit your trade or depending on the context it can actually act as potential reversals as well all
+right friends so this long course is actually coming to an end very very soon
+but before we wrap up here I just want to thank you all so much for watching if you guys did enjoy this course please
+don't hesitate to drop a like on the video that really helps out more than you think and I'm super super thankful
+for all the support and also of course if you have any questions or feedback
+about this course feel free to leave a comment down below you can also drop a comment down below and tell me what do
+you guys want to see in future videos here on the channel and last but definitely not least when you are ready
+to take the next step on your trading journey I highly recommend that you check out this playlist next this
+playlist contains all the educational trading courses I have made so far on the channel and more videos are coming
+very very soon so yeah guys I hope you all will have an amazing day and I hope I will see you guys in another video
+very soon but for now guys take care Chia Chow

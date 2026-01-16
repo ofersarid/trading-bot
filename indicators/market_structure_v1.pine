@@ -1,0 +1,364 @@
+// Market Structure Indicator v1 (BOS + CHoCH)
+// Based on Craig Percoco's strategy
+// @version=6
+indicator("Market Structure (BOS + CHoCH)", "MS", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// ============================================================================
+// CONSTANTS (edit these for easy customization)
+// ============================================================================
+
+// --- Swing Detection ---
+const int    DEFAULT_SWING_LENGTH     = 5      // Bars to look left/right for swing highs/lows (higher = fewer swings)
+
+// --- What to show ---
+const bool   DEFAULT_SHOW_SWING_POINTS = true  // Triangle markers at swing highs/lows
+const bool   DEFAULT_SHOW_SWING_LABELS = true  // HH, HL, LH, LL text labels
+const bool   DEFAULT_SHOW_BOS          = true  // Break of Structure lines
+const bool   DEFAULT_SHOW_CHOCH        = true  // Change of Character lines (trend reversal signals)
+
+// --- Colors ---
+const color  DEFAULT_BULL_COLOR       = color.green   // Bullish moves (HH, HL, bullish BOS)
+const color  DEFAULT_BEAR_COLOR       = color.red     // Bearish moves (LH, LL, bearish BOS)
+const color  DEFAULT_CHOCH_BULL_COLOR = color.teal    // Bullish CHoCH (potential reversal UP)
+const color  DEFAULT_CHOCH_BEAR_COLOR = color.orange  // Bearish CHoCH (potential reversal DOWN)
+
+// --- Display ---
+const string DEFAULT_LABEL_SIZE       = size.normal   // Label text size: size.tiny, size.small, size.normal
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+grp_swing = "Swing Point Settings"
+swing_length = input.int(DEFAULT_SWING_LENGTH, "Swing Detection Length", minval=1, maxval=50, group=grp_swing, tooltip="Number of bars to look left/right for swing detection")
+show_swing_points = input.bool(DEFAULT_SHOW_SWING_POINTS, "Show Swing Points", group=grp_swing)
+show_swing_labels = input.bool(DEFAULT_SHOW_SWING_LABELS, "Show HH/HL/LH/LL Labels", group=grp_swing)
+
+grp_structure = "Structure Settings"
+show_bos = input.bool(DEFAULT_SHOW_BOS, "Show Break of Structure (BOS)", group=grp_structure)
+show_choch = input.bool(DEFAULT_SHOW_CHOCH, "Show Change of Character (CHoCH)", group=grp_structure)
+bos_confirm_bars = input.int(1, "BOS Confirmation Bars", minval=1, maxval=5, group=grp_structure, tooltip="Number of bars that must close beyond swing for BOS confirmation")
+
+grp_colors = "Colors"
+bull_color = input.color(DEFAULT_BULL_COLOR, "Bullish Color", group=grp_colors)
+bear_color = input.color(DEFAULT_BEAR_COLOR, "Bearish Color", group=grp_colors)
+choch_bull_color = input.color(DEFAULT_CHOCH_BULL_COLOR, "CHoCH Bullish Color", group=grp_colors)
+choch_bear_color = input.color(DEFAULT_CHOCH_BEAR_COLOR, "CHoCH Bearish Color", group=grp_colors)
+
+grp_display = "Display"
+label_size = input.string(DEFAULT_LABEL_SIZE, "Label Size", options=[size.tiny, size.small, size.normal], group=grp_display)
+
+// ============================================================================
+// SWING POINT DETECTION
+// ============================================================================
+
+// Detect pivot highs and lows
+pivot_high = ta.pivothigh(high, swing_length, swing_length)
+pivot_low = ta.pivotlow(low, swing_length, swing_length)
+
+// Track swing points with arrays
+var float[] swing_highs = array.new_float()
+var int[] swing_high_bars = array.new_int()
+var float[] swing_lows = array.new_float()
+var int[] swing_low_bars = array.new_int()
+
+// Store new swing highs
+if not na(pivot_high)
+    array.push(swing_highs, pivot_high)
+    array.push(swing_high_bars, bar_index - swing_length)
+    // Keep array manageable
+    if array.size(swing_highs) > 100
+        array.shift(swing_highs)
+        array.shift(swing_high_bars)
+
+// Store new swing lows
+if not na(pivot_low)
+    array.push(swing_lows, pivot_low)
+    array.push(swing_low_bars, bar_index - swing_length)
+    // Keep array manageable
+    if array.size(swing_lows) > 100
+        array.shift(swing_lows)
+        array.shift(swing_low_bars)
+
+// ============================================================================
+// TREND STATE TRACKING
+// ============================================================================
+
+// Trend state: 1 = uptrend, -1 = downtrend, 0 = ranging
+var int trend_state = 0
+var int bos_count = 0
+
+// Track last significant swing points
+var float last_swing_high = na
+var float last_swing_low = na
+var float prev_swing_high = na
+var float prev_swing_low = na
+var int last_swing_high_bar = na
+var int last_swing_low_bar = na
+
+// Update swing tracking
+if not na(pivot_high)
+    prev_swing_high := last_swing_high
+    last_swing_high := pivot_high
+    last_swing_high_bar := bar_index - swing_length
+
+if not na(pivot_low)
+    prev_swing_low := last_swing_low
+    last_swing_low := pivot_low
+    last_swing_low_bar := bar_index - swing_length
+
+// ============================================================================
+// SWING POINT CLASSIFICATION (HH, HL, LH, LL)
+// ============================================================================
+
+// Determine swing type based on previous swings
+var string last_high_type = ""
+var string last_low_type = ""
+
+// Classify swing highs
+swing_high_type = ""
+if not na(pivot_high) and not na(prev_swing_high)
+    if pivot_high > prev_swing_high
+        swing_high_type := "HH"  // Higher High
+        last_high_type := "HH"
+    else
+        swing_high_type := "LH"  // Lower High
+        last_high_type := "LH"
+
+// Classify swing lows
+swing_low_type = ""
+if not na(pivot_low) and not na(prev_swing_low)
+    if pivot_low > prev_swing_low
+        swing_low_type := "HL"  // Higher Low
+        last_low_type := "HL"
+    else
+        swing_low_type := "LL"  // Lower Low
+        last_low_type := "LL"
+
+// ============================================================================
+// BREAK OF STRUCTURE (BOS) DETECTION
+// ============================================================================
+
+// BOS occurs when price closes beyond the last swing point in the current trend direction
+var bool bullish_bos = false
+var bool bearish_bos = false
+var float bos_level = na
+var int bos_bar = na
+
+bullish_bos := false
+bearish_bos := false
+
+// Bullish BOS: Close above last swing high (in uptrend context)
+if not na(last_swing_high) and close > last_swing_high and close[1] <= last_swing_high
+    bullish_bos := true
+    bos_level := last_swing_high
+    bos_bar := bar_index
+    if trend_state == 1
+        bos_count += 1
+    else
+        bos_count := 1
+    trend_state := 1
+
+// Bearish BOS: Close below last swing low (in downtrend context)
+if not na(last_swing_low) and close < last_swing_low and close[1] >= last_swing_low
+    bearish_bos := true
+    bos_level := last_swing_low
+    bos_bar := bar_index
+    if trend_state == -1
+        bos_count += 1
+    else
+        bos_count := 1
+    trend_state := -1
+
+// ============================================================================
+// CHANGE OF CHARACTER (CHoCH) DETECTION
+// ============================================================================
+
+// CHoCH occurs when:
+// - In downtrend: Price fails to make lower low, then breaks above last swing high
+// - In uptrend: Price fails to make higher high, then breaks below last swing low
+
+var bool bullish_choch = false
+var bool bearish_choch = false
+var float choch_level = na
+
+bullish_choch := false
+bearish_choch := false
+
+// Bullish CHoCH: Was in downtrend (making LLs), now breaking above swing high
+// Detected when: last low type was HL (failed to make LL) and we get bullish BOS
+if bullish_bos and trend_state[1] == -1
+    bullish_choch := true
+    choch_level := last_swing_high
+
+// Bearish CHoCH: Was in uptrend (making HHs), now breaking below swing low
+// Detected when: last high type was LH (failed to make HH) and we get bearish BOS
+if bearish_bos and trend_state[1] == 1
+    bearish_choch := true
+    choch_level := last_swing_low
+
+// ============================================================================
+// PLOTTING
+// ============================================================================
+
+// Plot swing point markers
+plotshape(
+     show_swing_points and not na(pivot_high) ? pivot_high : na,
+     title="Swing High",
+     style=shape.triangledown,
+     location=location.absolute,
+     color=bear_color,
+     size=size.tiny,
+     offset=-swing_length
+     )
+
+plotshape(
+     show_swing_points and not na(pivot_low) ? pivot_low : na,
+     title="Swing Low", 
+     style=shape.triangleup,
+     location=location.absolute,
+     color=bull_color,
+     size=size.tiny,
+     offset=-swing_length
+     )
+
+// Draw swing labels (HH, HL, LH, LL)
+if show_swing_labels and swing_high_type != ""
+    label.new(
+         x=bar_index - swing_length,
+         y=pivot_high,
+         text=swing_high_type,
+         style=label.style_label_down,
+         color=color.new(color.white, 100),
+         textcolor=swing_high_type == "HH" ? bull_color : bear_color,
+         size=label_size
+         )
+
+if show_swing_labels and swing_low_type != ""
+    label.new(
+         x=bar_index - swing_length,
+         y=pivot_low,
+         text=swing_low_type,
+         style=label.style_label_up,
+         color=color.new(color.white, 100),
+         textcolor=swing_low_type == "HL" ? bull_color : bear_color,
+         size=label_size
+         )
+
+// Draw BOS lines and labels
+if show_bos and bullish_bos and not bullish_choch
+    line.new(
+         x1=last_swing_high_bar,
+         y1=last_swing_high,
+         x2=bar_index,
+         y2=last_swing_high,
+         color=bull_color,
+         style=line.style_solid,
+         width=2
+         )
+    label.new(
+         x=bar_index,
+         y=last_swing_high,
+         text="BOS",
+         style=label.style_label_up,
+         color=color.new(bull_color, 80),
+         textcolor=bull_color,
+         size=label_size
+         )
+
+if show_bos and bearish_bos and not bearish_choch
+    line.new(
+         x1=last_swing_low_bar,
+         y1=last_swing_low,
+         x2=bar_index,
+         y2=last_swing_low,
+         color=bear_color,
+         style=line.style_solid,
+         width=2
+         )
+    label.new(
+         x=bar_index,
+         y=last_swing_low,
+         text="BOS",
+         style=label.style_label_down,
+         color=color.new(bear_color, 80),
+         textcolor=bear_color,
+         size=label_size
+         )
+
+// Draw CHoCH lines and labels (more prominent)
+if show_choch and bullish_choch
+    line.new(
+         x1=last_swing_high_bar,
+         y1=last_swing_high,
+         x2=bar_index,
+         y2=last_swing_high,
+         color=choch_bull_color,
+         style=line.style_solid,
+         width=3
+         )
+    label.new(
+         x=bar_index,
+         y=last_swing_high,
+         text="CHoCH",
+         style=label.style_label_up,
+         color=color.new(choch_bull_color, 60),
+         textcolor=color.white,
+         size=label_size
+         )
+
+if show_choch and bearish_choch
+    line.new(
+         x1=last_swing_low_bar,
+         y1=last_swing_low,
+         x2=bar_index,
+         y2=last_swing_low,
+         color=choch_bear_color,
+         style=line.style_solid,
+         width=3
+         )
+    label.new(
+         x=bar_index,
+         y=last_swing_low,
+         text="CHoCH",
+         style=label.style_label_down,
+         color=color.new(choch_bear_color, 60),
+         textcolor=color.white,
+         size=label_size
+         )
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+
+var table info_table = table.new(position.top_right, 2, 3, bgcolor=color.new(color.black, 80))
+
+if barstate.islast
+    trend_text = trend_state == 1 ? "UPTREND" : trend_state == -1 ? "DOWNTREND" : "RANGING"
+    trend_color = trend_state == 1 ? bull_color : trend_state == -1 ? bear_color : color.gray
+    
+    table.cell(info_table, 0, 0, "Trend:", text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 0, trend_text, text_color=trend_color, text_size=size.small)
+    table.cell(info_table, 0, 1, "BOS Count:", text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 1, str.tostring(bos_count), text_color=trend_color, text_size=size.small)
+    table.cell(info_table, 0, 2, "Confirmed:", text_color=color.white, text_size=size.small)
+    table.cell(info_table, 1, 2, bos_count >= 2 ? "YES" : "NO", text_color=bos_count >= 2 ? color.lime : color.yellow, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+alertcondition(bullish_bos, "Bullish BOS", "Bullish Break of Structure detected")
+alertcondition(bearish_bos, "Bearish BOS", "Bearish Break of Structure detected")
+alertcondition(bullish_choch, "Bullish CHoCH", "Bullish Change of Character detected - Potential trend reversal")
+alertcondition(bearish_choch, "Bearish CHoCH", "Bearish Change of Character detected - Potential trend reversal")
+
+// ============================================================================
+// EXPORT VALUES FOR STRATEGY
+// ============================================================================
+
+// These can be used by the combined strategy
+plot(trend_state, "Trend State", display=display.none)
+plot(bos_count, "BOS Count", display=display.none)
+plot(bullish_choch ? 1 : 0, "Bullish CHoCH", display=display.none)
+plot(bearish_choch ? 1 : 0, "Bearish CHoCH", display=display.none)
