@@ -16,7 +16,7 @@ Screen {
 
 Header {
     background: #1a1a2e;
-    color: #00ff88;
+    color: #44ffaa;
 }
 
 Footer {
@@ -34,7 +34,7 @@ Footer {
 }
 
 .panel-title {
-    color: #00ff88;
+    color: #44ffaa;
     text-style: bold;
     background: #1a1a2e;
     padding: 1 2;
@@ -55,7 +55,7 @@ Footer {
 }
 
 #orderbook-panel {
-    width: 34;
+    width: 40;
     height: 100%;
 }
 
@@ -112,46 +112,58 @@ Footer {
  * Scrollable Content
  * ============================================================ */
 
-RichLog {
+.panel-content {
+    height: 1fr;
     background: #0a0a0a;
+    padding: 1 0 0 2;
     scrollbar-background: #1a1a1a;
     scrollbar-color: #333333;
 }
 
-#prices-log, #orderbook-log, #trades-log {
-    height: 1fr;
-}
-
-#ai-log {
-    height: 1fr;
-}
-
-#opportunities-log {
-    height: 1fr;
-}
-
-#positions-log, #history-log {
-    height: 1fr;
-}
-
-/* ============================================================
- * Status Bars
- * ============================================================ */
-
-.status-bar {
-    background: #1a1a2e;
-    color: #00ff88;
-    height: 1;
-    padding: 0 1;
+.panel-content > Static {
     width: 100%;
 }
 
-.threshold-bar {
+/* ============================================================
+ * Title Bar
+ * ============================================================ */
+
+.title-bar {
+    background: #1a1a2e;
+    color: #00ff88;
+    text-style: bold;
+    height: 2;
+    padding: 1 1 0 1;
+    width: 100%;
+    text-align: left;
+}
+
+/* ============================================================
+ * Status Row (combined status + thresholds)
+ * ============================================================ */
+
+.status-row {
+    background: #1a1a2e;
+    height: 2;
+    padding: 0;
+    width: 100%;
+}
+
+.status-bar-left {
+    background: #1a1a2e;
+    color: #00ff88;
+    height: 1;
+    padding: 0 0 0 1;
+    width: auto;
+}
+
+.status-bar-right {
     background: #1a1a2e;
     color: #ffffff;
     height: 1;
     padding: 0 1;
-    width: 100%;
+    width: 1fr;
+    text-align: right;
 }
 
 /* ============================================================

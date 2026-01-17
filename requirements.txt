@@ -18,3 +18,6 @@ websockets>=12.0
 # Terminal UI (retro dark theme dashboard)
 textual>=0.47.0
 textual-slider>=0.1.0
+
+# Development tools
+watchfiles>=0.21.0  # File watcher for hot reload

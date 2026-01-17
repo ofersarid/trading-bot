@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-from textual.widgets import Header, Footer, Static, Label, DataTable, Log, RichLog
+from textual.widgets import Footer, Static, Label, DataTable
 from textual.reactive import reactive
 from textual import work
 from textual.binding import Binding
@@ -41,13 +41,21 @@ from bot.simulation.paper_trader import PaperTrader
 
 
 # ============================================================
+# Theme Colors (Rich markup hex codes)
+# ============================================================
+COLOR_UP = "#44ffaa"      # Bright green for positive/buy/profit
+COLOR_DOWN = "#ff7777"    # Bright red for negative/sell/loss
+
+
+# ============================================================
 # Main Dashboard App
 # ============================================================
 class TradingDashboard(App):
     """Retro terminal trading dashboard."""
     
     CSS_PATH = "styles/theme.css"
-    TITLE = "📊 PAPER TRADING SIMULATOR"
+    TITLE = "PAPER TRADING SIMULATOR"
+    SHOW_TITLE = False  # Hide default header title
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "reset", "Reset"),
@@ -82,6 +90,7 @@ class TradingDashboard(App):
         self.orderbook: dict[str, dict] = {}  # {coin: {bids: [], asks: []}}
         self.trades: deque = deque(maxlen=self.config.max_trades_history)
         self.pending_opportunities: dict[str, PendingOpportunity] = {}
+        self.ai_messages: deque = deque(maxlen=100)  # Store last 100 AI log messages
         
         # Price history for momentum calculation
         self.price_history: dict[str, deque] = {
@@ -114,58 +123,69 @@ class TradingDashboard(App):
         
     def compose(self) -> ComposeResult:
         """Create the dashboard layout."""
-        yield Header()
-        
-        # Status bar
+        # Custom title bar (left-aligned)
         yield Static(
-            f"💰 Balance: ${self.starting_balance:,.2f}  |  📈 Equity: ${self.starting_balance:,.2f}  |  💵 P&L: $0.00",
-            id="status-bar",
-            classes="status-bar"
+            "PAPER TRADING SIMULATOR",
+            id="title-bar",
+            classes="title-bar"
         )
         
-        # Threshold settings panel with visual bars
-        yield Static(
-            self._render_threshold_bar(),
-            id="threshold-bar",
-            classes="threshold-bar"
-        )
+        # Combined status row: status info (left) + threshold settings (right)
+        with Horizontal(id="status-row", classes="status-row"):
+            yield Static(
+                self._render_status_content(),
+                id="status-bar",
+                classes="status-bar-left"
+            )
+            yield Static(
+                self._render_threshold_content(),
+                id="threshold-bar",
+                classes="status-bar-right"
+            )
         
         # Top row: Prices, Order Book, Live Trades
         with Horizontal(classes="top-row"):
             # Prices panel
             with Container(id="prices-panel", classes="panel"):
                 yield Static("💰 PRICES & MOMENTUM", classes="panel-title")
-                yield RichLog(id="prices-log", highlight=True, markup=True)
+                with ScrollableContainer(id="prices-scroll", classes="panel-content"):
+                    yield Static("", id="prices-content")
             
             # Order book panel
             with Container(id="orderbook-panel", classes="panel"):
                 yield Static("📈 ORDER BOOK", classes="panel-title")
-                yield RichLog(id="orderbook-log", highlight=True, markup=True)
+                with ScrollableContainer(id="orderbook-scroll", classes="panel-content"):
+                    yield Static("", id="orderbook-content")
             
             # Live trades panel
             with Container(id="trades-panel", classes="panel"):
                 yield Static("🔄 LIVE TRADES", classes="panel-title")
-                yield RichLog(id="trades-log", highlight=True, markup=True)
+                with ScrollableContainer(id="trades-scroll", classes="panel-content"):
+                    yield Static("", id="trades-content")
         
         # Middle row: AI Reasoning
         with Container(id="ai-panel", classes="panel middle-row"):
             yield Static("🧠 AI REASONING", classes="panel-title", id="ai-title")
-            yield RichLog(id="ai-log", highlight=True, markup=True, auto_scroll=True)
+            with ScrollableContainer(id="ai-scroll", classes="panel-content"):
+                yield Static("", id="ai-content")
         
         # Opportunities row
         with Container(id="opportunities-panel", classes="panel opportunities-row"):
             yield Static("🎯 OPPORTUNITIES IN PROGRESS", classes="panel-title")
-            yield RichLog(id="opportunities-log", highlight=True, markup=True)
+            with ScrollableContainer(id="opportunities-scroll", classes="panel-content"):
+                yield Static("", id="opportunities-content")
         
         # Bottom row: Positions and History
         with Horizontal(classes="bottom-row"):
             with Container(id="positions-panel", classes="panel"):
                 yield Static("📌 OPEN POSITIONS", classes="panel-title")
-                yield RichLog(id="positions-log", highlight=True, markup=True)
+                with ScrollableContainer(id="positions-scroll", classes="panel-content"):
+                    yield Static("", id="positions-content")
             
             with Container(id="history-panel", classes="panel"):
                 yield Static("📜 TRADE HISTORY", classes="panel-title")
-                yield RichLog(id="history-log", highlight=True, markup=True)
+                with ScrollableContainer(id="history-scroll", classes="panel-content"):
+                    yield Static("", id="history-content")
         
         yield Footer()
     
@@ -188,7 +208,7 @@ class TradingDashboard(App):
         try:
             async with websockets.connect(ws_url) as ws:
                 self.ws_connected = True
-                self.log_ai("[green]✓ Connected to Hyperliquid WebSocket[/green]")
+                self.log_ai(f"[{COLOR_UP}]✓ Connected to Hyperliquid WebSocket[/{COLOR_UP}]")
                 
                 # Subscribe to all prices
                 await ws.send(json.dumps({
@@ -205,12 +225,13 @@ class TradingDashboard(App):
                     }))
                 self.log_ai(f"📡 Subscribed to trades: {', '.join(self.coins)}")
                 
-                # Subscribe to order book for first coin
-                await ws.send(json.dumps({
-                    "method": "subscribe",
-                    "subscription": {"type": "l2Book", "coin": self.coins[0]}
-                }))
-                self.log_ai(f"📡 Subscribed to {self.coins[0]} order book")
+                # Subscribe to order book for all coins
+                for coin in self.coins:
+                    await ws.send(json.dumps({
+                        "method": "subscribe",
+                        "subscription": {"type": "l2Book", "coin": coin}
+                    }))
+                self.log_ai(f"📡 Subscribed to order books: {', '.join(self.coins)}")
                 
                 self.log_ai("[yellow]⏳ Waiting for market data...[/yellow]")
                 
@@ -223,7 +244,7 @@ class TradingDashboard(App):
                     await self.process_message(data)
                     
         except Exception as e:
-            self.log_ai(f"[red]✗ WebSocket error: {e}[/red]")
+            self.log_ai(f"[{COLOR_DOWN}]✗ WebSocket error: {e}[/{COLOR_DOWN}]")
     
     async def process_message(self, data: dict) -> None:
         """Process incoming WebSocket message."""
@@ -250,7 +271,7 @@ class TradingDashboard(App):
                 
                 # Log first price for this coin
                 if coin not in self.prices:
-                    self.log_ai(f"[green]✓ First price received: {coin} @ ${new_price:,.2f}[/green]")
+                    self.log_ai(f"[{COLOR_UP}]✓ First price received: {coin} @ ${new_price:,.2f}[/{COLOR_UP}]")
                 
                 self.prices[coin] = new_price
                 
@@ -266,7 +287,7 @@ class TradingDashboard(App):
         
         # Log when all coins have prices
         if first_update and len(self.prices) >= len(self.coins):
-            self.log_ai("[green]✓ All prices received! Starting opportunity analysis...[/green]")
+            self.log_ai(f"[{COLOR_UP}]✓ All prices received! Starting opportunity analysis...[/{COLOR_UP}]")
             self.log_ai("[dim]Building 60s price history before detecting momentum...[/dim]")
         
         # Periodic market analysis
@@ -385,9 +406,9 @@ class TradingDashboard(App):
             change = data["change"]
             
             if momentum > 0.1:
-                status = f"[green]▲ RISING +{momentum:.3f}%[/green]"
+                status = f"[{COLOR_UP}]▲ RISING +{momentum:.3f}%[/{COLOR_UP}]"
             elif momentum < -0.1:
-                status = f"[red]▼ FALLING {momentum:.3f}%[/red]"
+                status = f"[{COLOR_DOWN}]▼ FALLING {momentum:.3f}%[/{COLOR_DOWN}]"
             else:
                 status = f"[dim]─ FLAT {momentum:+.3f}%[/dim]"
             
@@ -434,7 +455,7 @@ class TradingDashboard(App):
         # Log analysis periodically (every ~100 updates per coin)
         if len(history) % 100 == 0:
             direction = "📈" if momentum > 0 else "📉" if momentum < 0 else "➡️"
-            color = "green" if momentum > 0 else "red" if momentum < 0 else "white"
+            color = COLOR_UP if momentum > 0 else COLOR_DOWN if momentum < 0 else "white"
             self.log_ai(
                 f"[dim]🔍 {coin}: ${price:,.2f} | "
                 f"60s momentum: [{color}]{momentum_pct:+.3f}%[/{color}] {direction} | "
@@ -504,8 +525,8 @@ class TradingDashboard(App):
         position_value = self.trader.balance * self.config.position_size_pct
         size = position_value / price
         
-        self.log_ai(f"[green]✓ ALL CONDITIONS MET for {coin}[/green]")
-        self.log_ai(f"[green]→ Executing {opp.direction} {size:.6f} {coin} @ ${price:,.2f}[/green]")
+        self.log_ai(f"[{COLOR_UP}]✓ ALL CONDITIONS MET for {coin}[/{COLOR_UP}]")
+        self.log_ai(f"[{COLOR_UP}]→ Executing {opp.direction} {size:.6f} {coin} @ ${price:,.2f}[/{COLOR_UP}]")
         
         # Execute trade
         if opp.direction == "LONG":
@@ -514,9 +535,9 @@ class TradingDashboard(App):
             result = self.trader.open_short(coin, size, price)
         
         if result.success:
-            self.log_ai(f"[green]✓ {result.message}[/green]")
+            self.log_ai(f"[{COLOR_UP}]✓ {result.message}[/{COLOR_UP}]")
         else:
-            self.log_ai(f"[red]✗ {result.message}[/red]")
+            self.log_ai(f"[{COLOR_DOWN}]✗ {result.message}[/{COLOR_DOWN}]")
         
         self.update_positions_display()
         self.update_status_bar()
@@ -539,16 +560,16 @@ class TradingDashboard(App):
         
         # Take profit or stop loss based on config thresholds
         if pnl_pct >= self.config.take_profit_pct:
-            self.log_ai(f"[green]🎯 Take profit triggered for {coin} (+{pnl_pct:.2f}%)[/green]")
+            self.log_ai(f"[{COLOR_UP}]🎯 Take profit triggered for {coin} (+{pnl_pct:.2f}%)[/{COLOR_UP}]")
             result = self.trader.close_position(coin, price)
-            self.log_ai(f"[green]✓ {result.message}[/green]")
+            self.log_ai(f"[{COLOR_UP}]✓ {result.message}[/{COLOR_UP}]")
             self.update_positions_display()
             self.update_history_display(result.trade)
             self.update_status_bar()
         elif pnl_pct <= self.config.stop_loss_pct:
-            self.log_ai(f"[red]🛑 Stop loss triggered for {coin} ({pnl_pct:.2f}%)[/red]")
+            self.log_ai(f"[{COLOR_DOWN}]🛑 Stop loss triggered for {coin} ({pnl_pct:.2f}%)[/{COLOR_DOWN}]")
             result = self.trader.close_position(coin, price)
-            self.log_ai(f"[red]✗ {result.message}[/red]")
+            self.log_ai(f"[{COLOR_DOWN}]✗ {result.message}[/{COLOR_DOWN}]")
             self.update_positions_display()
             self.update_history_display(result.trade)
             self.update_status_bar()
@@ -585,12 +606,11 @@ class TradingDashboard(App):
     
     def update_prices_display(self) -> None:
         """Update prices panel."""
-        log = self.query_one("#prices-log", RichLog)
-        log.clear()
+        lines = []
         
-        # Header row
-        log.write("[dim]COIN     PRICE              TICK   60s MOMENTUM[/dim]")
-        log.write("[dim]─────────────────────────────────────────────────────────────────────[/dim]")
+        # Column widths: COIN=5, PRICE=13 (with $), TICK=6, MOMENTUM=rest
+        lines.append(f"[dim]{'COIN':<5}   {'PRICE':>13}    {'TICK':^4}    60s MOMENTUM[/dim]")
+        lines.append("[dim]─────────────────────────────────────────────────────[/dim]")
         
         for coin in self.coins:
             price = self.prices.get(coin, 0)
@@ -598,10 +618,10 @@ class TradingDashboard(App):
             change = price - prev
             
             if change > 0:
-                tick_color = "green"
+                tick_color = COLOR_UP
                 tick_arrow = "▲"
             elif change < 0:
-                tick_color = "red"
+                tick_color = COLOR_DOWN
                 tick_arrow = "▼"
             else:
                 tick_color = "white"
@@ -611,10 +631,10 @@ class TradingDashboard(App):
             momentum = self._calculate_momentum(coin)
             if momentum is not None:
                 if momentum > 0.1:
-                    mom_color = "green"
+                    mom_color = COLOR_UP
                     mom_bar = "▲" * min(5, int(abs(momentum) / 0.1))
                 elif momentum < -0.1:
-                    mom_color = "red"
+                    mom_color = COLOR_DOWN
                     mom_bar = "▼" * min(5, int(abs(momentum) / 0.1))
                 else:
                     mom_color = "dim"
@@ -623,140 +643,177 @@ class TradingDashboard(App):
             else:
                 momentum_str = "[dim]building...[/dim]"
             
+            # Format price with $ prefix, total 13 chars
+            price_str = f"${price:>12,.2f}"
+            
             # Single line: COIN | PRICE | TICK | MOMENTUM
-            log.write(
-                f"[bold]{coin:<5}[/bold]  "
-                f"${price:>12,.2f}    "
-                f"[{tick_color}]{tick_arrow}[/{tick_color}]    "
+            lines.append(
+                f"[bold]{coin:<5}[/bold]   "
+                f"{price_str}    "
+                f"[{tick_color}]{tick_arrow:^4}[/{tick_color}]    "
                 f"{momentum_str}"
             )
             
             self.prev_prices[coin] = price
+        
+        content = self.query_one("#prices-content", Static)
+        content.update("\n".join(lines))
     
     def update_orderbook_display(self, coin: str) -> None:
-        """Update order book panel."""
-        log = self.query_one("#orderbook-log", RichLog)
-        log.clear()
+        """Update order book panel with all coins."""
+        lines = []
         
-        book = self.orderbook.get(coin, {"bids": [], "asks": []})
+        for i, c in enumerate(self.coins):
+            book = self.orderbook.get(c, {"bids": [], "asks": []})
+            
+            if i > 0:
+                lines.append("")  # Separator between coins
+            
+            # Compact: show top 3 asks and bids per coin
+            lines.append(f"[bold cyan]{c}[/bold cyan]")
+            
+            # Asks (reversed so lowest is at bottom)
+            for ask in reversed(book["asks"][:3]):
+                px = float(ask.get("px", 0))
+                sz = float(ask.get("sz", 0))
+                lines.append(f"  [{COLOR_DOWN}]${px:>10,.2f}  {sz:>8.4f}[/{COLOR_DOWN}]")
+            
+            # Spread line
+            lines.append(f"  [dim]────────────────────[/dim]")
+            
+            # Bids
+            for bid in book["bids"][:3]:
+                px = float(bid.get("px", 0))
+                sz = float(bid.get("sz", 0))
+                lines.append(f"  [{COLOR_UP}]${px:>10,.2f}  {sz:>8.4f}[/{COLOR_UP}]")
         
-        # Asks (reversed so lowest is at bottom)
-        log.write(f"[dim]{coin} ASKS[/dim]")
-        for ask in reversed(book["asks"][:5]):
-            px = float(ask.get("px", 0))
-            sz = float(ask.get("sz", 0))
-            log.write(f"[red]${px:>10,.2f} │ {sz:>8.4f}[/red]")
-        
-        log.write("[dim]─── SPREAD ───[/dim]")
-        
-        # Bids
-        for bid in book["bids"][:5]:
-            px = float(bid.get("px", 0))
-            sz = float(bid.get("sz", 0))
-            log.write(f"[green]${px:>10,.2f} │ {sz:>8.4f}[/green]")
-        log.write(f"[dim]{coin} BIDS[/dim]")
+        content = self.query_one("#orderbook-content", Static)
+        content.update("\n".join(lines))
     
     def update_trades_display(self) -> None:
-        """Update trades panel."""
-        log = self.query_one("#trades-log", RichLog)
-        log.clear()
+        """Update trades panel - show trades from last 60 seconds, grouped by coin."""
+        now = datetime.now()
         
-        for trade in list(self.trades)[:self.config.max_trades_displayed]:
-            time_str = trade["time"].strftime("%H:%M:%S")
-            side = trade["side"]
-            color = "green" if side == "B" else "red"
-            side_text = "BUY " if side == "B" else "SELL"
+        # Group trades by coin
+        trades_by_coin: dict[str, list] = {coin: [] for coin in self.coins}
+        for trade in list(self.trades):
+            age = (now - trade["time"]).total_seconds()
+            if age > 60:
+                continue
+            coin = trade["coin"]
+            if coin in trades_by_coin:
+                trades_by_coin[coin].append(trade)
+        
+        # Build display grouped by coin
+        lines = []
+        for i, coin in enumerate(self.coins):
+            coin_trades = trades_by_coin[coin]
             
-            log.write(
-                f"[{color}]{side_text}[/{color}] "
-                f"[dim]{time_str}[/dim] "
-                f"{trade['size']:>8.4f} {trade['coin']} "
-                f"@ ${trade['price']:,.2f}"
-            )
+            if i > 0:
+                lines.append("")  # Separator between coins
+            
+            lines.append(f"[bold cyan]{coin}[/bold cyan]")
+            
+            if not coin_trades:
+                lines.append(f"  [dim]No recent trades[/dim]")
+            else:
+                # Show most recent trades first (up to 6 per coin)
+                for trade in coin_trades[:6]:
+                    time_str = trade["time"].strftime("%H:%M:%S")
+                    side = trade["side"]
+                    color = COLOR_UP if side == "B" else COLOR_DOWN
+                    side_text = "BUY " if side == "B" else "SELL"
+                    
+                    lines.append(
+                        f"  [{color}]{side_text}[/{color}] "
+                        f"[dim]{time_str}[/dim] "
+                        f"{trade['size']:>8.4f} @ ${trade['price']:,.2f}"
+                    )
+        
+        content = self.query_one("#trades-content", Static)
+        content.update("\n".join(lines))
     
     def update_opportunities_display(self) -> None:
         """Update opportunities panel."""
-        log = self.query_one("#opportunities-log", RichLog)
-        log.clear()
+        lines = []
         
         if not self.pending_opportunities:
-            log.write("[dim]No opportunities being analyzed...[/dim]")
-            return
+            lines.append("[dim]No opportunities being analyzed...[/dim]")
+        else:
+            for coin, opp in self.pending_opportunities.items():
+                color = COLOR_UP if opp.direction == "LONG" else COLOR_DOWN
+                lines.append(
+                    f"[{color}]{coin} {opp.direction}[/{color}] @ ${opp.current_price:,.2f} │ "
+                    f"{opp.progress_bar} {opp.conditions_met}/{opp.total_conditions}"
+                )
+                for cond in opp.conditions:
+                    status = f"[{COLOR_UP}]✓[/{COLOR_UP}]" if cond.met else f"[{COLOR_DOWN}]✗[/{COLOR_DOWN}]"
+                    lines.append(f"  {status} {cond.name}: {cond.value or cond.description}")
         
-        for coin, opp in self.pending_opportunities.items():
-            color = "green" if opp.direction == "LONG" else "red"
-            log.write(
-                f"[{color}]{coin} {opp.direction}[/{color}] @ ${opp.current_price:,.2f} │ "
-                f"{opp.progress_bar} {opp.conditions_met}/{opp.total_conditions}"
-            )
-            for cond in opp.conditions:
-                status = "[green]✓[/green]" if cond.met else "[red]✗[/red]"
-                log.write(f"  {status} {cond.name}: {cond.value or cond.description}")
+        content = self.query_one("#opportunities-content", Static)
+        content.update("\n".join(lines))
     
     def update_positions_display(self) -> None:
         """Update positions panel."""
-        log = self.query_one("#positions-log", RichLog)
-        log.clear()
+        lines = []
         
         if not self.trader.positions:
-            log.write("[dim]No open positions[/dim]")
-            return
+            lines.append("[dim]No open positions[/dim]")
+        else:
+            for coin, pos in self.trader.positions.items():
+                price = self.prices.get(coin, pos.entry_price)
+                pnl = pos.unrealized_pnl(price)
+                pnl_pct = pos.unrealized_pnl_percent(price)
+                
+                side = "LONG" if pos.side == Side.LONG else "SHORT"
+                color = COLOR_UP if pnl >= 0 else COLOR_DOWN
+                
+                lines.append(f"[bold]{coin}[/bold] {side} {pos.size:.6f}")
+                lines.append(f"  Entry: ${pos.entry_price:,.2f}")
+                lines.append(f"  Current: ${price:,.2f}")
+                lines.append(f"  [{color}]P&L: ${pnl:+,.2f} ({pnl_pct:+.2f}%)[/{color}]")
         
-        for coin, pos in self.trader.positions.items():
-            price = self.prices.get(coin, pos.entry_price)
-            pnl = pos.unrealized_pnl(price)
-            pnl_pct = pos.unrealized_pnl_percent(price)
-            
-            side = "LONG" if pos.side == Side.LONG else "SHORT"
-            color = "green" if pnl >= 0 else "red"
-            
-            log.write(f"[bold]{coin}[/bold] {side} {pos.size:.6f}")
-            log.write(f"  Entry: ${pos.entry_price:,.2f}")
-            log.write(f"  Current: ${price:,.2f}")
-            log.write(f"  [{color}]P&L: ${pnl:+,.2f} ({pnl_pct:+.2f}%)[/{color}]")
+        content = self.query_one("#positions-content", Static)
+        content.update("\n".join(lines))
     
     def update_history_display(self, trade=None) -> None:
         """Update trade history panel."""
-        log = self.query_one("#history-log", RichLog)
+        lines = []
         
-        if trade:
-            emoji = "✅" if trade.pnl > 0 else "❌"
-            color = "green" if trade.pnl > 0 else "red"
-            side = "LONG" if trade.side == Side.LONG else "SHORT"
-            
-            log.write(
-                f"{emoji} [{color}]{side} {trade.coin}: "
-                f"${trade.pnl:+,.2f} ({trade.pnl_percent:+.2f}%)[/{color}]"
-            )
+        if not self.trader.trade_history:
+            lines.append("[dim]No completed trades[/dim]")
+        else:
+            for t in reversed(self.trader.trade_history[-20:]):  # Show last 20 trades
+                emoji = "✅" if t.pnl > 0 else "❌"
+                color = COLOR_UP if t.pnl > 0 else COLOR_DOWN
+                side = "LONG" if t.side == Side.LONG else "SHORT"
+                
+                lines.append(
+                    f"{emoji} [{color}]{side} {t.coin}: "
+                    f"${t.pnl:+,.2f} ({t.pnl_percent:+.2f}%)[/{color}]"
+                )
+        
+        content = self.query_one("#history-content", Static)
+        content.update("\n".join(lines))
     
     def update_status_bar(self) -> None:
         """Update the status bar."""
-        equity = self.trader.get_equity(self.prices)
-        pnl = equity - self.starting_balance
-        pnl_pct = (pnl / self.starting_balance) * 100
-        
-        pnl_color = "green" if pnl >= 0 else "red"
-        
-        # Calculate uptime
-        uptime = datetime.now() - self.start_time
-        hours, remainder = divmod(int(uptime.total_seconds()), 3600)
-        minutes, seconds = divmod(remainder, 60)
-        uptime_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-        
         status = self.query_one("#status-bar", Static)
-        status.update(
-            f"⏱️ {uptime_str}  │  "
-            f"💰 ${self.trader.balance:,.2f}  │  "
-            f"📈 ${equity:,.2f}  │  "
-            f"[{pnl_color}]P&L: ${pnl:+,.2f} ({pnl_pct:+.2f}%)[/{pnl_color}]  │  "
-            f"📊 {len(self.trader.trade_history)} trades"
-        )
+        status.update(self._render_status_content())
     
     def log_ai(self, message: str) -> None:
         """Log message to AI reasoning panel."""
-        log = self.query_one("#ai-log", RichLog)
         timestamp = datetime.now().strftime("%H:%M:%S")
-        log.write(f"[dim]{timestamp}[/dim] {message}")
+        self.ai_messages.append(f"[dim]{timestamp}[/dim] {message}")
+        
+        try:
+            content = self.query_one("#ai-content", Static)
+            content.update("\n".join(self.ai_messages))
+            # Auto-scroll to bottom
+            scroll = self.query_one("#ai-scroll", ScrollableContainer)
+            scroll.scroll_end(animate=False)
+        except Exception:
+            pass  # Widget not ready yet
     
     def update_ai_title(self) -> None:
         """Update AI panel title with mode and token info."""
@@ -769,7 +826,7 @@ class TradingDashboard(App):
                 )
             else:
                 title.update(
-                    f"🧠 AI REASONING [dim]│[/dim] [green]🤖 {self.analysis_mode}[/green] [dim]│[/dim] "
+                    f"🧠 AI REASONING [dim]│[/dim] [{COLOR_UP}]🤖 {self.analysis_mode}[/{COLOR_UP}] [dim]│[/dim] "
                     f"Model: [cyan]{self.ai_model}[/cyan] [dim]│[/dim] "
                     f"Tokens: [magenta]{self.tokens_used:,}[/magenta] [dim]│[/dim] "
                     f"Calls: [blue]{self.ai_calls}[/blue]"
@@ -787,11 +844,8 @@ class TradingDashboard(App):
         self.pending_opportunities.clear()
         self.log_ai("[yellow]🔄 Simulator reset[/yellow]")
         self.update_positions_display()
+        self.update_history_display()
         self.update_status_bar()
-        
-        # Clear history log
-        log = self.query_one("#history-log", RichLog)
-        log.clear()
     
     def action_toggle_pause(self) -> None:
         """Pause/unpause the simulator."""
@@ -830,8 +884,29 @@ class TradingDashboard(App):
         self.update_threshold_bar()
         self.log_ai(f"[yellow]📈 Trade threshold: {self.trade_threshold:.2f}%[/yellow]")
     
-    def _render_threshold_bar(self) -> str:
-        """Render the threshold bar with visual sliders."""
+    def _render_status_content(self) -> str:
+        """Render the status bar content (left side)."""
+        equity = self.trader.get_equity(self.prices)
+        pnl = equity - self.starting_balance
+        pnl_pct = (pnl / self.starting_balance) * 100
+        pnl_color = COLOR_UP if pnl >= 0 else COLOR_DOWN
+        
+        # Calculate uptime
+        uptime = datetime.now() - self.start_time
+        hours, remainder = divmod(int(uptime.total_seconds()), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        uptime_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        
+        return (
+            f"⏱️ {uptime_str}  │  "
+            f"💰${self.trader.balance:,.2f}  │  "
+            f"📈${equity:,.2f}  │  "
+            f"[{pnl_color}]P&L: ${pnl:+,.2f} ({pnl_pct:+.2f}%)[/{pnl_color}]  │  "
+            f"📊{len(self.trader.trade_history)} trades"
+        )
+    
+    def _render_threshold_content(self) -> str:
+        """Render the threshold settings content (right side)."""
         # Visual bar for track threshold (0-0.5%)
         track_pct = min(1.0, self.track_threshold / 0.5)
         track_filled = int(track_pct * 15)
@@ -840,19 +915,18 @@ class TradingDashboard(App):
         # Visual bar for trade threshold (0-1.0%)
         trade_pct = min(1.0, self.trade_threshold / 1.0)
         trade_filled = int(trade_pct * 15)
-        trade_bar = "[green]" + "█" * trade_filled + "░" * (15 - trade_filled) + "[/green]"
+        trade_bar = f"[{COLOR_UP}]" + "█" * trade_filled + "░" * (15 - trade_filled) + f"[/{COLOR_UP}]"
         
         return (
-            f"⚙️  [bold]THRESHOLDS[/bold]  │  "
-            f"Track: {track_bar} [cyan]{self.track_threshold:.2f}%[/cyan] [dim][1↓ 2↑][/dim]  │  "
-            f"Trade: {trade_bar} [green]{self.trade_threshold:.2f}%[/green] [dim][3↓ 4↑][/dim]"
+            f"Track: {track_bar} {self.track_threshold:.2f}%  │  "
+            f"Trade: {trade_bar} {self.trade_threshold:.2f}%"
         )
     
     def update_threshold_bar(self) -> None:
         """Update the threshold display."""
         try:
             bar = self.query_one("#threshold-bar", Static)
-            bar.update(self._render_threshold_bar())
+            bar.update(self._render_threshold_content())
         except Exception:
             pass  # Widget not ready
     
@@ -867,7 +941,7 @@ class TradingDashboard(App):
         else:
             self.analysis_mode = "RULE-BASED"
             self.ai_model = "None (Momentum Rules)"
-            self.log_ai("[green]✓ Switched to RULE-BASED analysis[/green]")
+            self.log_ai(f"[{COLOR_UP}]✓ Switched to RULE-BASED analysis[/{COLOR_UP}]")
         self.update_ai_title()
     
 
