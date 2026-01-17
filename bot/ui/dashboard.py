@@ -143,49 +143,53 @@ class TradingDashboard(App):
                 classes="status-bar-right"
             )
         
-        # Top row: Prices, Order Book, Live Trades
-        with Horizontal(classes="top-row"):
-            # Prices panel
-            with Container(id="prices-panel", classes="panel"):
-                yield Static("💰 PRICES & MOMENTUM", classes="panel-title")
-                with ScrollableContainer(id="prices-scroll", classes="panel-content"):
-                    yield Static("", id="prices-content")
+        # Main content area: AI sidebar (left) + data panels (right)
+        with Horizontal(classes="main-content"):
+            # Left sidebar: AI Reasoning (full height)
+            with Container(id="ai-panel", classes="panel"):
+                yield Static("🧠 AI REASONING", classes="panel-title", id="ai-title")
+                with ScrollableContainer(id="ai-scroll", classes="panel-content"):
+                    yield Static("", id="ai-content")
             
-            # Order book panel
-            with Container(id="orderbook-panel", classes="panel"):
-                yield Static("📈 ORDER BOOK", classes="panel-title")
-                with ScrollableContainer(id="orderbook-scroll", classes="panel-content"):
-                    yield Static("", id="orderbook-content")
-            
-            # Live trades panel
-            with Container(id="trades-panel", classes="panel"):
-                yield Static("🔄 LIVE TRADES", classes="panel-title")
-                with ScrollableContainer(id="trades-scroll", classes="panel-content"):
-                    yield Static("", id="trades-content")
-        
-        # Middle row: AI Reasoning
-        with Container(id="ai-panel", classes="panel middle-row"):
-            yield Static("🧠 AI REASONING", classes="panel-title", id="ai-title")
-            with ScrollableContainer(id="ai-scroll", classes="panel-content"):
-                yield Static("", id="ai-content")
-        
-        # Opportunities row
-        with Container(id="opportunities-panel", classes="panel opportunities-row"):
-            yield Static("🎯 OPPORTUNITIES IN PROGRESS", classes="panel-title")
-            with ScrollableContainer(id="opportunities-scroll", classes="panel-content"):
-                yield Static("", id="opportunities-content")
-        
-        # Bottom row: Positions and History
-        with Horizontal(classes="bottom-row"):
-            with Container(id="positions-panel", classes="panel"):
-                yield Static("📌 OPEN POSITIONS", classes="panel-title")
-                with ScrollableContainer(id="positions-scroll", classes="panel-content"):
-                    yield Static("", id="positions-content")
-            
-            with Container(id="history-panel", classes="panel"):
-                yield Static("📜 TRADE HISTORY", classes="panel-title")
-                with ScrollableContainer(id="history-scroll", classes="panel-content"):
-                    yield Static("", id="history-content")
+            # Right side: All data panels stacked vertically
+            with Vertical(classes="data-panels"):
+                # Top row: Prices, Order Book, Live Trades
+                with Horizontal(classes="top-row"):
+                    # Prices panel
+                    with Container(id="prices-panel", classes="panel"):
+                        yield Static("💰 PRICES & MOMENTUM", classes="panel-title")
+                        with ScrollableContainer(id="prices-scroll", classes="panel-content"):
+                            yield Static("", id="prices-content")
+                    
+                    # Order book panel
+                    with Container(id="orderbook-panel", classes="panel"):
+                        yield Static("📈 ORDER BOOK", classes="panel-title")
+                        with ScrollableContainer(id="orderbook-scroll", classes="panel-content"):
+                            yield Static("", id="orderbook-content")
+                    
+                    # Live trades panel
+                    with Container(id="trades-panel", classes="panel"):
+                        yield Static("🔄 LIVE TRADES", classes="panel-title")
+                        with ScrollableContainer(id="trades-scroll", classes="panel-content"):
+                            yield Static("", id="trades-content")
+                
+                # Opportunities row
+                with Container(id="opportunities-panel", classes="panel opportunities-row"):
+                    yield Static("🎯 OPPORTUNITIES IN PROGRESS", classes="panel-title")
+                    with ScrollableContainer(id="opportunities-scroll", classes="panel-content"):
+                        yield Static("", id="opportunities-content")
+                
+                # Bottom row: Positions and History
+                with Horizontal(classes="bottom-row"):
+                    with Container(id="positions-panel", classes="panel"):
+                        yield Static("📌 OPEN POSITIONS", classes="panel-title")
+                        with ScrollableContainer(id="positions-scroll", classes="panel-content"):
+                            yield Static("", id="positions-content")
+                    
+                    with Container(id="history-panel", classes="panel"):
+                        yield Static("📜 TRADE HISTORY", classes="panel-title")
+                        with ScrollableContainer(id="history-scroll", classes="panel-content"):
+                            yield Static("", id="history-content")
         
         yield Footer()
     
