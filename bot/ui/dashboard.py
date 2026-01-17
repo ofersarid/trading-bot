@@ -65,8 +65,13 @@ class TradingDashboard(App):
         Binding("2", "increase_track", "Track +"),
         Binding("3", "decrease_trade", "Trade -"),
         Binding("4", "increase_trade", "Trade +"),
+        Binding("5", "cycle_momentum_down", "Mom -"),
+        Binding("6", "cycle_momentum_up", "Mom +"),
         Binding("a", "toggle_ai", "AI Mode"),
     ]
+    
+    # Available momentum timeframes in seconds
+    MOMENTUM_TIMEFRAMES = [5, 10, 30, 60]
     
     # Reactive state
     balance = reactive(10000.0)
@@ -103,6 +108,9 @@ class TradingDashboard(App):
         # Adjustable thresholds (initialized from config, can be changed at runtime)
         self.track_threshold = self.config.track_threshold_pct
         self.trade_threshold = self.config.trade_threshold_pct
+        
+        # Momentum timeframe (default 5 seconds)
+        self.momentum_timeframe = 5  # seconds
         
         # Analysis mode (for future AI integration)
         self.analysis_mode = "RULE-BASED"  # "RULE-BASED" or "AI (Claude)"
@@ -201,6 +209,8 @@ class TradingDashboard(App):
         self.run_websocket()
         # Update status bar every second for uptime counter
         self.set_interval(1, self.update_status_bar)
+        # Update positions P&L every second
+        self.set_interval(1, self.update_positions_display)
         # Update AI title periodically
         self.set_interval(5, self.update_ai_title)
     
@@ -292,7 +302,7 @@ class TradingDashboard(App):
         # Log when all coins have prices
         if first_update and len(self.prices) >= len(self.coins):
             self.log_ai(f"[{COLOR_UP}]✓ All prices received! Starting opportunity analysis...[/{COLOR_UP}]")
-            self.log_ai("[dim]Building 60s price history before detecting momentum...[/dim]")
+            self.log_ai(f"[dim]Building {self.momentum_timeframe}s price history before detecting momentum...[/dim]")
         
         # Periodic market analysis
         now = datetime.now()
@@ -348,16 +358,16 @@ class TradingDashboard(App):
         momentums = {}
         for coin in self.coins:
             history = self.price_history[coin]
-            if len(history) < 10:
+            if len(history) < 2:
                 continue
             
             current_price = self.prices.get(coin, 0)
             
-            # Get price from 60 seconds ago
+            # Get price from configured timeframe ago
             lookback_price = None
             for point in history:
                 age = (now - point["time"]).total_seconds()
-                if age >= 60:
+                if age >= self.momentum_timeframe:
                     lookback_price = point["price"]
                     break
             
@@ -436,12 +446,12 @@ class TradingDashboard(App):
         now = datetime.now()
         history = self.price_history[coin]
         
-        # Get price from 60 seconds ago
+        # Get price from configured timeframe ago
         lookback_price = None
         lookback_age = 0
         for point in history:
             age = (now - point["time"]).total_seconds()
-            if age >= 60:
+            if age >= self.momentum_timeframe:
                 lookback_price = point["price"]
                 lookback_age = age
                 break
@@ -462,8 +472,8 @@ class TradingDashboard(App):
             color = COLOR_UP if momentum > 0 else COLOR_DOWN if momentum < 0 else "white"
             self.log_ai(
                 f"[dim]🔍 {coin}: ${price:,.2f} | "
-                f"60s momentum: [{color}]{momentum_pct:+.3f}%[/{color}] {direction} | "
-                f"Threshold: ±0.30%[/dim]"
+                f"{self.momentum_timeframe}s momentum: [{color}]{momentum_pct:+.3f}%[/{color}] {direction} | "
+                f"Threshold: ±{self.trade_threshold:.2f}%[/dim]"
             )
         
         # Create or update pending opportunity
@@ -477,7 +487,7 @@ class TradingDashboard(App):
                     direction=direction,
                     current_price=price,
                     conditions=[
-                        OpportunityCondition("Momentum", f">{self.trade_threshold:.2f}% move in 60s"),
+                        OpportunityCondition("Momentum", f">{self.trade_threshold:.2f}% move in {self.momentum_timeframe}s"),
                         OpportunityCondition("No Position", "Not already in position"),
                         OpportunityCondition("Cooldown", "30s since last trade"),
                         OpportunityCondition("Balance", "Sufficient margin"),
@@ -488,6 +498,7 @@ class TradingDashboard(App):
             
             opp = self.pending_opportunities[coin]
             opp.current_price = price
+            opp.direction = direction
             
             # Check conditions
             # 1. Momentum threshold (dynamic)
@@ -547,7 +558,7 @@ class TradingDashboard(App):
         self.update_status_bar()
         
         # Set up exit monitoring
-        self.call_later(1, self.check_exit_conditions, coin)
+        self.set_timer(1, lambda: self.check_exit_conditions(coin))
     
     def check_exit_conditions(self, coin: str) -> None:
         """Check if we should exit a position."""
@@ -556,7 +567,7 @@ class TradingDashboard(App):
         
         price = self.prices.get(coin)
         if not price:
-            self.call_later(1, self.check_exit_conditions, coin)
+            self.set_timer(1, lambda: self.check_exit_conditions(coin))
             return
         
         position = self.trader.positions[coin]
@@ -579,16 +590,16 @@ class TradingDashboard(App):
             self.update_status_bar()
         else:
             # Keep checking
-            self.call_later(0.5, self.check_exit_conditions, coin)
+            self.set_timer(0.5, lambda: self.check_exit_conditions(coin))
     
     # ============================================================
     # Display Updates
     # ============================================================
     
     def _calculate_momentum(self, coin: str) -> float | None:
-        """Calculate 60-second momentum for a coin. Returns percentage or None if not enough data."""
+        """Calculate momentum for a coin over the configured timeframe. Returns percentage or None if not enough data."""
         history = self.price_history.get(coin)
-        if not history or len(history) < 10:
+        if not history or len(history) < 2:
             return None
         
         current_price = self.prices.get(coin)
@@ -599,7 +610,7 @@ class TradingDashboard(App):
         lookback_price = None
         for point in history:
             age = (now - point["time"]).total_seconds()
-            if age >= 60:
+            if age >= self.momentum_timeframe:
                 lookback_price = point["price"]
                 break
         
@@ -613,7 +624,7 @@ class TradingDashboard(App):
         lines = []
         
         # Column widths: COIN=5, PRICE=13 (with $), TICK=6, MOMENTUM=rest
-        lines.append(f"[dim]{'COIN':<5}   {'PRICE':>13}    {'TICK':^4}    60s MOMENTUM[/dim]")
+        lines.append(f"[dim]{'COIN':<5}   {'PRICE':>13}    {'TICK':^4}    {self.momentum_timeframe}s MOMENTUM[/dim]")
         lines.append("[dim]─────────────────────────────────────────────────────[/dim]")
         
         for coin in self.coins:
@@ -634,16 +645,21 @@ class TradingDashboard(App):
             # Momentum indicator (60s)
             momentum = self._calculate_momentum(coin)
             if momentum is not None:
-                if momentum > 0.1:
-                    mom_color = COLOR_UP
-                    mom_bar = "▲" * min(5, int(abs(momentum) / 0.1))
-                elif momentum < -0.1:
-                    mom_color = COLOR_DOWN
-                    mom_bar = "▼" * min(5, int(abs(momentum) / 0.1))
-                else:
+                abs_mom = abs(momentum)
+                # Determine strength label
+                if abs_mom < 0.1:
+                    mom_label = "flat"
                     mom_color = "dim"
-                    mom_bar = "─"
-                momentum_str = f"[{mom_color}]{momentum:+.2f}% {mom_bar:<5}[/{mom_color}]"
+                elif abs_mom < 0.3:
+                    mom_label = "weak"
+                    mom_color = COLOR_UP if momentum > 0 else COLOR_DOWN
+                elif abs_mom < 0.5:
+                    mom_label = "strong"
+                    mom_color = COLOR_UP if momentum > 0 else COLOR_DOWN
+                else:
+                    mom_label = "aggro"
+                    mom_color = COLOR_UP if momentum > 0 else COLOR_DOWN
+                momentum_str = f"[{mom_color}]{momentum:+.2f}% {mom_label}[/{mom_color}]"
             else:
                 momentum_str = "[dim]building...[/dim]"
             
@@ -888,6 +904,24 @@ class TradingDashboard(App):
         self.update_threshold_bar()
         self.log_ai(f"[yellow]📈 Trade threshold: {self.trade_threshold:.2f}%[/yellow]")
     
+    def action_cycle_momentum_down(self) -> None:
+        """Decrease momentum timeframe."""
+        idx = self.MOMENTUM_TIMEFRAMES.index(self.momentum_timeframe)
+        if idx > 0:
+            self.momentum_timeframe = self.MOMENTUM_TIMEFRAMES[idx - 1]
+            self.log_ai(f"[yellow]⏱️ Momentum timeframe: {self.momentum_timeframe}s[/yellow]")
+            self.update_threshold_bar()
+            self.update_prices_display()
+    
+    def action_cycle_momentum_up(self) -> None:
+        """Increase momentum timeframe."""
+        idx = self.MOMENTUM_TIMEFRAMES.index(self.momentum_timeframe)
+        if idx < len(self.MOMENTUM_TIMEFRAMES) - 1:
+            self.momentum_timeframe = self.MOMENTUM_TIMEFRAMES[idx + 1]
+            self.log_ai(f"[yellow]⏱️ Momentum timeframe: {self.momentum_timeframe}s[/yellow]")
+            self.update_threshold_bar()
+            self.update_prices_display()
+    
     def _render_status_content(self) -> str:
         """Render the status bar content (left side)."""
         equity = self.trader.get_equity(self.prices)
@@ -921,9 +955,16 @@ class TradingDashboard(App):
         trade_filled = int(trade_pct * 15)
         trade_bar = f"[{COLOR_UP}]" + "█" * trade_filled + "░" * (15 - trade_filled) + f"[/{COLOR_UP}]"
         
+        # Visual bar for momentum timeframe (5s to 60s)
+        mom_idx = self.MOMENTUM_TIMEFRAMES.index(self.momentum_timeframe)
+        mom_pct = mom_idx / (len(self.MOMENTUM_TIMEFRAMES) - 1)
+        mom_filled = int(mom_pct * 15)
+        mom_bar = "[cyan]" + "█" * mom_filled + "░" * (15 - mom_filled) + "[/cyan]"
+        
         return (
             f"Track: {track_bar} {self.track_threshold:.2f}%  │  "
-            f"Trade: {trade_bar} {self.trade_threshold:.2f}%"
+            f"Trade: {trade_bar} {self.trade_threshold:.2f}%  │  "
+            f"Mom: {mom_bar} {self.momentum_timeframe}s"
         )
     
     def update_threshold_bar(self) -> None:

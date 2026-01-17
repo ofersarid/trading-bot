@@ -19,20 +19,20 @@ class TradingConfig:
     # =========================================================
     
     # Minimum momentum to start tracking an opportunity
-    track_threshold_pct: float = 0.10
+    track_threshold_pct: float = 0.02
     
     # Minimum momentum to execute a trade
-    trade_threshold_pct: float = 0.30
+    trade_threshold_pct: float = 0.04
     
     # =========================================================
     # Position Management
     # =========================================================
     
     # Take profit when unrealized P&L reaches this %
-    take_profit_pct: float = 0.50
+    take_profit_pct: float = 0.10
     
     # Stop loss when unrealized P&L drops to this %
-    stop_loss_pct: float = -0.30
+    stop_loss_pct: float = -0.05
     
     # Percentage of balance to use per trade
     position_size_pct: float = 0.10
