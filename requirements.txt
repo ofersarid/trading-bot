@@ -1,0 +1,20 @@
+# Hyperliquid Trading Bot Dependencies
+
+# Hyperliquid SDK (for authenticated trading)
+hyperliquid-python-sdk>=0.8.0
+
+# Ethereum account management (for wallet signing)
+eth-account>=0.10.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# HTTP requests (for public API calls)
+requests>=2.31.0
+
+# WebSocket streaming (for real-time data)
+websockets>=12.0
+
+# Terminal UI (retro dark theme dashboard)
+textual>=0.47.0
+textual-slider>=0.1.0

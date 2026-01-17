@@ -1,0 +1,148 @@
+# Textual UI Patterns
+
+## App Class Should Be Thin
+
+The main `App` class should only contain:
+1. `CSS_PATH` reference
+2. `BINDINGS` definitions
+3. `compose()` method for layout
+4. `on_mount()` for initialization
+5. Action handlers (`action_*` methods)
+6. High-level coordination logic
+
+Move everything else to:
+- Separate component classes
+- Business logic modules
+- Utility functions
+
+## Reactive State Pattern
+
+Use Textual's reactive properties for state that should trigger UI updates:
+
+```python
+class TradingDashboard(App):
+    balance = reactive(10000.0)
+    
+    def watch_balance(self, new_value: float) -> None:
+        """Called automatically when balance changes."""
+        self.update_status_bar()
+```
+
+## Component Communication
+
+### Parent → Child: Props at construction or messages
+```python
+# Via construction
+panel = PricesPanel(prices=self.prices)
+
+# Via messages for runtime updates
+self.query_one(PricesPanel).post_message(PricesUpdated(self.prices))
+```
+
+### Child → Parent: Custom messages
+```python
+class TradeRequested(Message):
+    def __init__(self, coin: str, direction: str, size: float):
+        self.coin = coin
+        self.direction = direction
+        self.size = size
+        super().__init__()
+
+# In parent
+def on_trade_requested(self, event: TradeRequested) -> None:
+    self.execute_trade(event.coin, event.direction, event.size)
+```
+
+## RichLog vs DataTable
+
+Use `RichLog` for:
+- Streaming data (trades, logs)
+- Formatted text with colors
+- Variable-length content
+
+Use `DataTable` for:
+- Structured tabular data
+- Sortable/selectable rows
+- Fixed-column layouts
+
+## Update Patterns
+
+### Batch Updates
+When updating multiple values, batch them to avoid flicker:
+
+```python
+def update_all_displays(self) -> None:
+    with self.batch_update():
+        self.update_prices_display()
+        self.update_orderbook_display()
+        self.update_positions_display()
+```
+
+### Throttled Updates
+For high-frequency data, throttle display updates:
+
+```python
+def __init__(self):
+    self._last_price_update = datetime.min
+    self._update_interval = 0.1  # 100ms minimum between updates
+
+async def handle_prices(self, data: dict) -> None:
+    self._process_price_data(data)  # Always process
+    
+    now = datetime.now()
+    if (now - self._last_price_update).total_seconds() >= self._update_interval:
+        self.update_prices_display()  # Throttle display updates
+        self._last_price_update = now
+```
+
+## CSS Classes for State
+
+Use CSS classes to represent component state:
+
+```css
+.position.profit {
+    color: #00ff88;
+    border: solid #00ff88;
+}
+
+.position.loss {
+    color: #ff4444;
+    border: solid #ff4444;
+}
+```
+
+```python
+def update_position_style(self, position_widget: Widget, pnl: float) -> None:
+    position_widget.remove_class("profit", "loss")
+    position_widget.add_class("profit" if pnl >= 0 else "loss")
+```
+
+## Key Bindings
+
+Keep bindings simple and documented:
+
+```python
+BINDINGS = [
+    Binding("q", "quit", "Quit"),
+    Binding("r", "reset", "Reset"),
+    Binding("space", "toggle_pause", "Pause/Resume"),
+    # Group related bindings with comments
+    # Threshold adjustments
+    Binding("1", "decrease_track", "Track -"),
+    Binding("2", "increase_track", "Track +"),
+]
+```
+
+## Error Display
+
+Create a dedicated error/notification area:
+
+```python
+def show_error(self, message: str) -> None:
+    """Display error in notification area."""
+    self.notify(message, severity="error", timeout=5)
+
+def show_success(self, message: str) -> None:
+    """Display success notification."""
+    self.notify(message, severity="information", timeout=3)
+```

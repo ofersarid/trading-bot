@@ -1,0 +1,179 @@
+/*
+ * Retro Terminal Theme for Paper Trading Dashboard
+ * 
+ * Color palette:
+ * - Background: #0a0a0a (near black)
+ * - Panel bg: #0f0f0f
+ * - Header/accent bg: #1a1a2e (dark blue-purple)
+ * - Primary accent: #00ff88 (green)
+ * - Danger: #ff4444 (red)
+ * - Muted: #666666
+ */
+
+Screen {
+    background: #0a0a0a;
+}
+
+Header {
+    background: #1a1a2e;
+    color: #00ff88;
+}
+
+Footer {
+    background: #1a1a2e;
+}
+
+/* ============================================================
+ * Panel Base Styles
+ * ============================================================ */
+
+.panel {
+    border: solid #333333;
+    background: #0f0f0f;
+    padding: 0 0;
+}
+
+.panel-title {
+    color: #00ff88;
+    text-style: bold;
+    background: #1a1a2e;
+    padding: 1 2;
+    height: 3;
+}
+
+/* ============================================================
+ * Panel-Specific Sizing
+ * ============================================================ */
+
+#ai-title {
+    width: 100%;
+}
+
+#prices-panel {
+    width: 80;
+    height: 100%;
+}
+
+#orderbook-panel {
+    width: 34;
+    height: 100%;
+}
+
+#trades-panel {
+    width: 1fr;
+    height: 100%;
+}
+
+#ai-panel {
+    height: 2fr;
+    width: 100%;
+}
+
+#opportunities-panel {
+    height: 1fr;
+    width: 100%;
+}
+
+#positions-panel {
+    width: 1fr;
+    height: 100%;
+}
+
+#history-panel {
+    width: 1fr;
+    height: 100%;
+}
+
+/* ============================================================
+ * Layout Rows - Use fr units to fill available vertical space
+ * ============================================================ */
+
+.top-row {
+    height: 3fr;
+    width: 100%;
+}
+
+.middle-row {
+    height: 2fr;
+    width: 100%;
+}
+
+.opportunities-row {
+    height: 1fr;
+    width: 100%;
+}
+
+.bottom-row {
+    height: 2fr;
+    width: 100%;
+}
+
+/* ============================================================
+ * Scrollable Content
+ * ============================================================ */
+
+RichLog {
+    background: #0a0a0a;
+    scrollbar-background: #1a1a1a;
+    scrollbar-color: #333333;
+}
+
+#prices-log, #orderbook-log, #trades-log {
+    height: 1fr;
+}
+
+#ai-log {
+    height: 1fr;
+}
+
+#opportunities-log {
+    height: 1fr;
+}
+
+#positions-log, #history-log {
+    height: 1fr;
+}
+
+/* ============================================================
+ * Status Bars
+ * ============================================================ */
+
+.status-bar {
+    background: #1a1a2e;
+    color: #00ff88;
+    height: 1;
+    padding: 0 1;
+    width: 100%;
+}
+
+.threshold-bar {
+    background: #1a1a2e;
+    color: #ffffff;
+    height: 1;
+    padding: 0 1;
+    width: 100%;
+}
+
+/* ============================================================
+ * Semantic Color Classes
+ * ============================================================ */
+
+.buy {
+    color: #00ff88;
+}
+
+.sell {
+    color: #ff4444;
+}
+
+.profit {
+    color: #00ff88;
+}
+
+.loss {
+    color: #ff4444;
+}
+
+.muted {
+    color: #666666;
+}

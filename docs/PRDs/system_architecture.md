@@ -1,6 +1,6 @@
 # System Architecture - Crypto AI Trading Bot
 
-> **Version:** 1.0  
+> **Version:** 1.2  
 > **Last Updated:** January 16, 2026  
 > **Status:** Draft
 
@@ -38,38 +38,66 @@ A locally-run AI-powered trading bot that connects to Hyperliquid exchange for c
 │  │                        TRADING BOT (Python)                          │   │
 │  │                                                                       │   │
 │  │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐           │   │
-│  │  │   Data       │    │   Strategy   │    │   Order      │           │   │
-│  │  │   Manager    │───►│   Engine     │───►│   Manager    │           │   │
+│  │  │   Data       │    │   Strategy   │    │   Execution  │           │   │
+│  │  │   Manager    │───►│   Engine     │───►│   Router     │           │   │
 │  │  │              │    │              │    │              │           │   │
 │  │  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘           │   │
 │  │         │                   │                   │                    │   │
-│  │         │ Market Data       │ Analysis          │ Orders             │   │
+│  │         │ Market Data       │ Analysis          │ Trade Decisions    │   │
 │  │         │ Buffer            │ Request           │                    │   │
 │  │         ▼                   ▼                   ▼                    │   │
 │  │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐           │   │
 │  │  │   State      │    │     AI       │    │   Risk       │           │   │
 │  │  │   Store      │    │   Analyzer   │    │   Manager    │           │   │
 │  │  │  (SQLite)    │    │   (Claude)   │    │              │           │   │
-│  │  └──────────────┘    └──────────────┘    └──────────────┘           │   │
-│  │                                                                       │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-│         │                       │                       │                   │
-│         │ WebSocket             │ HTTPS                 │ HTTPS             │
-│         ▼                       ▼                       ▼                   │
-└─────────┼───────────────────────┼───────────────────────┼───────────────────┘
-          │                       │                       │
-┌─────────▼─────────┐   ┌────────▼────────┐   ┌─────────▼─────────┐
-│   HYPERLIQUID     │   │   ANTHROPIC      │   │   HYPERLIQUID     │
-│   WebSocket API   │   │   Claude API     │   │   REST API        │
-│  (Market Data)    │   │  (Analysis)      │   │  (Orders)         │
-└───────────────────┘   └──────────────────┘   └───────────────────┘
+│  │  └──────────────┘    └──────────────┘    └──────┬───────┘           │   │
+│  │                                                  │                    │   │
+│  │                              ┌───────────────────┼───────────────┐    │   │
+│  │                              │                   │               │    │   │
+│  │                              ▼                   ▼               ▼    │   │
+│  │                       ┌────────────┐    ┌─────────────┐  ┌─────────┐ │   │
+│  │                       │   Paper    │    │   Order     │  │  Order  │ │   │
+│  │                       │   Trading  │    │   Manager   │  │ Manager │ │   │
+│  │                       │ Simulator  │    │  (Testnet)  │  │ (Live)  │ │   │
+│  │                       └────────────┘    └──────┬──────┘  └────┬────┘ │   │
+│  │                              │                 │              │      │   │
+│  └──────────────────────────────┼─────────────────┼──────────────┼──────┘   │
+│                                 │                 │              │          │
+│         │                       │ Local           │ HTTPS        │ HTTPS    │
+│         │ WebSocket             │ Only            │              │          │
+│         ▼                       ▼                 ▼              ▼          │
+└─────────┼───────────────────────────────────────────────────────────────────┘
+          │                                         │              │
+          │ (Public - No Auth)                      │              │
+┌─────────▼─────────┐   ┌────────────────┐   ┌─────▼──────────────▼─────┐
+│   HYPERLIQUID     │   │   ANTHROPIC    │   │      HYPERLIQUID         │
+│   WebSocket API   │   │   Claude API   │   │       REST API           │
+│  (Market Data)    │   │  (Analysis)    │   │  (Testnet / Mainnet)     │
+└───────────────────┘   └────────────────┘   └──────────────────────────┘
 ```
 
-### 2.2 Data Flow
+### 2.2 Operating Modes
+
+The bot supports three operating modes, allowing progression from safe testing to live trading:
+
+| Mode | Market Data | Order Execution | Funds at Risk | Use Case |
+|------|-------------|-----------------|---------------|----------|
+| **Simulation** | Live from Hyperliquid | Local (simulated) | None | Strategy development, unlimited testing |
+| **Testnet** | Live from testnet | Real orders on testnet | None (mock USDC) | API integration testing, order flow testing |
+| **Live** | Live from mainnet | Real orders on mainnet | Real funds | Production trading |
+
+**Mode Selection:**
+```python
+# config/settings.py
+TRADING_MODE = "simulation"  # "simulation" | "testnet" | "live"
+```
+
+**Key Insight:** Simulation mode only requires public market data (no API keys needed). This enables unlimited paper trading with full control over starting balance and resets.
+
+### 2.3 Data Flow
 
 ```
-1. MARKET DATA STREAM
+1. MARKET DATA STREAM (Public - No Auth Required)
    Hyperliquid ──WebSocket──► Data Manager ──► Buffer (last N candles)
                                     │
                                     ▼
@@ -89,12 +117,17 @@ A locally-run AI-powered trading bot that connects to Hyperliquid exchange for c
                                               • Confidence score
                                                     │
                                                     ▼
-3. ORDER EXECUTION
-   Decision ──► Risk Check ──► Order Manager ──► Hyperliquid API
-                    │                                   │
-                    ▼                                   ▼
-              Position sizing               Order confirmation
-              Loss limit check              Position tracking
+3. ORDER EXECUTION (Mode-Dependent)
+   Decision ──► Risk Check ──► Execution Router
+                    │                 │
+                    ▼                 ├──► [Simulation] Paper Trading Simulator
+              Position sizing         │         └──► Local position tracking
+              Loss limit check        │              P&L calculation
+                                      │              Trade history (SQLite)
+                                      │
+                                      ├──► [Testnet] Order Manager ──► Hyperliquid Testnet API
+                                      │
+                                      └──► [Live] Order Manager ──► Hyperliquid Mainnet API
 ```
 
 ---
@@ -169,7 +202,48 @@ A locally-run AI-powered trading bot that connects to Hyperliquid exchange for c
 - Drawdown threshold → Reduce position sizes
 - API errors → Pause and alert
 
-### 3.5 State Store
+### 3.5 Paper Trading Simulator
+
+**Responsibility:** Simulate order execution locally for strategy testing without real funds.
+
+| Capability | Details |
+|------------|---------|
+| Position tracking | Simulated long/short positions with entry prices |
+| P&L calculation | Real-time unrealized P&L based on live market prices |
+| Balance management | Configurable starting balance, track equity curve |
+| Trade history | Log all simulated trades to SQLite |
+| Slippage simulation | Optional: simulate realistic fill prices |
+| Fee simulation | Apply maker/taker fees to simulate real costs |
+| Reset functionality | Clear all positions and reset to starting balance |
+
+**Interfaces:**
+- Input: TradingDecision from AI Analyzer, live prices from Data Manager
+- Output: Simulated fill confirmations, position updates, P&L reports
+
+**Key Features:**
+```python
+class PaperTradingSimulator:
+    def __init__(self, starting_balance: float = 10000):
+        self.starting_balance = starting_balance
+        self.balance = starting_balance
+        self.positions = {}
+        self.trade_history = []
+    
+    def execute_order(self, decision: TradingDecision, current_price: float) -> SimulatedFill
+    def get_positions(self) -> dict
+    def get_equity(self, current_prices: dict) -> float
+    def get_pnl(self) -> float
+    def reset(self) -> None
+    def export_history(self) -> list[Trade]
+```
+
+**Advantages over Testnet:**
+- No faucet or mainnet deposit requirements
+- Unlimited resets with any starting balance
+- Faster iteration (no network latency for orders)
+- Test edge cases (what if I had $500? $50,000?)
+
+### 3.6 State Store
 
 **Responsibility:** Persist trade history, positions, and performance metrics.
 
@@ -191,16 +265,26 @@ A locally-run AI-powered trading bot that connects to Hyperliquid exchange for c
 - No KYC required
 - Decentralized - no geo-restrictions
 - Good API quality
+- **Public market data** - no auth needed for prices/candles
 
 **Endpoints Used:**
 
+| Type | Endpoint | Purpose | Auth Required |
+|------|----------|---------|---------------|
+| WebSocket | `wss://api.hyperliquid.xyz/ws` | Real-time market data | ❌ No |
+| REST | `https://api.hyperliquid.xyz/info` | Market info, candles, orderbook | ❌ No |
+| REST | `https://api.hyperliquid.xyz/exchange` | Order placement | ✅ Yes |
+| REST | `https://api.hyperliquid.xyz/info` | Account info (balances, positions) | ✅ Yes |
+
+**Authentication:** ETH wallet private key (signing transactions) - only required for trading operations
+
+**Testnet Endpoints:**
+
 | Type | Endpoint | Purpose |
 |------|----------|---------|
-| WebSocket | `wss://api.hyperliquid.xyz/ws` | Real-time market data |
-| REST | `https://api.hyperliquid.xyz/exchange` | Order placement |
-| REST | `https://api.hyperliquid.xyz/info` | Account info |
-
-**Authentication:** ETH wallet private key (signing transactions)
+| WebSocket | `wss://api.hyperliquid-testnet.xyz/ws` | Testnet market data |
+| REST | `https://api.hyperliquid-testnet.xyz/info` | Testnet info |
+| REST | `https://api.hyperliquid-testnet.xyz/exchange` | Testnet orders |
 
 ### 4.2 Anthropic Claude API
 
@@ -222,16 +306,30 @@ A locally-run AI-powered trading bot that connects to Hyperliquid exchange for c
 ### 5.1 Environment Variables (.env)
 
 ```bash
-# Required
+# Required for AI analysis
 ANTHROPIC_API_KEY=sk-ant-...
+
+# Required for testnet/live trading only (not needed for simulation mode)
 HYPERLIQUID_PRIVATE_KEY=0x...
 
 # Optional
 AI_MODEL=claude-sonnet-4-20250514
 LOG_LEVEL=INFO
+TRADING_MODE=simulation  # simulation | testnet | live
 ```
 
-### 5.2 Strategy Configuration
+### 5.2 Simulation Configuration
+
+```python
+# config/simulation.py
+STARTING_BALANCE = 10000      # USD - can be any amount
+MAKER_FEE = -0.0002           # Hyperliquid maker rebate
+TAKER_FEE = 0.00025           # Hyperliquid taker fee
+SIMULATE_SLIPPAGE = True      # Add realistic slippage
+SLIPPAGE_BPS = 1              # Basis points of slippage
+```
+
+### 5.3 Strategy Configuration
 
 ```python
 # config/strategy.py
@@ -241,7 +339,7 @@ CANDLES_FOR_ANALYSIS = 50
 MIN_CONFIDENCE = 0.7
 ```
 
-### 5.3 Risk Configuration
+### 5.4 Risk Configuration
 
 ```python
 # config/risk.py
@@ -256,64 +354,69 @@ MAX_OPEN_POSITIONS = 2
 ## 6. Directory Structure
 
 ```
-trading_bot/
+trading-bot/
 ├── .env                      # API keys (git-ignored)
 ├── .env.example              # Template
-├── requirements.txt          # Dependencies
-├── README.md                 # Setup instructions
+├── requirements.txt          # Python dependencies
+├── README.md                 # Project overview
 │
-├── config/
+├── bot/                      # Main Python package
 │   ├── __init__.py
-│   ├── settings.py           # Main settings loader
-│   ├── strategy.py           # Strategy parameters
-│   └── risk.py               # Risk management rules
-│
-├── src/
-│   ├── __init__.py
-│   ├── main.py               # Entry point
 │   │
-│   ├── PRDs/                 # Product Requirements Documents
-│   │   ├── system_architecture.md    # This document
-│   │   └── ...
-│   │
-│   ├── data/
+│   ├── hyperliquid/          # Exchange integration
 │   │   ├── __init__.py
-│   │   ├── stream.py         # WebSocket connection
-│   │   ├── buffer.py         # Data buffering logic
-│   │   └── models.py         # Data classes
+│   │   ├── client.py         # Authenticated client
+│   │   ├── public_data.py    # Public market data (no auth)
+│   │   └── examples/         # Usage examples
 │   │
-│   ├── ai/
+│   ├── simulation/           # Paper trading (coming soon)
 │   │   ├── __init__.py
-│   │   ├── analyzer.py       # Claude integration
-│   │   ├── prompts.py        # Prompt templates
-│   │   └── parser.py         # Response parsing
+│   │   ├── paper_trader.py
+│   │   ├── fills.py
+│   │   └── metrics.py
 │   │
-│   ├── trading/
+│   ├── ai/                   # Claude integration (coming soon)
 │   │   ├── __init__.py
-│   │   ├── orders.py         # Order management
-│   │   ├── positions.py      # Position tracking
-│   │   └── risk.py           # Risk enforcement
+│   │   ├── analyzer.py
+│   │   ├── prompts.py
+│   │   └── parser.py
 │   │
-│   ├── exchange/
+│   ├── trading/              # Order management (coming soon)
 │   │   ├── __init__.py
-│   │   └── hyperliquid.py    # Exchange wrapper
+│   │   ├── orders.py
+│   │   ├── positions.py
+│   │   └── risk.py
 │   │
 │   └── utils/
 │       ├── __init__.py
-│       ├── logger.py         # Logging setup
-│       └── helpers.py        # Utility functions
+│       └── logger.py
 │
-├── data/
-│   └── trades.db             # SQLite database
+├── config/                   # Configuration files
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── strategy.py
+│   └── risk.py
 │
-├── logs/
-│   └── trading.log           # Log files
+├── docs/                     # Documentation
+│   └── PRDs/
+│       ├── README.md
+│       └── system_architecture.md
 │
-└── tests/
+├── strategies/               # Pine Script strategies
+│   └── ...
+│
+├── indicators/               # Pine Script indicators
+│   └── ...
+│
+├── data/                     # SQLite database
+│   └── trades.db
+│
+├── logs/                     # Log files
+│   └── trading.log
+│
+└── tests/                    # Test suite
     ├── __init__.py
-    ├── test_ai.py
-    ├── test_orders.py
-    └── test_risk.py
+    └── ...
 ```
 
 ---
@@ -393,9 +496,9 @@ Every time a 1-minute candle closes:
 ## 10. Development Phases
 
 ### Phase 1: Foundation (Current)
-- [ ] Project structure setup
+- [x] Project structure setup
 - [ ] Configuration management
-- [ ] Hyperliquid API wrapper
+- [x] Hyperliquid public API wrapper
 - [ ] Basic WebSocket connection
 
 ### Phase 2: AI Integration
@@ -410,13 +513,23 @@ Every time a 1-minute candle closes:
 - [ ] Risk management
 - [ ] Stop loss / take profit
 
-### Phase 4: Testing & Paper Trading
-- [ ] Unit tests
-- [ ] Paper trading mode
-- [ ] Performance logging
-- [ ] Strategy refinement
+### Phase 4: Paper Trading Simulation
+- [ ] Paper Trading Simulator implementation
+- [ ] Local position tracking and P&L calculation
+- [ ] Simulated order fills with fee calculation
+- [ ] Trade history logging to SQLite
+- [ ] Reset/restart functionality
+- [ ] Equity curve tracking
+- [ ] Performance metrics (win rate, avg P&L, max drawdown)
 
-### Phase 5: Live Trading
+### Phase 5: Testnet Validation
+- [ ] Hyperliquid testnet API integration
+- [ ] Real order placement on testnet
+- [ ] Order lifecycle testing (create, fill, cancel)
+- [ ] API rate limit handling
+- [ ] Error recovery testing
+
+### Phase 6: Live Trading
 - [ ] Small position testing
 - [ ] Monitoring dashboard
 - [ ] Alerting system

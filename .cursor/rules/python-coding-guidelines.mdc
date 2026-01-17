@@ -1,0 +1,226 @@
+# Python Coding Guidelines for Trading Bot
+
+## File Size Limits
+
+- **Maximum file size: 300 lines** (excluding imports and docstrings)
+- If a file exceeds 300 lines, it MUST be refactored by extracting:
+  - Data classes → separate `models.py` or `types.py` file
+  - Business logic → separate module (e.g., `analysis.py`, `strategies.py`)
+  - UI components → separate component files
+  - Constants/configuration → `constants.py` or `config.py`
+
+## Project Structure
+
+Organize modules by domain/feature:
+
+```
+bot/
+├── core/              # Core business logic
+│   ├── models.py      # Data classes, enums, types
+│   ├── constants.py   # Magic numbers, thresholds, config
+│   └── analysis.py    # Market analysis logic
+├── ui/
+│   ├── dashboard.py   # Main app composition only
+│   ├── components/    # Reusable UI components
+│   │   ├── prices.py
+│   │   ├── orderbook.py
+│   │   └── positions.py
+│   └── styles/        # CSS files
+│       └── theme.css
+├── simulation/        # Paper trading logic
+└── hyperliquid/       # Exchange integration
+```
+
+## Textual (TUI) Guidelines
+
+### CSS Separation
+- **Never embed CSS as Python strings** in source files
+- Store CSS in separate `.css` files under `ui/styles/`
+- Load CSS using Textual's `CSS_PATH` class attribute:
+
+```python
+class TradingDashboard(App):
+    CSS_PATH = "styles/theme.css"
+```
+
+### Component Extraction
+- Each UI panel/widget should be its own class in a separate file
+- Components should receive data via props, not reach into parent state
+- Use composition over inheritance for UI customization
+
+```python
+# Good: Component receives data
+class PricesPanel(Static):
+    def __init__(self, prices: dict[str, float], momentum: dict[str, float]):
+        ...
+
+# Bad: Component reaches into app state
+class PricesPanel(Static):
+    def update(self):
+        prices = self.app.prices  # Don't do this
+```
+
+## Separation of Concerns
+
+### UI Layer (ui/)
+- Layout composition
+- Event handling (key bindings, clicks)
+- Display formatting (colors, emojis, layout)
+- NO business logic, NO calculations
+
+### Business Logic Layer (core/)
+- Market analysis
+- Opportunity detection
+- Trade decisions
+- Price calculations
+- Momentum/indicators
+
+### Data Layer (core/models.py)
+- Dataclasses
+- Enums
+- Type definitions
+- Validation logic
+
+## Constants & Configuration
+
+### No Magic Numbers
+Every numeric value that controls behavior must be a named constant:
+
+```python
+# Bad
+if momentum > 0.3:  # What is 0.3?
+    execute_trade()
+
+# Good
+MOMENTUM_TRADE_THRESHOLD = 0.30  # Minimum 60s momentum % to trigger trade
+
+if momentum > MOMENTUM_TRADE_THRESHOLD:
+    execute_trade()
+```
+
+### Centralized Configuration
+Create a `config.py` or use dataclasses for configuration:
+
+```python
+@dataclass
+class TradingConfig:
+    track_threshold: float = 0.10  # % to start tracking
+    trade_threshold: float = 0.30  # % to execute trade
+    take_profit_pct: float = 0.50  # Take profit at this %
+    stop_loss_pct: float = -0.30   # Stop loss at this %
+    position_size_pct: float = 0.10  # % of balance per trade
+```
+
+## Type Hints
+
+### Required Everywhere
+- All function parameters must have type hints
+- All return values must have type hints
+- Use `|` syntax for unions (Python 3.10+)
+
+```python
+# Good
+def calculate_momentum(
+    current_price: float,
+    history: deque[dict[str, float | datetime]],
+    lookback_seconds: int = 60,
+) -> float | None:
+    ...
+
+# Bad
+def calculate_momentum(current_price, history, lookback_seconds=60):
+    ...
+```
+
+## Method Length
+
+- **Maximum method length: 30 lines** (excluding docstrings)
+- If a method exceeds 30 lines, extract helper methods or move logic to separate module
+
+```python
+# Bad: 50+ line method mixing concerns
+def analyze_opportunity(self, coin, price, old_price):
+    # 50 lines of mixed logic...
+
+# Good: Composed of focused methods
+def analyze_opportunity(self, coin: str, price: float, old_price: float) -> None:
+    momentum = self._calculate_momentum(coin)
+    if momentum is None:
+        return
+    
+    if self._should_track_opportunity(momentum):
+        self._update_or_create_opportunity(coin, price, momentum)
+    else:
+        self._maybe_remove_opportunity(coin)
+```
+
+## Docstrings
+
+### Module-level docstrings
+Every file must have a module docstring explaining its purpose:
+
+```python
+"""
+Market analysis module for the trading bot.
+
+Provides functions for:
+- Calculating momentum indicators
+- Detecting trading opportunities
+- Analyzing market conditions
+"""
+```
+
+### Public functions/methods
+All public functions must have docstrings with:
+- Brief description
+- Args (if not obvious from types)
+- Returns description
+- Example usage (for complex functions)
+
+## Error Handling
+
+- Use specific exception types, not bare `except:`
+- Log errors before handling them
+- Don't silence errors with `pass` unless explicitly documented why
+
+```python
+# Bad
+try:
+    result = risky_operation()
+except Exception:
+    pass
+
+# Good
+try:
+    result = risky_operation()
+except ConnectionError as e:
+    self.log_ai(f"[red]Connection failed: {e}[/red]")
+    # Retry logic or graceful degradation
+```
+
+## Async Patterns
+
+### WebSocket Handling
+- Keep message handlers thin - parse and delegate
+- Use `@work` decorator for long-running background tasks
+- Don't mix sync and async without clear boundaries
+
+```python
+# Good: Thin handler that delegates
+async def process_message(self, data: dict) -> None:
+    channel = data.get("channel")
+    handlers = {
+        "allMids": self.handle_prices,
+        "trades": self.handle_trades,
+        "l2Book": self.handle_orderbook,
+    }
+    handler = handlers.get(channel)
+    if handler:
+        await handler(data)
+```
+
+## Testing
+
+- Business logic (analysis, calculations) must have unit tests
+- UI components should be tested with Textual's testing framework
+- Mock external dependencies (WebSocket, APIs)
