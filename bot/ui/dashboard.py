@@ -10,12 +10,18 @@ A dark-themed, scrollable UI showing:
 - Opportunity pipeline
 - Open positions & trade history
 
+CRITICAL SAFETY FEATURES:
+- WebSocket connection monitoring with auto-reconnect
+- Emergency position exit on disconnect
+- Detailed connection logging for debugging
+
 Run with:
     python bot/ui/dashboard.py --balance 10000
 """
 
 import asyncio
 import json
+import logging
 import os
 import sys
 from collections import deque
@@ -27,17 +33,43 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
-from textual.widgets import Footer, Static, Label, DataTable
+from textual.widgets import Footer, Static
 from textual.reactive import reactive
 from textual import work
 from textual.binding import Binding
 
-import websockets
-
 from bot.core.config import TradingConfig, DEFAULT_CONFIG
 from bot.core.models import OpportunityCondition, PendingOpportunity
+from bot.core.analysis import (
+    calculate_momentum,
+    MarketAnalyzer,
+    CoinStatus,
+    OpportunityAnalyzer,
+    OpportunityAction,
+)
+from bot.hyperliquid.websocket_manager import WebSocketManager, WebSocketConfig, ConnectionState
 from bot.simulation.models import HYPERLIQUID_FEES, Side
 from bot.simulation.paper_trader import PaperTrader
+from bot.ui.components import (
+    PricesPanel,
+    OrderBookPanel,
+    TradesPanel,
+    AIPanel,
+    OpportunitiesPanel,
+    PositionsPanel,
+    HistoryPanel,
+    StatusBar,
+)
+
+# Configure logging - file only to avoid interfering with TUI
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
+    handlers=[
+        logging.FileHandler('trading_bot.log'),
+    ]
+)
+logger = logging.getLogger("dashboard")
 
 
 # ============================================================
@@ -57,7 +89,7 @@ class TradingDashboard(App):
     TITLE = "PAPER TRADING SIMULATOR"
     SHOW_TITLE = False  # Hide default header title
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
+        Binding("q", "quit", "Quit", priority=True),
         Binding("r", "reset", "Reset"),
         Binding("p", "toggle_pause", "Pause"),
         Binding("ctrl+r", "restart", "Restart"),
@@ -91,11 +123,9 @@ class TradingDashboard(App):
         
         # Data stores
         self.prices: dict[str, float] = {}
-        self.prev_prices: dict[str, float] = {}
         self.orderbook: dict[str, dict] = {}  # {coin: {bids: [], asks: []}}
         self.trades: deque = deque(maxlen=self.config.max_trades_history)
         self.pending_opportunities: dict[str, PendingOpportunity] = {}
-        self.ai_messages: deque = deque(maxlen=100)  # Store last 100 AI log messages
         
         # Price history for momentum calculation
         self.price_history: dict[str, deque] = {
@@ -124,88 +154,80 @@ class TradingDashboard(App):
             fees=HYPERLIQUID_FEES,
         )
         
+        # Analysis modules (separate analysis logic from UI)
+        self.market_analyzer = MarketAnalyzer(self.config)
+        self.opportunity_analyzer = OpportunityAnalyzer(self.config)
+        
+        # WebSocket manager with robust reconnection
+        ws_config = WebSocketConfig(
+            url="wss://api.hyperliquid.xyz/ws",
+            max_reconnect_attempts=100,  # Very high - we MUST stay connected
+            initial_reconnect_delay=1.0,
+            max_reconnect_delay=30.0,
+            ping_interval=20.0,
+            ping_timeout=10.0,
+            message_timeout=60.0,
+        )
+        self.ws_manager = WebSocketManager(
+            config=ws_config,
+            on_message=self._handle_ws_message,
+            on_connect=self._handle_ws_connect,
+            on_disconnect=self._handle_ws_disconnect,
+            on_state_change=self._handle_ws_state_change,
+            log_callback=self.log_ai,
+        )
+        
         # State
         self.paused = False
         self.ws_connected = False
+        self.emergency_exit_in_progress = False
         self.start_time = datetime.now()
         
     def compose(self) -> ComposeResult:
-        """Create the dashboard layout."""
-        # Custom title bar (left-aligned)
-        yield Static(
-            "PAPER TRADING SIMULATOR",
-            id="title-bar",
-            classes="title-bar"
-        )
+        """Create the dashboard layout using extracted components."""
+        # Custom title bar
+        yield Static("PAPER TRADING SIMULATOR", id="title-bar", classes="title-bar")
         
-        # Combined status row: status info (left) + threshold settings (right)
-        with Horizontal(id="status-row", classes="status-row"):
-            yield Static(
-                self._render_status_content(),
-                id="status-bar",
-                classes="status-bar-left"
-            )
-            yield Static(
-                self._render_threshold_content(),
-                id="threshold-bar",
-                classes="status-bar-right"
-            )
+        # Status bar
+        yield StatusBar(id="status-row", classes="status-row")
         
         # Main content area: AI sidebar (left) + data panels (right)
         with Horizontal(classes="main-content"):
-            # Left sidebar: AI Reasoning (full height)
-            with Container(id="ai-panel", classes="panel"):
-                yield Static("🧠 AI REASONING", classes="panel-title", id="ai-title")
-                with ScrollableContainer(id="ai-scroll", classes="panel-content"):
-                    yield Static("", id="ai-content")
+            # Left sidebar: AI Reasoning
+            yield AIPanel(id="ai-panel", classes="panel")
             
             # Right side: All data panels stacked vertically
             with Vertical(classes="data-panels"):
                 # Top row: Prices, Order Book, Live Trades
                 with Horizontal(classes="top-row"):
-                    # Prices panel
-                    with Container(id="prices-panel", classes="panel"):
-                        yield Static("💰 PRICES & MOMENTUM", classes="panel-title")
-                        with ScrollableContainer(id="prices-scroll", classes="panel-content"):
-                            yield Static("", id="prices-content")
-                    
-                    # Order book panel
-                    with Container(id="orderbook-panel", classes="panel"):
-                        yield Static("📈 ORDER BOOK", classes="panel-title")
-                        with ScrollableContainer(id="orderbook-scroll", classes="panel-content"):
-                            yield Static("", id="orderbook-content")
-                    
-                    # Live trades panel
-                    with Container(id="trades-panel", classes="panel"):
-                        yield Static("🔄 LIVE TRADES", classes="panel-title")
-                        with ScrollableContainer(id="trades-scroll", classes="panel-content"):
-                            yield Static("", id="trades-content")
+                    yield PricesPanel(self.coins, self.config, id="prices-panel", classes="panel")
+                    yield OrderBookPanel(self.coins, id="orderbook-panel", classes="panel")
+                    yield TradesPanel(self.coins, id="trades-panel", classes="panel")
                 
                 # Opportunities row
-                with Container(id="opportunities-panel", classes="panel opportunities-row"):
-                    yield Static("🎯 OPPORTUNITIES IN PROGRESS", classes="panel-title")
-                    with ScrollableContainer(id="opportunities-scroll", classes="panel-content"):
-                        yield Static("", id="opportunities-content")
+                yield OpportunitiesPanel(id="opportunities-panel", classes="panel opportunities-row")
                 
                 # Bottom row: Positions and History
                 with Horizontal(classes="bottom-row"):
-                    with Container(id="positions-panel", classes="panel"):
-                        yield Static("📌 OPEN POSITIONS", classes="panel-title")
-                        with ScrollableContainer(id="positions-scroll", classes="panel-content"):
-                            yield Static("", id="positions-content")
-                    
-                    with Container(id="history-panel", classes="panel"):
-                        yield Static("📜 TRADE HISTORY", classes="panel-title")
-                        with ScrollableContainer(id="history-scroll", classes="panel-content"):
-                            yield Static("", id="history-content")
+                    yield PositionsPanel(id="positions-panel", classes="panel")
+                    yield HistoryPanel(id="history-panel", classes="panel")
         
         yield Footer()
     
     def on_mount(self) -> None:
         """Start data streams when app mounts."""
         self.update_ai_title()
+        self.update_threshold_bar()  # Initialize threshold display
         self.log_ai("Dashboard initialized. Connecting to Hyperliquid...")
         self.log_ai(f"[dim]Analysis Mode: {self.analysis_mode} | Model: {self.ai_model}[/dim]")
+        self.log_ai(f"[dim]WebSocket: Auto-reconnect enabled, emergency exit on disconnect[/dim]")
+        
+        # Set up WebSocket subscriptions
+        self.ws_manager.add_subscription({"type": "allMids"})
+        for coin in self.coins:
+            self.ws_manager.add_subscription({"type": "trades", "coin": coin})
+            self.ws_manager.add_subscription({"type": "l2Book", "coin": coin})
+        
         self.run_websocket()
         # Update status bar every second for uptime counter
         self.set_interval(1, self.update_status_bar)
@@ -213,52 +235,113 @@ class TradingDashboard(App):
         self.set_interval(1, self.update_positions_display)
         # Update AI title periodically
         self.set_interval(5, self.update_ai_title)
+        # Update connection status every 2 seconds
+        self.set_interval(2, self.update_connection_status)
     
     @work(exclusive=True)
     async def run_websocket(self) -> None:
-        """Connect to WebSocket and process data."""
-        ws_url = "wss://api.hyperliquid.xyz/ws"
+        """Connect to WebSocket using robust manager."""
+        logger.info("Starting WebSocket manager...")
+        await self.ws_manager.start()
+    
+    async def _handle_ws_message(self, data: dict) -> None:
+        """Handle incoming WebSocket message."""
+        if self.paused:
+            return
+        await self.process_message(data)
+    
+    async def _handle_ws_connect(self) -> None:
+        """Handle WebSocket connection established."""
+        self.ws_connected = True
+        self.emergency_exit_in_progress = False
+        self.log_ai(f"[{COLOR_UP}]✓ Connected to Hyperliquid WebSocket[/{COLOR_UP}]")
+        self.log_ai(f"[dim]📡 Subscribed to: prices, trades, orderbooks for {', '.join(self.coins)}[/dim]")
+        self.log_ai("[yellow]⏳ Waiting for market data...[/yellow]")
+    
+    async def _handle_ws_disconnect(self, reason: str) -> None:
+        """
+        Handle WebSocket disconnection - CRITICAL SAFETY HANDLER.
         
+        This is called IMMEDIATELY when connection is lost.
+        We must exit all positions to protect capital.
+        """
+        self.ws_connected = False
+        
+        # Log the disconnect with high visibility
+        self.log_ai(f"[{COLOR_DOWN}]🚨 WEBSOCKET DISCONNECTED: {reason}[/{COLOR_DOWN}]")
+        
+        # CRITICAL: Emergency exit all positions
+        if self.trader.positions and not self.emergency_exit_in_progress:
+            self.emergency_exit_in_progress = True
+            self.log_ai(f"[{COLOR_DOWN}]⚠️ EMERGENCY: Exiting all positions due to disconnect![/{COLOR_DOWN}]")
+            
+            await self._emergency_exit_all_positions(reason)
+    
+    async def _emergency_exit_all_positions(self, reason: str) -> None:
+        """
+        Emergency exit all open positions.
+        
+        CRITICAL: This protects capital when we lose market data connection.
+        We cannot make informed trading decisions without live data.
+        """
+        positions_to_close = list(self.trader.positions.keys())
+        
+        for coin in positions_to_close:
+            try:
+                # Use last known price (not ideal, but better than nothing)
+                price = self.prices.get(coin)
+                if not price:
+                    self.log_ai(f"[{COLOR_DOWN}]⚠️ No price for {coin} - cannot close safely![/{COLOR_DOWN}]")
+                    continue
+                
+                position = self.trader.positions.get(coin)
+                if position:
+                    result = self.trader.close_position(coin, price)
+                    
+                    pnl_color = COLOR_UP if result.trade and result.trade.pnl >= 0 else COLOR_DOWN
+                    self.log_ai(f"[{pnl_color}]🚨 EMERGENCY CLOSE: {result.message}[/{pnl_color}]")
+                    
+                    if result.trade:
+                        self.update_history_display(result.trade)
+                    
+                    logger.warning(f"EMERGENCY EXIT: {coin} closed at ${price} due to: {reason}")
+                    
+            except Exception as e:
+                self.log_ai(f"[{COLOR_DOWN}]❌ FAILED to close {coin}: {e}[/{COLOR_DOWN}]")
+                logger.error(f"EMERGENCY EXIT FAILED for {coin}: {e}")
+        
+        self.update_positions_display()
+        self.update_status_bar()
+        self.emergency_exit_in_progress = False
+    
+    def _handle_ws_state_change(self, state: ConnectionState) -> None:
+        """Handle WebSocket state changes for UI updates."""
+        state_msg = {
+            ConnectionState.DISCONNECTED: f"[{COLOR_DOWN}]⭕ Disconnected[/{COLOR_DOWN}]",
+            ConnectionState.CONNECTING: "[yellow]🔄 Connecting...[/yellow]",
+            ConnectionState.CONNECTED: f"[{COLOR_UP}]🟢 Connected[/{COLOR_UP}]",
+            ConnectionState.RECONNECTING: "[yellow]🟡 Reconnecting...[/yellow]",
+            ConnectionState.FATAL_ERROR: f"[{COLOR_DOWN}]🔴 FATAL ERROR[/{COLOR_DOWN}]",
+        }
+        
+        msg = state_msg.get(state, f"Unknown state: {state}")
+        self.log_ai(f"WS State: {msg}")
+        
+        # If fatal error, show notification
+        if state == ConnectionState.FATAL_ERROR:
+            self.notify(
+                "CRITICAL: WebSocket connection failed! Positions have been closed.",
+                severity="error"
+            )
+    
+    def update_connection_status(self) -> None:
+        """Update connection status display."""
         try:
-            async with websockets.connect(ws_url) as ws:
-                self.ws_connected = True
-                self.log_ai(f"[{COLOR_UP}]✓ Connected to Hyperliquid WebSocket[/{COLOR_UP}]")
-                
-                # Subscribe to all prices
-                await ws.send(json.dumps({
-                    "method": "subscribe",
-                    "subscription": {"type": "allMids"}
-                }))
-                self.log_ai("📡 Subscribed to price updates")
-                
-                # Subscribe to trades for watched coins
-                for coin in self.coins:
-                    await ws.send(json.dumps({
-                        "method": "subscribe",
-                        "subscription": {"type": "trades", "coin": coin}
-                    }))
-                self.log_ai(f"📡 Subscribed to trades: {', '.join(self.coins)}")
-                
-                # Subscribe to order book for all coins
-                for coin in self.coins:
-                    await ws.send(json.dumps({
-                        "method": "subscribe",
-                        "subscription": {"type": "l2Book", "coin": coin}
-                    }))
-                self.log_ai(f"📡 Subscribed to order books: {', '.join(self.coins)}")
-                
-                self.log_ai("[yellow]⏳ Waiting for market data...[/yellow]")
-                
-                # Process messages
-                async for message in ws:
-                    if self.paused:
-                        continue
-                    
-                    data = json.loads(message)
-                    await self.process_message(data)
-                    
-        except Exception as e:
-            self.log_ai(f"[{COLOR_DOWN}]✗ WebSocket error: {e}[/{COLOR_DOWN}]")
+            status = self.ws_manager.get_status_string()
+            # Could update a dedicated connection status widget here
+            pass
+        except Exception:
+            pass
     
     async def process_message(self, data: dict) -> None:
         """Process incoming WebSocket message."""
@@ -310,11 +393,10 @@ class TradingDashboard(App):
             self.analyze_market_conditions()
             self.last_market_analysis = now
         
-        # Update prices display
-        self.update_prices_display()
-        
-        # Update status bar
-        self.update_status_bar()
+        # Update displays
+        with self.batch_update():
+            self.update_prices_display()
+            self.update_status_bar()
     
     async def handle_trades(self, data: dict) -> None:
         """Handle trade updates."""
@@ -352,184 +434,117 @@ class TradingDashboard(App):
     
     def analyze_market_conditions(self) -> None:
         """Analyze and report overall market conditions."""
-        now = datetime.now()
+        analysis = self.market_analyzer.analyze(
+            coins=self.coins,
+            prices=self.prices,
+            price_history=self.price_history,
+            momentum_timeframe=self.momentum_timeframe,
+        )
         
-        # Calculate momentum for each coin
-        momentums = {}
-        for coin in self.coins:
-            history = self.price_history[coin]
-            if len(history) < 2:
-                continue
-            
-            current_price = self.prices.get(coin, 0)
-            
-            # Get price from configured timeframe ago
-            lookback_price = None
-            for point in history:
-                age = (now - point["time"]).total_seconds()
-                if age >= self.momentum_timeframe:
-                    lookback_price = point["price"]
-                    break
-            
-            if lookback_price and current_price:
-                momentum = ((current_price - lookback_price) / lookback_price) * 100
-                momentums[coin] = {
-                    "momentum": momentum,
-                    "price": current_price,
-                    "change": current_price - lookback_price
-                }
-        
-        if not momentums:
+        if not analysis:
             return
         
-        # Calculate overall market volatility
-        avg_abs_momentum = sum(abs(m["momentum"]) for m in momentums.values()) / len(momentums)
-        max_mover = max(momentums.items(), key=lambda x: abs(x[1]["momentum"]))
-        
-        # Determine market condition based on config thresholds
-        cfg = self.config
-        if avg_abs_momentum < cfg.market_very_calm_threshold:
-            condition = "😴 VERY CALM"
-            condition_color = "dim"
-            description = "Prices barely moving. Waiting for action..."
-        elif avg_abs_momentum < cfg.market_calm_threshold:
-            condition = "😐 CALM"
-            condition_color = "white"
-            description = "Low volatility. Minor price fluctuations."
-        elif avg_abs_momentum < cfg.market_active_threshold:
-            condition = "📊 ACTIVE"
-            condition_color = "yellow"
-            description = "Moderate movement. Watching for opportunities..."
-        elif avg_abs_momentum < cfg.market_volatile_threshold:
-            condition = "⚡ VOLATILE"
-            condition_color = "cyan"
-            description = "Significant price action! High alert."
-        else:
-            condition = "🔥 VERY VOLATILE"
-            condition_color = "magenta"
-            description = "Extreme movement! Trading opportunities likely."
-        
         # Log market summary
-        self.log_ai(f"[{condition_color}]━━━ MARKET ANALYSIS ━━━[/{condition_color}]")
-        self.log_ai(f"[{condition_color}]{condition}[/{condition_color}] - {description}")
+        color = analysis.condition_color
+        self.log_ai(f"[{color}]━━━ MARKET ANALYSIS ━━━[/{color}]")
+        self.log_ai(f"[{color}]{analysis.condition_label}[/{color}] - {analysis.description}")
         
         # Log each coin's status
-        for coin, data in sorted(momentums.items(), key=lambda x: abs(x[1]["momentum"]), reverse=True):
-            momentum = data["momentum"]
-            price = data["price"]
-            change = data["change"]
-            
-            if momentum > 0.1:
-                status = f"[{COLOR_UP}]▲ RISING +{momentum:.3f}%[/{COLOR_UP}]"
-            elif momentum < -0.1:
-                status = f"[{COLOR_DOWN}]▼ FALLING {momentum:.3f}%[/{COLOR_DOWN}]"
+        for ca in analysis.coin_analyses:
+            if ca.status == CoinStatus.RISING:
+                status_str = f"[{COLOR_UP}]▲ RISING +{ca.momentum:.3f}%[/{COLOR_UP}]"
+            elif ca.status == CoinStatus.FALLING:
+                status_str = f"[{COLOR_DOWN}]▼ FALLING {ca.momentum:.3f}%[/{COLOR_DOWN}]"
             else:
-                status = f"[dim]─ FLAT {momentum:+.3f}%[/dim]"
+                status_str = f"[dim]─ FLAT {ca.momentum:+.3f}%[/dim]"
             
-            self.log_ai(f"  {coin}: ${price:,.2f} ({change:+.2f}) {status}")
+            self.log_ai(f"  {ca.coin}: ${ca.price:,.2f} ({ca.change:+.2f}) {status_str}")
         
         # Log threshold reminder
         self.log_ai(f"[dim]  Threshold: ±{self.track_threshold:.2f}% to track, ±{self.trade_threshold:.2f}% to trade[/dim]")
         
-        # Highlight if any coin is close to threshold
-        for coin, data in momentums.items():
-            momentum = abs(data["momentum"])
-            approaching = self.track_threshold * 0.5  # 50% of track threshold
-            if approaching <= momentum < self.track_threshold:
-                self.log_ai(f"[yellow]  👀 {coin} approaching threshold ({data['momentum']:+.3f}%)[/yellow]")
-            elif momentum >= self.track_threshold and momentum < self.trade_threshold:
-                remaining = self.trade_threshold - momentum
-                self.log_ai(f"[cyan]  🎯 {coin} TRACKING - needs {remaining:.3f}% more to trade[/cyan]")
+        # Highlight coins approaching thresholds
+        for ca in analysis.coin_analyses:
+            abs_momentum = abs(ca.momentum)
+            approaching = self.track_threshold * 0.5
+            if approaching <= abs_momentum < self.track_threshold:
+                self.log_ai(f"[yellow]  👀 {ca.coin} approaching threshold ({ca.momentum:+.3f}%)[/yellow]")
+            elif abs_momentum >= self.track_threshold and abs_momentum < self.trade_threshold:
+                remaining = self.trade_threshold - abs_momentum
+                self.log_ai(f"[cyan]  🎯 {ca.coin} TRACKING - needs {remaining:.3f}% more to trade[/cyan]")
     
     async def analyze_opportunity(self, coin: str, price: float, old_price: float) -> None:
         """Analyze price for trading opportunities."""
-        now = datetime.now()
         history = self.price_history[coin]
         
-        # Get price from configured timeframe ago
-        lookback_price = None
-        lookback_age = 0
-        for point in history:
-            age = (now - point["time"]).total_seconds()
-            if age >= self.momentum_timeframe:
-                lookback_price = point["price"]
-                lookback_age = age
-                break
+        # Analyze opportunity using extracted logic
+        result = self.opportunity_analyzer.analyze(
+            coin=coin,
+            current_price=price,
+            price_history=history,
+            momentum_timeframe=self.momentum_timeframe,
+            track_threshold=self.track_threshold,
+            trade_threshold=self.trade_threshold,
+            is_currently_tracking=coin in self.pending_opportunities,
+        )
         
-        if lookback_price is None:
-            # Not enough history yet - log occasionally
-            if len(history) % 50 == 1:  # Log every ~50 price updates
+        # Handle no-action cases
+        if result.action == OpportunityAction.NO_ACTION:
+            if len(history) % self.config.price_history_log_interval == 1:
                 self.log_ai(f"[dim]📊 {coin}: Building price history ({len(history)} points)...[/dim]")
             return
         
-        # Calculate momentum
-        momentum = (price - lookback_price) / lookback_price
-        momentum_pct = momentum * 100
-        
-        # Log analysis periodically (every ~100 updates per coin)
-        if len(history) % 100 == 0:
-            direction = "📈" if momentum > 0 else "📉" if momentum < 0 else "➡️"
-            color = COLOR_UP if momentum > 0 else COLOR_DOWN if momentum < 0 else "white"
+        # Log analysis periodically
+        if len(history) % self.config.momentum_analysis_log_interval == 0 and result.momentum_pct is not None:
+            direction_emoji = "📈" if result.momentum_pct > 0 else "📉" if result.momentum_pct < 0 else "➡️"
+            color = COLOR_UP if result.momentum_pct > 0 else COLOR_DOWN if result.momentum_pct < 0 else "white"
             self.log_ai(
                 f"[dim]🔍 {coin}: ${price:,.2f} | "
-                f"{self.momentum_timeframe}s momentum: [{color}]{momentum_pct:+.3f}%[/{color}] {direction} | "
+                f"{self.momentum_timeframe}s momentum: [{color}]{result.momentum_pct:+.3f}%[/{color}] {direction_emoji} | "
                 f"Threshold: ±{self.trade_threshold:.2f}%[/dim]"
             )
         
-        # Create or update pending opportunity
-        if abs(momentum_pct) > self.track_threshold:  # Start tracking
-            direction = "LONG" if momentum > 0 else "SHORT"
-            
+        # Handle stop tracking
+        if result.action == OpportunityAction.STOP_TRACKING:
+            if coin in self.pending_opportunities:
+                del self.pending_opportunities[coin]
+                self.update_opportunities_display()
+            return
+        
+        # Handle tracking (start or continue)
+        if result.is_trackable:
             if coin not in self.pending_opportunities:
                 # Create new pending opportunity
-                opp = PendingOpportunity(
+                opp = self.opportunity_analyzer.create_opportunity(
                     coin=coin,
-                    direction=direction,
-                    current_price=price,
-                    conditions=[
-                        OpportunityCondition("Momentum", f">{self.trade_threshold:.2f}% move in {self.momentum_timeframe}s"),
-                        OpportunityCondition("No Position", "Not already in position"),
-                        OpportunityCondition("Cooldown", "30s since last trade"),
-                        OpportunityCondition("Balance", "Sufficient margin"),
-                    ]
+                    direction=result.direction,
+                    price=price,
+                    trade_threshold=self.trade_threshold,
+                    momentum_timeframe=self.momentum_timeframe,
                 )
                 self.pending_opportunities[coin] = opp
                 self.log_ai(f"[cyan]🔍 Analyzing {coin}...[/cyan]")
             
             opp = self.pending_opportunities[coin]
             opp.current_price = price
-            opp.direction = direction
+            opp.direction = result.direction
             
-            # Check conditions
-            # 1. Momentum threshold (dynamic)
-            opp.conditions[0].met = abs(momentum_pct) >= self.trade_threshold
-            opp.conditions[0].value = f"{momentum_pct:+.2f}% (need ±{self.trade_threshold:.2f}%)"
+            # Validate conditions
+            is_valid = self.opportunity_analyzer.validate_conditions(
+                opp=opp,
+                momentum_pct=result.momentum_pct,
+                trade_threshold=self.trade_threshold,
+                has_position=coin in self.trader.positions,
+                balance=self.trader.balance,
+                position_size_pct=self.config.position_size_pct,
+            )
             
-            # 2. No existing position
-            opp.conditions[1].met = coin not in self.trader.positions
-            opp.conditions[1].value = "✓" if opp.conditions[1].met else "In position"
-            
-            # 3. Cooldown (simplified - always true for demo)
-            opp.conditions[2].met = True
-            opp.conditions[2].value = "✓"
-            
-            # 4. Balance check
-            required = price * 0.001 * 0.1  # Small position
-            opp.conditions[3].met = self.trader.balance >= required
-            opp.conditions[3].value = f"${self.trader.balance:,.0f}"
-            
-            # Update display
             self.update_opportunities_display()
             
             # If all conditions met, execute!
-            if opp.is_valid and coin not in self.trader.positions:
+            if is_valid and coin not in self.trader.positions:
                 await self.execute_opportunity(opp)
                 del self.pending_opportunities[coin]
-        else:
-            # Remove if momentum died
-            if coin in self.pending_opportunities:
-                del self.pending_opportunities[coin]
-                self.update_opportunities_display()
     
     async def execute_opportunity(self, opp: PendingOpportunity) -> None:
         """Execute a validated opportunity."""
@@ -554,8 +569,9 @@ class TradingDashboard(App):
         else:
             self.log_ai(f"[{COLOR_DOWN}]✗ {result.message}[/{COLOR_DOWN}]")
         
-        self.update_positions_display()
-        self.update_status_bar()
+        with self.batch_update():
+            self.update_positions_display()
+            self.update_status_bar()
         
         # Set up exit monitoring
         self.set_timer(1, lambda: self.check_exit_conditions(coin))
@@ -578,16 +594,18 @@ class TradingDashboard(App):
             self.log_ai(f"[{COLOR_UP}]🎯 Take profit triggered for {coin} (+{pnl_pct:.2f}%)[/{COLOR_UP}]")
             result = self.trader.close_position(coin, price)
             self.log_ai(f"[{COLOR_UP}]✓ {result.message}[/{COLOR_UP}]")
-            self.update_positions_display()
-            self.update_history_display(result.trade)
-            self.update_status_bar()
+            with self.batch_update():
+                self.update_positions_display()
+                self.update_history_display(result.trade)
+                self.update_status_bar()
         elif pnl_pct <= self.config.stop_loss_pct:
             self.log_ai(f"[{COLOR_DOWN}]🛑 Stop loss triggered for {coin} ({pnl_pct:.2f}%)[/{COLOR_DOWN}]")
             result = self.trader.close_position(coin, price)
             self.log_ai(f"[{COLOR_DOWN}]✗ {result.message}[/{COLOR_DOWN}]")
-            self.update_positions_display()
-            self.update_history_display(result.trade)
-            self.update_status_bar()
+            with self.batch_update():
+                self.update_positions_display()
+                self.update_history_display(result.trade)
+                self.update_status_bar()
         else:
             # Keep checking
             self.set_timer(0.5, lambda: self.check_exit_conditions(coin))
@@ -597,262 +615,85 @@ class TradingDashboard(App):
     # ============================================================
     
     def _calculate_momentum(self, coin: str) -> float | None:
-        """Calculate momentum for a coin over the configured timeframe. Returns percentage or None if not enough data."""
+        """Calculate momentum for a coin over the configured timeframe."""
         history = self.price_history.get(coin)
-        if not history or len(history) < 2:
-            return None
-        
         current_price = self.prices.get(coin)
-        if not current_price:
+        if not history or not current_price:
             return None
-        
-        now = datetime.now()
-        lookback_price = None
-        for point in history:
-            age = (now - point["time"]).total_seconds()
-            if age >= self.momentum_timeframe:
-                lookback_price = point["price"]
-                break
-        
-        if lookback_price is None:
-            return None
-        
-        return ((current_price - lookback_price) / lookback_price) * 100
+        return calculate_momentum(current_price, history, self.momentum_timeframe)
     
     def update_prices_display(self) -> None:
         """Update prices panel."""
-        lines = []
-        
-        # Column widths: COIN=5, PRICE=13 (with $), TICK=6, MOMENTUM=rest
-        lines.append(f"[dim]{'COIN':<5}   {'PRICE':>13}    {'TICK':^4}    {self.momentum_timeframe}s MOMENTUM[/dim]")
-        lines.append("[dim]─────────────────────────────────────────────────────[/dim]")
-        
-        for coin in self.coins:
-            price = self.prices.get(coin, 0)
-            prev = self.prev_prices.get(coin, price)
-            change = price - prev
-            
-            if change > 0:
-                tick_color = COLOR_UP
-                tick_arrow = "▲"
-            elif change < 0:
-                tick_color = COLOR_DOWN
-                tick_arrow = "▼"
-            else:
-                tick_color = "white"
-                tick_arrow = "─"
-            
-            # Momentum indicator (60s)
-            momentum = self._calculate_momentum(coin)
-            if momentum is not None:
-                abs_mom = abs(momentum)
-                # Determine strength label
-                if abs_mom < 0.1:
-                    mom_label = "flat"
-                    mom_color = "dim"
-                elif abs_mom < 0.3:
-                    mom_label = "weak"
-                    mom_color = COLOR_UP if momentum > 0 else COLOR_DOWN
-                elif abs_mom < 0.5:
-                    mom_label = "strong"
-                    mom_color = COLOR_UP if momentum > 0 else COLOR_DOWN
-                else:
-                    mom_label = "aggro"
-                    mom_color = COLOR_UP if momentum > 0 else COLOR_DOWN
-                momentum_str = f"[{mom_color}]{momentum:+.2f}% {mom_label}[/{mom_color}]"
-            else:
-                momentum_str = "[dim]building...[/dim]"
-            
-            # Format price with $ prefix, total 13 chars
-            price_str = f"${price:>12,.2f}"
-            
-            # Single line: COIN | PRICE | TICK | MOMENTUM
-            lines.append(
-                f"[bold]{coin:<5}[/bold]   "
-                f"{price_str}    "
-                f"[{tick_color}]{tick_arrow:^4}[/{tick_color}]    "
-                f"{momentum_str}"
-            )
-            
-            self.prev_prices[coin] = price
-        
-        content = self.query_one("#prices-content", Static)
-        content.update("\n".join(lines))
+        panel = self.query_one(PricesPanel)
+        panel.update_display(self.prices, self.price_history, self.momentum_timeframe)
     
     def update_orderbook_display(self, coin: str) -> None:
-        """Update order book panel with all coins."""
-        lines = []
-        
-        for i, c in enumerate(self.coins):
-            book = self.orderbook.get(c, {"bids": [], "asks": []})
-            
-            if i > 0:
-                lines.append("")  # Separator between coins
-            
-            # Compact: show top 3 asks and bids per coin
-            lines.append(f"[bold cyan]{c}[/bold cyan]")
-            
-            # Asks (reversed so lowest is at bottom)
-            for ask in reversed(book["asks"][:3]):
-                px = float(ask.get("px", 0))
-                sz = float(ask.get("sz", 0))
-                lines.append(f"  [{COLOR_DOWN}]${px:>10,.2f}  {sz:>8.4f}[/{COLOR_DOWN}]")
-            
-            # Spread line
-            lines.append(f"  [dim]────────────────────[/dim]")
-            
-            # Bids
-            for bid in book["bids"][:3]:
-                px = float(bid.get("px", 0))
-                sz = float(bid.get("sz", 0))
-                lines.append(f"  [{COLOR_UP}]${px:>10,.2f}  {sz:>8.4f}[/{COLOR_UP}]")
-        
-        content = self.query_one("#orderbook-content", Static)
-        content.update("\n".join(lines))
+        """Update order book panel."""
+        panel = self.query_one(OrderBookPanel)
+        panel.update_display(self.orderbook)
     
     def update_trades_display(self) -> None:
-        """Update trades panel - show trades from last 60 seconds, grouped by coin."""
-        now = datetime.now()
-        
-        # Group trades by coin
-        trades_by_coin: dict[str, list] = {coin: [] for coin in self.coins}
-        for trade in list(self.trades):
-            age = (now - trade["time"]).total_seconds()
-            if age > 60:
-                continue
-            coin = trade["coin"]
-            if coin in trades_by_coin:
-                trades_by_coin[coin].append(trade)
-        
-        # Build display grouped by coin
-        lines = []
-        for i, coin in enumerate(self.coins):
-            coin_trades = trades_by_coin[coin]
-            
-            if i > 0:
-                lines.append("")  # Separator between coins
-            
-            lines.append(f"[bold cyan]{coin}[/bold cyan]")
-            
-            if not coin_trades:
-                lines.append(f"  [dim]No recent trades[/dim]")
-            else:
-                # Show most recent trades first (up to 6 per coin)
-                for trade in coin_trades[:6]:
-                    time_str = trade["time"].strftime("%H:%M:%S")
-                    side = trade["side"]
-                    color = COLOR_UP if side == "B" else COLOR_DOWN
-                    side_text = "BUY " if side == "B" else "SELL"
-                    
-                    lines.append(
-                        f"  [{color}]{side_text}[/{color}] "
-                        f"[dim]{time_str}[/dim] "
-                        f"{trade['size']:>8.4f} @ ${trade['price']:,.2f}"
-                    )
-        
-        content = self.query_one("#trades-content", Static)
-        content.update("\n".join(lines))
+        """Update trades panel."""
+        panel = self.query_one(TradesPanel)
+        panel.update_display(self.trades)
     
     def update_opportunities_display(self) -> None:
         """Update opportunities panel."""
-        lines = []
-        
-        if not self.pending_opportunities:
-            lines.append("[dim]No opportunities being analyzed...[/dim]")
-        else:
-            for coin, opp in self.pending_opportunities.items():
-                color = COLOR_UP if opp.direction == "LONG" else COLOR_DOWN
-                lines.append(
-                    f"[{color}]{coin} {opp.direction}[/{color}] @ ${opp.current_price:,.2f} │ "
-                    f"{opp.progress_bar} {opp.conditions_met}/{opp.total_conditions}"
-                )
-                for cond in opp.conditions:
-                    status = f"[{COLOR_UP}]✓[/{COLOR_UP}]" if cond.met else f"[{COLOR_DOWN}]✗[/{COLOR_DOWN}]"
-                    lines.append(f"  {status} {cond.name}: {cond.value or cond.description}")
-        
-        content = self.query_one("#opportunities-content", Static)
-        content.update("\n".join(lines))
+        panel = self.query_one(OpportunitiesPanel)
+        panel.update_display(self.pending_opportunities)
     
     def update_positions_display(self) -> None:
         """Update positions panel."""
-        lines = []
-        
-        if not self.trader.positions:
-            lines.append("[dim]No open positions[/dim]")
-        else:
-            for coin, pos in self.trader.positions.items():
-                price = self.prices.get(coin, pos.entry_price)
-                pnl = pos.unrealized_pnl(price)
-                pnl_pct = pos.unrealized_pnl_percent(price)
-                
-                side = "LONG" if pos.side == Side.LONG else "SHORT"
-                color = COLOR_UP if pnl >= 0 else COLOR_DOWN
-                
-                lines.append(f"[bold]{coin}[/bold] {side} {pos.size:.6f}")
-                lines.append(f"  Entry: ${pos.entry_price:,.2f}")
-                lines.append(f"  Current: ${price:,.2f}")
-                lines.append(f"  [{color}]P&L: ${pnl:+,.2f} ({pnl_pct:+.2f}%)[/{color}]")
-        
-        content = self.query_one("#positions-content", Static)
-        content.update("\n".join(lines))
+        panel = self.query_one(PositionsPanel)
+        panel.update_display(self.trader.positions, self.prices)
     
     def update_history_display(self, trade=None) -> None:
         """Update trade history panel."""
-        lines = []
-        
-        if not self.trader.trade_history:
-            lines.append("[dim]No completed trades[/dim]")
-        else:
-            for t in reversed(self.trader.trade_history[-20:]):  # Show last 20 trades
-                emoji = "✅" if t.pnl > 0 else "❌"
-                color = COLOR_UP if t.pnl > 0 else COLOR_DOWN
-                side = "LONG" if t.side == Side.LONG else "SHORT"
-                
-                lines.append(
-                    f"{emoji} [{color}]{side} {t.coin}: "
-                    f"${t.pnl:+,.2f} ({t.pnl_percent:+.2f}%)[/{color}]"
-                )
-        
-        content = self.query_one("#history-content", Static)
-        content.update("\n".join(lines))
+        panel = self.query_one(HistoryPanel)
+        panel.update_display(self.trader.trade_history)
     
     def update_status_bar(self) -> None:
         """Update the status bar."""
-        status = self.query_one("#status-bar", Static)
-        status.update(self._render_status_content())
+        status_bar = self.query_one(StatusBar)
+        
+        # Calculate last message age
+        last_msg_age = None
+        if self.ws_connected and self.ws_manager.metrics.last_message_time:
+            last_msg_age = (datetime.now() - self.ws_manager.metrics.last_message_time).total_seconds()
+        
+        status_bar.update_status(
+            ws_connected=self.ws_connected,
+            last_message_age=last_msg_age,
+            reconnect_count=self.ws_manager.metrics.reconnect_count,
+            balance=self.trader.balance,
+            equity=self.trader.get_equity(self.prices),
+            starting_balance=self.starting_balance,
+            trade_count=len(self.trader.trade_history),
+        )
     
     def log_ai(self, message: str) -> None:
         """Log message to AI reasoning panel."""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.ai_messages.append(f"[dim]{timestamp}[/dim] {message}")
-        
         try:
-            content = self.query_one("#ai-content", Static)
-            content.update("\n".join(self.ai_messages))
-            # Auto-scroll to bottom
-            scroll = self.query_one("#ai-scroll", ScrollableContainer)
-            scroll.scroll_end(animate=False)
-        except Exception:
-            pass  # Widget not ready yet
+            panel = self.query_one(AIPanel)
+            panel.log(message)
+        except Exception as e:
+            logger.debug(f"AI panel not ready: {e}")
     
     def update_ai_title(self) -> None:
-        """Update AI panel title with mode and token info."""
+        """Update AI panel title with mode and connection info."""
         try:
-            title = self.query_one("#ai-title", Static)
-            if self.analysis_mode == "RULE-BASED":
-                title.update(
-                    f"🧠 ANALYSIS [dim]│[/dim] [yellow]📐 {self.analysis_mode}[/yellow] [dim]│[/dim] "
-                    f"Model: [cyan]{self.ai_model}[/cyan]"
-                )
-            else:
-                title.update(
-                    f"🧠 AI REASONING [dim]│[/dim] [{COLOR_UP}]🤖 {self.analysis_mode}[/{COLOR_UP}] [dim]│[/dim] "
-                    f"Model: [cyan]{self.ai_model}[/cyan] [dim]│[/dim] "
-                    f"Tokens: [magenta]{self.tokens_used:,}[/magenta] [dim]│[/dim] "
-                    f"Calls: [blue]{self.ai_calls}[/blue]"
-                )
-        except Exception:
-            pass  # Panel not ready yet
+            panel = self.query_one(AIPanel)
+            metrics = self.ws_manager.metrics
+            panel.update_title(
+                analysis_mode=self.analysis_mode,
+                ai_model=self.ai_model,
+                tokens_used=self.tokens_used,
+                ai_calls=self.ai_calls,
+                disconnects=metrics.total_disconnects,
+                reconnects=metrics.reconnect_count,
+            )
+        except Exception as e:
+            logger.debug(f"AI panel not ready: {e}")
     
     # ============================================================
     # Actions
@@ -863,9 +704,10 @@ class TradingDashboard(App):
         self.trader.reset()
         self.pending_opportunities.clear()
         self.log_ai("[yellow]🔄 Simulator reset[/yellow]")
-        self.update_positions_display()
-        self.update_history_display()
-        self.update_status_bar()
+        with self.batch_update():
+            self.update_positions_display()
+            self.update_history_display()
+            self.update_status_bar()
     
     def action_toggle_pause(self) -> None:
         """Pause/unpause the simulator."""
@@ -922,58 +764,18 @@ class TradingDashboard(App):
             self.update_threshold_bar()
             self.update_prices_display()
     
-    def _render_status_content(self) -> str:
-        """Render the status bar content (left side)."""
-        equity = self.trader.get_equity(self.prices)
-        pnl = equity - self.starting_balance
-        pnl_pct = (pnl / self.starting_balance) * 100
-        pnl_color = COLOR_UP if pnl >= 0 else COLOR_DOWN
-        
-        # Calculate uptime
-        uptime = datetime.now() - self.start_time
-        hours, remainder = divmod(int(uptime.total_seconds()), 3600)
-        minutes, seconds = divmod(remainder, 60)
-        uptime_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-        
-        return (
-            f"⏱️ {uptime_str}  │  "
-            f"💰${self.trader.balance:,.2f}  │  "
-            f"📈${equity:,.2f}  │  "
-            f"[{pnl_color}]P&L: ${pnl:+,.2f} ({pnl_pct:+.2f}%)[/{pnl_color}]  │  "
-            f"📊{len(self.trader.trade_history)} trades"
-        )
-    
-    def _render_threshold_content(self) -> str:
-        """Render the threshold settings content (right side)."""
-        # Visual bar for track threshold (0-0.5%)
-        track_pct = min(1.0, self.track_threshold / 0.5)
-        track_filled = int(track_pct * 15)
-        track_bar = "[yellow]" + "█" * track_filled + "░" * (15 - track_filled) + "[/yellow]"
-        
-        # Visual bar for trade threshold (0-1.0%)
-        trade_pct = min(1.0, self.trade_threshold / 1.0)
-        trade_filled = int(trade_pct * 15)
-        trade_bar = f"[{COLOR_UP}]" + "█" * trade_filled + "░" * (15 - trade_filled) + f"[/{COLOR_UP}]"
-        
-        # Visual bar for momentum timeframe (5s to 60s)
-        mom_idx = self.MOMENTUM_TIMEFRAMES.index(self.momentum_timeframe)
-        mom_pct = mom_idx / (len(self.MOMENTUM_TIMEFRAMES) - 1)
-        mom_filled = int(mom_pct * 15)
-        mom_bar = "[cyan]" + "█" * mom_filled + "░" * (15 - mom_filled) + "[/cyan]"
-        
-        return (
-            f"Track: {track_bar} {self.track_threshold:.2f}%  │  "
-            f"Trade: {trade_bar} {self.trade_threshold:.2f}%  │  "
-            f"Mom: {mom_bar} {self.momentum_timeframe}s"
-        )
-    
     def update_threshold_bar(self) -> None:
         """Update the threshold display."""
         try:
-            bar = self.query_one("#threshold-bar", Static)
-            bar.update(self._render_threshold_content())
-        except Exception:
-            pass  # Widget not ready
+            status_bar = self.query_one(StatusBar)
+            status_bar.update_thresholds(
+                track_threshold=self.track_threshold,
+                trade_threshold=self.trade_threshold,
+                momentum_timeframe=self.momentum_timeframe,
+                momentum_timeframes=self.MOMENTUM_TIMEFRAMES,
+            )
+        except Exception as e:
+            logger.debug(f"Threshold bar not ready: {e}")
     
     def action_toggle_ai(self) -> None:
         """Toggle between rule-based and AI analysis mode."""
@@ -988,6 +790,25 @@ class TradingDashboard(App):
             self.ai_model = "None (Momentum Rules)"
             self.log_ai(f"[{COLOR_UP}]✓ Switched to RULE-BASED analysis[/{COLOR_UP}]")
         self.update_ai_title()
+    
+    async def action_quit(self) -> None:
+        """Quit the application with proper cleanup."""
+        self.log_ai("[yellow]🛑 Shutting down...[/yellow]")
+        
+        # Close any open positions before exit
+        if self.trader.positions:
+            self.log_ai(f"[yellow]⚠️ Closing {len(self.trader.positions)} open positions before exit...[/yellow]")
+            for coin in list(self.trader.positions.keys()):
+                price = self.prices.get(coin)
+                if price:
+                    result = self.trader.close_position(coin, price)
+                    self.log_ai(f"Closed {coin}: {result.message}")
+        
+        # Stop WebSocket manager
+        await self.ws_manager.stop()
+        
+        logger.info("Dashboard shutdown complete")
+        self.exit()
     
 
 

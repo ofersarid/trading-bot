@@ -76,6 +76,25 @@ class TradingConfig:
     # Momentum threshold for individual coin status
     coin_rising_threshold: float = 0.10
     coin_falling_threshold: float = -0.10
+    
+    # =========================================================
+    # Momentum Display Thresholds (for UI labels)
+    # =========================================================
+    
+    # Thresholds for momentum strength labels in prices display
+    momentum_flat_threshold: float = 0.10      # Below this = "flat"
+    momentum_weak_threshold: float = 0.30      # Below this = "weak"
+    momentum_strong_threshold: float = 0.50    # Below this = "strong", above = "aggro"
+    
+    # =========================================================
+    # Logging Intervals
+    # =========================================================
+    
+    # Log price history building every N updates
+    price_history_log_interval: int = 50
+    
+    # Log momentum analysis every N updates
+    momentum_analysis_log_interval: int = 100
 
 
 # Default configuration instance

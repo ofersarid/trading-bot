@@ -9,6 +9,9 @@ Public (no auth needed):
 
 Authenticated (requires API key):
 - HyperliquidClient: Full trading client
+
+WebSocket (robust connection management):
+- WebSocketManager: Auto-reconnect, heartbeat, emergency callbacks
 """
 
 from bot.hyperliquid.public_data import (
@@ -18,6 +21,12 @@ from bot.hyperliquid.public_data import (
     get_orderbook,
     get_price,
 )
+from bot.hyperliquid.websocket_manager import (
+    WebSocketManager,
+    WebSocketConfig,
+    ConnectionState,
+    ConnectionMetrics,
+)
 
 __all__ = [
     "get_all_prices",
@@ -25,4 +34,8 @@ __all__ = [
     "get_candles",
     "get_markets",
     "get_orderbook",
+    "WebSocketManager",
+    "WebSocketConfig",
+    "ConnectionState",
+    "ConnectionMetrics",
 ]

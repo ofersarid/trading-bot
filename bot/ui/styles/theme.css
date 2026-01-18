@@ -36,9 +36,10 @@ Footer {
 .panel-title {
     color: #44ffaa;
     text-style: bold;
-    background: #1a1a2e;
+    background: #1a1a1a;
     padding: 1 2;
     height: 3;
+    width: 100%;
 }
 
 /* ============================================================
@@ -69,7 +70,7 @@ Footer {
 }
 
 #prices-panel {
-    width: 70;
+    width: 58;
     height: 100%;
 }
 
