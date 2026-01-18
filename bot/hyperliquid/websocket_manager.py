@@ -152,11 +152,11 @@ class WebSocketManager:
         return self._state == ConnectionState.CONNECTED
     
     def _set_state(self, new_state: ConnectionState) -> None:
-        """Update connection state and notify."""
+        """Update connection state and notify callback (no UI logging - dashboard handles display)."""
         if new_state != self._state:
             old_state = self._state
             self._state = new_state
-            self._log(f"WS STATE: {old_state.value} → {new_state.value}")
+            logger.info(f"[WebSocket] STATE: {old_state.value} → {new_state.value}")
             if self.on_state_change:
                 self.on_state_change(new_state)
     
@@ -222,7 +222,7 @@ class WebSocketManager:
         self._set_state(ConnectionState.CONNECTING)
         
         try:
-            self._log(f"Connecting to {self.config.url}...")
+            logger.info(f"[WebSocket] Connecting to {self.config.url}...")
             
             # Create connection with explicit timeouts
             self._ws = await asyncio.wait_for(
@@ -243,8 +243,8 @@ class WebSocketManager:
             self._reconnect_delay = self.config.initial_reconnect_delay
             
             self._set_state(ConnectionState.CONNECTED)
-            self._log(
-                f"Connected! (reconnects: {self.metrics.reconnect_count}, "
+            logger.info(
+                f"[WebSocket] Connected! (reconnects: {self.metrics.reconnect_count}, "
                 f"total disconnects: {self.metrics.total_disconnects})"
             )
             
@@ -277,12 +277,12 @@ class WebSocketManager:
             await self._handle_disconnect("Connection ended")
     
     async def _send_subscriptions(self) -> None:
-        """Send all registered subscriptions."""
+        """Send all registered subscriptions (no UI logging - dashboard summarizes)."""
         for sub in self._subscriptions:
             try:
                 msg = {"method": "subscribe", "subscription": sub}
                 await self._ws.send(json.dumps(msg))
-                self._log(f"Subscribed: {sub.get('type', 'unknown')}")
+                logger.info(f"[WebSocket] Subscribed: {sub.get('type', 'unknown')}")
             except Exception as e:
                 self._log(f"Failed to subscribe {sub}: {e}", "error")
     
@@ -296,11 +296,9 @@ class WebSocketManager:
                 try:
                     data = json.loads(message)
                     
-                    # Handle pong responses
+                    # Handle pong responses (tracked in metrics, not logged to UI)
                     if data.get("channel") == "pong":
                         self.metrics.last_pong_time = datetime.now()
-                        latency = (self.metrics.last_pong_time - self.metrics.last_ping_time).total_seconds() * 1000
-                        self._log(f"Pong received (latency: {latency:.1f}ms)")
                         continue
                     
                     # Pass to message handler
@@ -395,8 +393,10 @@ class WebSocketManager:
         if self._ws:
             try:
                 await self._ws.close()
-            except Exception:
-                pass
+            except (ConnectionClosed, WebSocketException) as e:
+                logger.debug(f"WebSocket close during cleanup (expected): {e}")
+            except Exception as e:
+                logger.warning(f"Unexpected error closing WebSocket: {e}")
             self._ws = None
     
     async def send(self, data: dict) -> bool:

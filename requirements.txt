@@ -22,5 +22,8 @@ websockets>=12.0
 textual>=0.47.0
 textual-slider>=0.1.0
 
+# Interactive CLI prompts (arrow key navigation)
+questionary>=2.0.0
+
 # Development tools
 watchfiles>=0.21.0  # File watcher for hot reload

@@ -35,6 +35,9 @@ class MarketAnalyzer:
         momentum: dict[str, float],
         orderbook: dict[str, dict],
         recent_trades: list[dict],
+        pressure_score: int = 50,
+        pressure_label: str = "Neutral",
+        momentum_timeframe: int = 60,
     ) -> AnalysisResult:
         """
         Perform full market analysis for a specific coin.
@@ -45,6 +48,9 @@ class MarketAnalyzer:
             momentum: Dict of coin -> momentum percentage
             orderbook: Dict of coin -> {bid_ratio}
             recent_trades: List of recent trade dicts with 'side' key
+            pressure_score: Market pressure score 0-100
+            pressure_label: Human-readable pressure label
+            momentum_timeframe: Timeframe for momentum calculation in seconds
 
         Returns:
             AnalysisResult with sentiment, confidence, signal, and reason
@@ -53,15 +59,29 @@ class MarketAnalyzer:
             return AnalysisResult.error_result(coin, "AI analysis disabled")
 
         try:
-            prompt = format_market_analysis(prices, momentum, orderbook, recent_trades)
+            prompt = format_market_analysis(
+                prices,
+                momentum,
+                orderbook,
+                recent_trades,
+                pressure_score=pressure_score,
+                pressure_label=pressure_label,
+                momentum_timeframe=momentum_timeframe,
+            )
             response_text, tokens, response_time_ms = await self.client.analyze(prompt)
 
             result = AnalysisResult.from_text(response_text, coin, response_time_ms)
+            
+            # Populate momentum data from input if AI didn't parse it correctly
+            if not result.momentum_by_coin and momentum:
+                result.momentum_by_coin = momentum
+            
             self._last_analysis = result
 
             logger.info(
                 f"AI Analysis: {coin} - {result.sentiment.value} "
-                f"(confidence: {result.confidence}/10, signal: {result.signal.value})"
+                f"(confidence: {result.confidence}/10, signal: {result.signal.value}, "
+                f"pressure: {result.pressure_score}, freshness: {result.freshness.value})"
             )
 
             return result

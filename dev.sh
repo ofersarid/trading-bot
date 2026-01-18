@@ -42,14 +42,12 @@ fi
 # Install watchfiles if not present
 pip show watchfiles > /dev/null 2>&1 || pip install watchfiles
 
-# Check if session exists
+# Check if session exists (for display purposes)
 SESSION_DIR="data/sessions/$SESSION_NAME"
 if [ -d "$SESSION_DIR" ] && [ -f "$SESSION_DIR/state.json" ]; then
     echo "📂 Resuming session: $SESSION_NAME"
-    RESUME_FLAG="--resume"
 else
     echo "📂 Creating new session: $SESSION_NAME (balance: \$$BALANCE)"
-    RESUME_FLAG=""
 fi
 
 echo ""
@@ -60,5 +58,6 @@ echo "  - Press Ctrl+S to save session"
 echo ""
 
 # TEXTUAL_DEV=1 enables CSS hot reload
+# Always use --resume so hot reload preserves session state
 export TEXTUAL_DEV=1
-watchfiles "python bot/ui/dashboard.py --session $SESSION_NAME --balance $BALANCE $RESUME_FLAG" bot/
+watchfiles "python bot/ui/dashboard.py --session $SESSION_NAME --balance $BALANCE --resume" bot/

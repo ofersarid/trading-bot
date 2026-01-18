@@ -39,7 +39,7 @@ from textual import work
 from textual.binding import Binding
 
 from bot.core.config import TradingConfig, DEFAULT_CONFIG
-from bot.core.models import OpportunityCondition, PendingOpportunity
+from bot.core.models import OpportunityCondition, PendingOpportunity, MarketPressure
 from bot.core.analysis import (
     calculate_momentum,
     MarketAnalyzer,
@@ -136,6 +136,9 @@ class TradingDashboard(App):
         self.trades: deque = deque(maxlen=self.config.max_trades_history)
         self.pending_opportunities: dict[str, PendingOpportunity] = {}
         
+        # Market pressure tracking
+        self.market_pressure: MarketPressure | None = None
+        
         # Price history for momentum calculation
         self.price_history: dict[str, deque] = {
             coin: deque(maxlen=self.config.price_history_maxlen) for coin in self.coins
@@ -151,15 +154,15 @@ class TradingDashboard(App):
         # Momentum timeframe (default 5 seconds)
         self.momentum_timeframe = 5  # seconds
         
-        # Analysis mode - AI uses local Ollama with Mistral
-        self.analysis_mode = "RULE-BASED"  # "RULE-BASED" or "AI (Local)"
-        self.ai_model = "None (Momentum Rules)"  # Will be "mistral:7b" when AI enabled
+        # Analysis mode - AI uses local Ollama with Mistral (default: AI enabled)
+        self.analysis_mode = "AI (Local)"
+        self.ai_model = "mistral:7b"
         self.tokens_used = 0
         self.ai_calls = 0
         
-        # Local AI analyzer (Ollama + Mistral)
+        # Local AI analyzer (Ollama + Mistral) - enabled by default
         self.ai_client = OllamaClient(model="mistral")
-        self.ai_analyzer = AIMarketAnalyzer(client=self.ai_client, enabled=False)
+        self.ai_analyzer = AIMarketAnalyzer(client=self.ai_client, enabled=True)
         
         # Session state manager for persistence (supports multiple named sessions)
         self.state_manager = SessionStateManager(session_name=self.session_name)
@@ -303,6 +306,10 @@ class TradingDashboard(App):
         self.log_ai(f"[dim]Analysis Mode: {self.analysis_mode} | Model: {self.ai_model}[/dim]")
         self.log_ai(f"[dim]WebSocket: Auto-reconnect enabled, emergency exit on disconnect[/dim]")
         
+        # Check AI availability on startup
+        if self.ai_analyzer.enabled:
+            self.check_ai_availability()
+        
         # Set up WebSocket subscriptions
         self.ws_manager.add_subscription({"type": "allMids"})
         for coin in self.coins:
@@ -316,8 +323,6 @@ class TradingDashboard(App):
         self.set_interval(1, self.update_positions_display)
         # Update AI title periodically
         self.set_interval(5, self.update_ai_title)
-        # Update connection status every 2 seconds
-        self.set_interval(2, self.update_connection_status)
     
     @work(exclusive=True)
     async def run_websocket(self) -> None:
@@ -333,20 +338,16 @@ class TradingDashboard(App):
     
     async def _handle_ws_connect(self) -> None:
         """Handle WebSocket connection established."""
-        import threading
         self.ws_connected = True
         self.emergency_exit_in_progress = False
         
         coins_str = ', '.join(self.coins)
-        def update_ui() -> None:
+        def log_connection():
             self.log_ai(f"[{COLOR_UP}]✓ Connected to Hyperliquid WebSocket[/{COLOR_UP}]")
             self.log_ai(f"[dim]📡 Subscribed to: prices, trades, orderbooks for {coins_str}[/dim]")
             self.log_ai("[yellow]⏳ Waiting for market data...[/yellow]")
         
-        if self._thread_id == threading.get_ident():
-            update_ui()
-        else:
-            self.call_from_thread(update_ui)
+        self._run_on_main_thread(log_connection)
     
     async def _handle_ws_disconnect(self, reason: str) -> None:
         """
@@ -367,6 +368,27 @@ class TradingDashboard(App):
             
             await self._emergency_exit_all_positions(reason)
     
+    def _emergency_close_position(self, coin: str, reason: str) -> None:
+        """Close a single position during emergency exit."""
+        price = self.prices.get(coin)
+        if not price:
+            self._log_ai_threadsafe(f"[{COLOR_DOWN}]⚠️ No price for {coin} - cannot close safely![/{COLOR_DOWN}]")
+            return
+        
+        position = self.trader.positions.get(coin)
+        if not position:
+            return
+        
+        result = self.trader.close_position(coin, price)
+        pnl_color = COLOR_UP if result.trade and result.trade.pnl >= 0 else COLOR_DOWN
+        self._log_ai_threadsafe(f"[{pnl_color}]🚨 EMERGENCY CLOSE: {result.message}[/{pnl_color}]")
+        
+        if result.trade:
+            self._record_trade_feedback(result.trade, "emergency_exit")
+            self._run_on_main_thread(self.update_history_display, result.trade)
+        
+        logger.warning(f"EMERGENCY EXIT: {coin} closed at ${price} due to: {reason}")
+    
     async def _emergency_exit_all_positions(self, reason: str) -> None:
         """
         Emergency exit all open positions.
@@ -374,84 +396,40 @@ class TradingDashboard(App):
         CRITICAL: This protects capital when we lose market data connection.
         We cannot make informed trading decisions without live data.
         """
-        import threading
-        positions_to_close = list(self.trader.positions.keys())
-        
-        for coin in positions_to_close:
+        for coin in list(self.trader.positions.keys()):
             try:
-                # Use last known price (not ideal, but better than nothing)
-                price = self.prices.get(coin)
-                if not price:
-                    self._log_ai_threadsafe(f"[{COLOR_DOWN}]⚠️ No price for {coin} - cannot close safely![/{COLOR_DOWN}]")
-                    continue
-                
-                position = self.trader.positions.get(coin)
-                if position:
-                    result = self.trader.close_position(coin, price)
-                    
-                    pnl_color = COLOR_UP if result.trade and result.trade.pnl >= 0 else COLOR_DOWN
-                    self._log_ai_threadsafe(f"[{pnl_color}]🚨 EMERGENCY CLOSE: {result.message}[/{pnl_color}]")
-                    
-                    if result.trade:
-                        self._record_trade_feedback(result.trade, "emergency_exit")
-                        if self._thread_id == threading.get_ident():
-                            self.update_history_display(result.trade)
-                        else:
-                            self.call_from_thread(self.update_history_display, result.trade)
-                    
-                    logger.warning(f"EMERGENCY EXIT: {coin} closed at ${price} due to: {reason}")
-                    
+                self._emergency_close_position(coin, reason)
             except Exception as e:
                 self._log_ai_threadsafe(f"[{COLOR_DOWN}]❌ FAILED to close {coin}: {e}[/{COLOR_DOWN}]")
                 logger.error(f"EMERGENCY EXIT FAILED for {coin}: {e}")
         
-        def update_displays() -> None:
+        def update_displays():
             self.update_positions_display()
             self.update_status_bar()
         
-        if self._thread_id == threading.get_ident():
-            update_displays()
-        else:
-            self.call_from_thread(update_displays)
+        self._run_on_main_thread(update_displays)
         self.emergency_exit_in_progress = False
     
     def _handle_ws_state_change(self, state: ConnectionState) -> None:
         """Handle WebSocket state changes for UI updates."""
-        import threading
+        state_msg = {
+            ConnectionState.DISCONNECTED: f"[{COLOR_DOWN}]⭕ Disconnected[/{COLOR_DOWN}]",
+            ConnectionState.CONNECTING: "[yellow]🔄 Connecting...[/yellow]",
+            ConnectionState.CONNECTED: f"[{COLOR_UP}]🟢 Connected[/{COLOR_UP}]",
+            ConnectionState.RECONNECTING: "[yellow]🟡 Reconnecting...[/yellow]",
+            ConnectionState.FATAL_ERROR: f"[{COLOR_DOWN}]🔴 FATAL ERROR[/{COLOR_DOWN}]",
+        }
         
-        def update_ui() -> None:
-            state_msg = {
-                ConnectionState.DISCONNECTED: f"[{COLOR_DOWN}]⭕ Disconnected[/{COLOR_DOWN}]",
-                ConnectionState.CONNECTING: "[yellow]🔄 Connecting...[/yellow]",
-                ConnectionState.CONNECTED: f"[{COLOR_UP}]🟢 Connected[/{COLOR_UP}]",
-                ConnectionState.RECONNECTING: "[yellow]🟡 Reconnecting...[/yellow]",
-                ConnectionState.FATAL_ERROR: f"[{COLOR_DOWN}]🔴 FATAL ERROR[/{COLOR_DOWN}]",
-            }
-            
+        def update_ui():
             msg = state_msg.get(state, f"Unknown state: {state}")
             self.log_ai(f"WS State: {msg}")
-            
-            # If fatal error, show notification
             if state == ConnectionState.FATAL_ERROR:
                 self.notify(
                     "CRITICAL: WebSocket connection failed! Positions have been closed.",
                     severity="error"
                 )
         
-        # Check if we're on main thread or worker thread
-        if self._thread_id == threading.get_ident():
-            update_ui()
-        else:
-            self.call_from_thread(update_ui)
-    
-    def update_connection_status(self) -> None:
-        """Update connection status display."""
-        try:
-            status = self.ws_manager.get_status_string()
-            # Could update a dedicated connection status widget here
-            pass
-        except Exception:
-            pass
+        self._run_on_main_thread(update_ui)
     
     async def process_message(self, data: dict) -> None:
         """Process incoming WebSocket message."""
@@ -542,6 +520,32 @@ class TradingDashboard(App):
         
         self.update_orderbook_display(coin)
     
+    def _log_rule_based_analysis(self, analysis) -> None:
+        """Log rule-based market analysis to the AI panel."""
+        color = analysis.condition_color
+        self.log_ai(f"[{color}]━━━ MARKET ANALYSIS ━━━[/{color}]")
+        self.log_ai(f"[{color}]{analysis.condition_label}[/{color}] - {analysis.description}")
+        
+        for ca in analysis.coin_analyses:
+            if ca.status == CoinStatus.RISING:
+                status_str = f"[{COLOR_UP}]▲ RISING +{ca.momentum:.3f}%[/{COLOR_UP}]"
+            elif ca.status == CoinStatus.FALLING:
+                status_str = f"[{COLOR_DOWN}]▼ FALLING {ca.momentum:.3f}%[/{COLOR_DOWN}]"
+            else:
+                status_str = f"[dim]─ FLAT {ca.momentum:+.3f}%[/dim]"
+            self.log_ai(f"  {ca.coin}: ${ca.price:,.2f} ({ca.change:+.2f}) {status_str}")
+        
+        self.log_ai(f"[dim]  Threshold: ±{self.track_threshold:.2f}% to track, ±{self.trade_threshold:.2f}% to trade[/dim]")
+        
+        for ca in analysis.coin_analyses:
+            abs_momentum = abs(ca.momentum)
+            approaching = self.track_threshold * 0.5
+            if approaching <= abs_momentum < self.track_threshold:
+                self.log_ai(f"[yellow]  👀 {ca.coin} approaching threshold ({ca.momentum:+.3f}%)[/yellow]")
+            elif abs_momentum >= self.track_threshold and abs_momentum < self.trade_threshold:
+                remaining = self.trade_threshold - abs_momentum
+                self.log_ai(f"[cyan]  🎯 {ca.coin} TRACKING - needs {remaining:.3f}% more to trade[/cyan]")
+    
     def analyze_market_conditions(self) -> None:
         """Analyze and report overall market conditions."""
         analysis = self.market_analyzer.analyze(
@@ -554,46 +558,15 @@ class TradingDashboard(App):
         if not analysis:
             return
         
-        # Log market summary
-        color = analysis.condition_color
-        self.log_ai(f"[{color}]━━━ MARKET ANALYSIS ━━━[/{color}]")
-        self.log_ai(f"[{color}]{analysis.condition_label}[/{color}] - {analysis.description}")
-        
-        # Log each coin's status
-        for ca in analysis.coin_analyses:
-            if ca.status == CoinStatus.RISING:
-                status_str = f"[{COLOR_UP}]▲ RISING +{ca.momentum:.3f}%[/{COLOR_UP}]"
-            elif ca.status == CoinStatus.FALLING:
-                status_str = f"[{COLOR_DOWN}]▼ FALLING {ca.momentum:.3f}%[/{COLOR_DOWN}]"
-            else:
-                status_str = f"[dim]─ FLAT {ca.momentum:+.3f}%[/dim]"
-            
-            self.log_ai(f"  {ca.coin}: ${ca.price:,.2f} ({ca.change:+.2f}) {status_str}")
-        
-        # Log threshold reminder
-        self.log_ai(f"[dim]  Threshold: ±{self.track_threshold:.2f}% to track, ±{self.trade_threshold:.2f}% to trade[/dim]")
-        
-        # Highlight coins approaching thresholds
-        for ca in analysis.coin_analyses:
-            abs_momentum = abs(ca.momentum)
-            approaching = self.track_threshold * 0.5
-            if approaching <= abs_momentum < self.track_threshold:
-                self.log_ai(f"[yellow]  👀 {ca.coin} approaching threshold ({ca.momentum:+.3f}%)[/yellow]")
-            elif abs_momentum >= self.track_threshold and abs_momentum < self.trade_threshold:
-                remaining = self.trade_threshold - abs_momentum
-                self.log_ai(f"[cyan]  🎯 {ca.coin} TRACKING - needs {remaining:.3f}% more to trade[/cyan]")
-        
-        # If AI mode is enabled, request AI analysis
-        if self.ai_analyzer.enabled and self.prices:
-            self.run_ai_market_analysis()
-    
-    @work(exclusive=False)
-    async def run_ai_market_analysis(self) -> None:
-        """Run AI-powered market analysis."""
-        if not self.prices:
+        if self.ai_analyzer.enabled:
+            if self.prices:
+                self.run_ai_market_analysis()
             return
         
-        # Prepare data for AI
+        self._log_rule_based_analysis(analysis)
+    
+    def _prepare_ai_analysis_data(self) -> tuple[dict, dict, dict, list, MarketPressure | None]:
+        """Prepare market data for AI analysis."""
         prices_data = {}
         momentum_data = {}
         orderbook_data = {}
@@ -608,7 +581,6 @@ class TradingDashboard(App):
                 }
                 momentum_data[coin] = momentum if momentum else 0
                 
-                # Get orderbook data if available
                 book = self.orderbook.get(coin, {})
                 bids = book.get("bids", [])
                 asks = book.get("asks", [])
@@ -619,14 +591,73 @@ class TradingDashboard(App):
                     bid_ratio = (bid_volume / total * 100) if total > 0 else 50
                     orderbook_data[coin] = {"bid_ratio": bid_ratio}
         
-        # Get recent trades
         recent_trades = [
             {"side": t.get("side", "buy")}
             for t in list(self.trades)[:20]
         ]
         
-        # Run AI analysis on primary coin (first in list)
+        # Calculate market pressure
+        pressure = MarketPressure.calculate(
+            orderbook=self.orderbook,
+            recent_trades=recent_trades,
+            momentum=momentum_data,
+        )
+        self.market_pressure = pressure
+        
+        return prices_data, momentum_data, orderbook_data, recent_trades, pressure
+    
+    def _display_ai_analysis_result(self, result, prices_data: dict, pressure: MarketPressure | None) -> None:
+        """Display AI analysis result in the AI panel."""
+        sentiment_color = {
+            "BULLISH": COLOR_UP,
+            "BEARISH": COLOR_DOWN,
+            "NEUTRAL": "yellow",
+        }.get(result.sentiment.value, "white")
+        
+        # Momentum per coin
+        momentum_parts = []
+        for coin in self.coins:
+            if coin in result.momentum_by_coin:
+                mom = result.momentum_by_coin[coin]
+                mom_color = COLOR_UP if mom > 0 else COLOR_DOWN if mom < 0 else "white"
+                momentum_parts.append(f"[{mom_color}]{coin} {mom:+.2f}%[/{mom_color}]")
+        momentum_str = " | ".join(momentum_parts) if momentum_parts else "N/A"
+        
+        # Pressure display
+        if pressure:
+            pressure_color = COLOR_UP if pressure.score > 55 else COLOR_DOWN if pressure.score < 45 else "yellow"
+            pressure_str = f"[{pressure_color}]{pressure.score:.0f} ({pressure.label})[/{pressure_color}]"
+        else:
+            pressure_str = f"{result.pressure_score} ({result.pressure_label})"
+        
+        # Freshness
+        freshness_colors = {"FRESH": COLOR_UP, "DEVELOPING": "cyan", "EXTENDED": "yellow", "EXHAUSTED": COLOR_DOWN}
+        freshness_color = freshness_colors.get(result.freshness.value, "white")
+        
+        self.log_ai_block([
+            f"[cyan]━━━ 🤖 AI MARKET ANALYSIS ━━━[/cyan]",
+            f"[bold]Momentum:[/bold] {momentum_str}",
+            f"[bold]Pressure:[/bold] {pressure_str} | [bold]Freshness:[/bold] [{freshness_color}]{result.freshness.value}[/{freshness_color}]",
+            f"Sentiment: [{sentiment_color}]{result.sentiment.value}[/{sentiment_color}] | Confidence: {result.confidence}/10 | Signal: [{sentiment_color}]{result.signal.value}[/{sentiment_color}]",
+            f"[dim]{result.reason}[/dim]",
+            f"[dim]⚡ {result.response_time_ms:.0f}ms[/dim]",
+        ])
+        
+        self.update_ai_title()
+        
+        # Update orderbook panel with latest pressure
+        if pressure:
+            self.update_orderbook_display_with_pressure(pressure)
+    
+    @work(exclusive=False)
+    async def run_ai_market_analysis(self) -> None:
+        """Run AI-powered market analysis."""
+        if not self.prices:
+            return
+        
+        prices_data, momentum_data, orderbook_data, recent_trades, pressure = self._prepare_ai_analysis_data()
         primary_coin = self.coins[0]
+        
         try:
             result = await self.ai_analyzer.analyze_market(
                 coin=primary_coin,
@@ -634,25 +665,11 @@ class TradingDashboard(App):
                 momentum=momentum_data,
                 orderbook=orderbook_data,
                 recent_trades=recent_trades,
+                pressure_score=int(pressure.score) if pressure else 50,
+                pressure_label=pressure.label if pressure else "Neutral",
+                momentum_timeframe=self.momentum_timeframe,
             )
-            
-            # Display AI result
-            sentiment_color = {
-                "BULLISH": COLOR_UP,
-                "BEARISH": COLOR_DOWN,
-                "NEUTRAL": "yellow",
-            }.get(result.sentiment.value, "white")
-            
-            self.log_ai(f"[cyan]━━━ 🤖 AI ANALYSIS ━━━[/cyan]")
-            self.log_ai(f"  Sentiment: [{sentiment_color}]{result.sentiment.value}[/{sentiment_color}]")
-            self.log_ai(f"  Confidence: {result.confidence}/10")
-            self.log_ai(f"  Signal: [{sentiment_color}]{result.signal.value}[/{sentiment_color}]")
-            self.log_ai(f"  [dim]{result.reason}[/dim]")
-            self.log_ai(f"  [dim]⚡ Response: {result.response_time_ms:.0f}ms[/dim]")
-            
-            # Update metrics display
-            self.update_ai_title()
-            
+            self._display_ai_analysis_result(result, prices_data, pressure)
         except Exception as e:
             self.log_ai(f"[{COLOR_DOWN}]AI analysis error: {e}[/{COLOR_DOWN}]")
     
@@ -673,19 +690,20 @@ class TradingDashboard(App):
         
         # Handle no-action cases
         if result.action == OpportunityAction.NO_ACTION:
-            if len(history) % self.config.price_history_log_interval == 1:
+            if not self.ai_analyzer.enabled and len(history) % self.config.price_history_log_interval == 1:
                 self.log_ai(f"[dim]📊 {coin}: Building price history ({len(history)} points)...[/dim]")
             return
         
-        # Log analysis periodically
-        if len(history) % self.config.momentum_analysis_log_interval == 0 and result.momentum_pct is not None:
-            direction_emoji = "📈" if result.momentum_pct > 0 else "📉" if result.momentum_pct < 0 else "➡️"
-            color = COLOR_UP if result.momentum_pct > 0 else COLOR_DOWN if result.momentum_pct < 0 else "white"
-            self.log_ai(
-                f"[dim]🔍 {coin}: ${price:,.2f} | "
-                f"{self.momentum_timeframe}s momentum: [{color}]{result.momentum_pct:+.3f}%[/{color}] {direction_emoji} | "
-                f"Threshold: ±{self.trade_threshold:.2f}%[/dim]"
-            )
+        # Log analysis periodically (only in rule-based mode)
+        if not self.ai_analyzer.enabled:
+            if len(history) % self.config.momentum_analysis_log_interval == 0 and result.momentum_pct is not None:
+                direction_emoji = "📈" if result.momentum_pct > 0 else "📉" if result.momentum_pct < 0 else "➡️"
+                color = COLOR_UP if result.momentum_pct > 0 else COLOR_DOWN if result.momentum_pct < 0 else "white"
+                self.log_ai(
+                    f"[dim]🔍 {coin}: ${price:,.2f} | "
+                    f"{self.momentum_timeframe}s momentum: [{color}]{result.momentum_pct:+.3f}%[/{color}] {direction_emoji} | "
+                    f"Threshold: ±{self.trade_threshold:.2f}%[/dim]"
+                )
         
         # Handle stop tracking
         if result.action == OpportunityAction.STOP_TRACKING:
@@ -881,10 +899,21 @@ class TradingDashboard(App):
             self.trade_threshold,
         )
     
-    def update_orderbook_display(self, coin: str) -> None:
-        """Update order book panel."""
+    def update_orderbook_display(self, coin: str | None = None) -> None:
+        """Update order book panel with battle bars."""
         panel = self.query_one(OrderBookPanel)
-        panel.update_display(self.orderbook)
+        
+        # Build momentum dict from price history
+        momentum = {}
+        for c in self.coins:
+            mom = self._calculate_momentum(c)
+            momentum[c] = mom if mom is not None else 0.0
+        
+        panel.update_display(self.orderbook, self.prices, momentum)
+    
+    def update_orderbook_display_with_pressure(self, pressure: MarketPressure) -> None:
+        """Update order book panel (legacy, now just calls update)."""
+        self.update_orderbook_display()
     
     def update_trades_display(self) -> None:
         """Update trades panel."""
@@ -933,15 +962,25 @@ class TradingDashboard(App):
         except Exception as e:
             logger.debug(f"AI panel not ready: {e}")
     
-    def _log_ai_threadsafe(self, message: str) -> None:
-        """Thread-safe version of log_ai that works from any context."""
+    def log_ai_block(self, lines: list[str]) -> None:
+        """Log a multi-line block with single timestamp to AI panel."""
+        try:
+            panel = self.query_one(AIPanel)
+            panel.log_block(lines)
+        except Exception as e:
+            logger.debug(f"AI panel not ready: {e}")
+    
+    def _run_on_main_thread(self, func, *args) -> None:
+        """Execute a function on the main thread (thread-safe helper)."""
         import threading
         if self._thread_id == threading.get_ident():
-            # On main thread - call directly
-            self.log_ai(message)
+            func(*args)
         else:
-            # On worker thread - use call_from_thread
-            self.call_from_thread(self.log_ai, message)
+            self.call_from_thread(func, *args)
+    
+    def _log_ai_threadsafe(self, message: str) -> None:
+        """Thread-safe version of log_ai that works from any context."""
+        self._run_on_main_thread(self.log_ai, message)
     
     def update_ai_title(self) -> None:
         """Update AI panel title with mode and connection info."""
@@ -1092,14 +1131,35 @@ class TradingDashboard(App):
             self.log_ai("[dim]  Run 'ollama serve' to start the server[/dim]")
             self.notify("Ollama server not running! Start with 'ollama serve'", severity="warning")
     
+    def _generate_tuning_report(self, last_report, new_trades: list, is_incremental: bool) -> None:
+        """Generate and display the tuning report."""
+        try:
+            json_path, md_path = self.tuning_exporter.export_both(since=last_report)
+            self.state_manager.mark_report_generated()
+            
+            self.log_ai(f"[{COLOR_UP}]✓ Report generated![/{COLOR_UP}]")
+            self.log_ai(f"[dim]  📄 {md_path}[/dim]")
+            self.log_ai(f"[dim]  📊 {json_path}[/dim]")
+            
+            analysis = self.performance_analyzer.analyze(trades=new_trades if is_incremental else None)
+            suggestions = analysis.get("suggestions", [])
+            if suggestions:
+                self.log_ai(f"[yellow]💡 {len(suggestions)} suggestion(s):[/yellow]")
+                for s in suggestions[:3]:
+                    if s.get("parameter"):
+                        self.log_ai(f"[dim]  • {s.get('parameter')}: {s.get('direction')} ({s.get('confidence')})[/dim]")
+                    elif s.get("message"):
+                        self.log_ai(f"[dim]  • {s.get('message')}[/dim]")
+            
+            self.notify(f"Report saved! {len(new_trades)} new trades analyzed.", severity="information")
+        except Exception as e:
+            self.log_ai(f"[{COLOR_DOWN}]✗ Failed to generate report: {e}[/{COLOR_DOWN}]")
+            logger.error(f"Tuning report generation failed: {e}")
+    
     def action_tuning_report(self) -> None:
         """Generate and display incremental tuning report (only new trades)."""
-        # Get last report timestamp from state manager
         last_report = self.state_manager.get_last_report_timestamp()
-        
-        # Count new trades since last report
         new_trades = self.feedback_collector.get_trades_since(last_report)
-        new_trade_count = len(new_trades)
         total_trade_count = len(self.feedback_collector.trades)
         
         if total_trade_count == 0:
@@ -1108,49 +1168,23 @@ class TradingDashboard(App):
             self.notify("No trades recorded yet. Trade first!", severity="warning")
             return
         
-        if new_trade_count == 0 and last_report:
+        if not new_trades and last_report:
             self.log_ai("[yellow]📊 No new trades since last report[/yellow]")
             self.log_ai(f"[dim]  Last report: {last_report.strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
             self.log_ai(f"[dim]  Total trades: {total_trade_count}[/dim]")
             self.notify("No new trades since last report.", severity="warning")
             return
         
-        # Quick summary in AI panel
         is_incremental = last_report is not None
         report_type = "INCREMENTAL" if is_incremental else "FULL"
-        
         self.log_ai(f"[cyan]━━━ {report_type} TUNING REPORT ━━━[/cyan]")
+        
         if is_incremental:
-            self.log_ai(f"[dim]  📈 {new_trade_count} new trades (since {last_report.strftime('%H:%M:%S')})[/dim]")
+            self.log_ai(f"[dim]  📈 {len(new_trades)} new trades (since {last_report.strftime('%H:%M:%S')})[/dim]")
         else:
             self.log_ai(f"[dim]  📊 Analyzing all {total_trade_count} trades[/dim]")
         
-        # Generate incremental report
-        try:
-            json_path, md_path = self.tuning_exporter.export_both(since=last_report)
-            
-            # Mark that we generated a report (for next incremental)
-            self.state_manager.mark_report_generated()
-            
-            self.log_ai(f"[{COLOR_UP}]✓ Report generated![/{COLOR_UP}]")
-            self.log_ai(f"[dim]  📄 {md_path}[/dim]")
-            self.log_ai(f"[dim]  📊 {json_path}[/dim]")
-            
-            # Show suggestions preview for the new trades
-            analysis = self.performance_analyzer.analyze(trades=new_trades if is_incremental else None)
-            suggestions = analysis.get("suggestions", [])
-            if suggestions:
-                self.log_ai(f"[yellow]💡 {len(suggestions)} suggestion(s):[/yellow]")
-                for s in suggestions[:3]:  # Show first 3
-                    if s.get("parameter"):
-                        self.log_ai(f"[dim]  • {s.get('parameter')}: {s.get('direction')} ({s.get('confidence')})[/dim]")
-                    elif s.get("message"):
-                        self.log_ai(f"[dim]  • {s.get('message')}[/dim]")
-            
-            self.notify(f"Report saved! {new_trade_count} new trades analyzed.", severity="information")
-        except Exception as e:
-            self.log_ai(f"[{COLOR_DOWN}]✗ Failed to generate report: {e}[/{COLOR_DOWN}]")
-            logger.error(f"Tuning report generation failed: {e}")
+        self._generate_tuning_report(last_report, new_trades, is_incremental)
     
     async def action_quit(self) -> None:
         """Quit the application with proper cleanup."""
@@ -1183,108 +1217,9 @@ class TradingDashboard(App):
 
 
 def main():
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Paper Trading Dashboard")
-    parser.add_argument("--balance", "-b", type=float, default=10000,
-                        help="Starting balance (default: 10000)")
-    parser.add_argument("--coins", "-c", nargs="+", default=["BTC", "ETH", "SOL"],
-                        help="Coins to watch (default: BTC ETH SOL)")
-    parser.add_argument("--resume", "-r", action="store_true",
-                        help="Resume from saved session state")
-    parser.add_argument("--fresh", "-f", action="store_true",
-                        help="Start fresh, ignoring any saved state")
-    parser.add_argument("--session", "-s", type=str, default=None,
-                        help="Session name to use (required for trading)")
-    parser.add_argument("--list-sessions", "-l", action="store_true",
-                        help="List all available sessions and exit")
-    parser.add_argument("--delete-session", type=str, metavar="NAME",
-                        help="Delete a saved session and exit")
-    
-    args = parser.parse_args()
-    
-    # Handle --list-sessions
-    if args.list_sessions:
-        sessions = SessionStateManager.list_sessions()
-        if not sessions:
-            print("\n📂 No saved sessions found.")
-            print("   Sessions are saved to data/sessions/")
-            print()
-        else:
-            print(f"\n📂 Available Sessions ({len(sessions)}):")
-            print("-" * 70)
-            for s in sessions:
-                pnl_symbol = "+" if s['pnl'] >= 0 else ""
-                print(f"  📊 {s['name']}")
-                print(f"     Balance: ${s['balance']:,.2f} | P&L: {pnl_symbol}${s['pnl']:.2f} ({s['pnl_pct']:+.1f}%)")
-                report_status = "✓" if s.get('has_report') else "–"
-                print(f"     Trades: {s['total_trades']} | Win Rate: {s['win_rate']:.1f}% | Open: {s['open_positions']} | Report: {report_status}")
-                print(f"     Last updated: {s['last_update']}")
-                print()
-            print("   Use --session <name> --resume to load a session")
-            print()
-        return
-    
-    # Handle --delete-session
-    if args.delete_session:
-        if SessionStateManager.delete_session(args.delete_session):
-            print(f"✓ Deleted session '{args.delete_session}'")
-        else:
-            print(f"✗ Session '{args.delete_session}' not found")
-        return
-    
-    # Session name is required for trading
-    if not args.session:
-        print("\n❌ Session name required!")
-        print("\nUsage:")
-        print("  python bot/ui/dashboard.py --session <name> [--balance 10000] [--resume]")
-        print("\nExamples:")
-        print("  python bot/ui/dashboard.py --session my_strategy")
-        print("  python bot/ui/dashboard.py --session aggressive --balance 5000")
-        print("  python bot/ui/dashboard.py --session my_strategy --resume")
-        print("\nOr use dev.sh:")
-        print("  ./dev.sh my_strategy")
-        print("  ./dev.sh aggressive 5000")
-        print()
-        
-        # Show available sessions
-        sessions = SessionStateManager.list_sessions()
-        if sessions:
-            print(f"📂 Available Sessions ({len(sessions)}):")
-            for s in sessions:
-                print(f"  • {s['name']} - ${s['balance']:,.2f} ({s['total_trades']} trades)")
-            print()
-        return
-    
-    # Handle state manager for --fresh flag
-    if args.fresh:
-        state_manager = SessionStateManager(session_name=args.session)
-        if state_manager.has_saved_state:
-            state_manager.clear_state()
-            print(f"Cleared session '{args.session}'. Starting fresh.")
-    
-    # Show saved state info if available and not resuming
-    if not args.resume and not args.fresh:
-        state_manager = SessionStateManager(session_name=args.session)
-        summary = state_manager.get_session_summary()
-        if summary:
-            print(f"\n📊 Found saved session '{args.session}':")
-            print(f"   Balance: ${summary['balance']:,.2f} (started: ${summary['starting_balance']:,.2f})")
-            print(f"   P&L: ${summary['pnl']:+,.2f} ({summary['pnl_pct']:+.2f}%)")
-            print(f"   Trades: {summary['total_trades']} ({summary['win_rate']:.1f}% win rate)")
-            print(f"   Open positions: {summary['open_positions']}")
-            print(f"\n   Use --resume --session {args.session} to continue")
-            print(f"   Use --fresh --session {args.session} to reset this session")
-            print(f"   Use --session <new_name> to create a new session")
-            print()
-    
-    app = TradingDashboard(
-        starting_balance=args.balance,
-        coins=[c.upper() for c in args.coins],
-        resume=args.resume,
-        session_name=args.session,
-    )
-    app.run()
+    """Entry point for the dashboard application."""
+    from bot.ui.cli import run_cli
+    run_cli()
 
 
 if __name__ == "__main__":

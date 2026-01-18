@@ -1,11 +1,11 @@
 """Prompt templates for trading analysis."""
 
-MARKET_ANALYSIS_PROMPT = """You are a crypto trading analyst. Analyze this market data and provide a brief assessment.
+MARKET_ANALYSIS_PROMPT = """You are a crypto trading analyst. Analyze this market data and provide a structured assessment.
 
 CURRENT PRICES:
 {prices}
 
-MOMENTUM (60s):
+MOMENTUM ({momentum_timeframe}s):
 {momentum}
 
 ORDER BOOK IMBALANCE:
@@ -14,11 +14,22 @@ ORDER BOOK IMBALANCE:
 RECENT TRADES:
 {recent_trades}
 
-Respond in this exact format (no extra text):
+MARKET PRESSURE: {pressure_score}/100 ({pressure_label})
+
+Respond in this EXACT format (no extra text, no markdown):
 SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
 CONFIDENCE: [1-10]
 SIGNAL: [LONG/SHORT/WAIT]
-REASON: [One sentence explanation]"""
+MOMENTUM: {momentum_format}
+PRESSURE: [0-100] ([Strong Selling/Moderate Selling/Neutral/Moderate Buying/Strong Buying])
+FRESHNESS: [FRESH/DEVELOPING/EXTENDED/EXHAUSTED]
+REASON: [One sentence explaining your signal, mentioning key factors]
+
+FRESHNESS Guidelines:
+- FRESH: Move just started (<0.2% in direction), high potential
+- DEVELOPING: Building momentum (0.2-0.4%), good entry
+- EXTENDED: Move has run (0.4-0.6%), consider waiting for pullback  
+- EXHAUSTED: Likely reversal zone (>0.6%), avoid chasing"""
 
 
 QUICK_SENTIMENT_PROMPT = """Market data:
@@ -60,6 +71,9 @@ def format_market_analysis(
     momentum: dict[str, float],
     orderbook: dict[str, dict],
     recent_trades: list[dict],
+    pressure_score: int = 50,
+    pressure_label: str = "Neutral",
+    momentum_timeframe: int = 60,
 ) -> str:
     """Format market data into the analysis prompt."""
     # Format prices
@@ -72,9 +86,14 @@ def format_market_analysis(
 
     # Format momentum
     momentum_lines = []
+    momentum_parts = []
     for coin, mom in momentum.items():
         momentum_lines.append(f"  {coin}: {mom:+.3f}%")
+        momentum_parts.append(f"{coin} {mom:+.2f}%")
     momentum_str = "\n".join(momentum_lines) if momentum_lines else "  No data"
+    
+    # Format for AI response template
+    momentum_format = " | ".join(momentum_parts) if momentum_parts else "N/A"
 
     # Format orderbook
     orderbook_lines = []
@@ -94,8 +113,12 @@ def format_market_analysis(
     return MARKET_ANALYSIS_PROMPT.format(
         prices=prices_str,
         momentum=momentum_str,
+        momentum_timeframe=momentum_timeframe,
         orderbook=orderbook_str,
         recent_trades=trades_str,
+        pressure_score=pressure_score,
+        pressure_label=pressure_label,
+        momentum_format=momentum_format,
     )
 
 

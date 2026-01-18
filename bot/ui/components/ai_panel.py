@@ -8,6 +8,8 @@ from collections import deque
 from datetime import datetime
 import logging
 
+from rich.table import Table
+from rich.text import Text
 from textual.containers import Container, ScrollableContainer
 from textual.widgets import Static
 from textual.app import ComposeResult
@@ -21,7 +23,8 @@ class AIPanel(Container):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.messages: deque = deque(maxlen=100)
+        # Store tuples of (timestamp, message) for table rendering
+        self.messages: deque[tuple[str, str]] = deque(maxlen=100)
         self._title_widget: Static | None = None
     
     def compose(self) -> ComposeResult:
@@ -29,19 +32,62 @@ class AIPanel(Container):
         with ScrollableContainer(id="ai-scroll", classes="panel-content"):
             yield Static("", id="ai-content")
     
-    def log(self, message: str) -> None:
+    def log(self, message: str, with_timestamp: bool = True) -> None:
         """
         Log a message to the AI panel.
         
         Args:
             message: Message with optional Rich markup
+            with_timestamp: Whether to prepend timestamp (default True)
         """
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.messages.append(f"[dim]{timestamp}[/dim] {message}")
+        if with_timestamp:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            self.messages.append((timestamp, message))
+        else:
+            self.messages.append(("", message))
         
+        self._refresh_display()
+    
+    def log_block(self, lines: list[str]) -> None:
+        """
+        Log a multi-line block with a single timestamp on the first line.
+        
+        Args:
+            lines: List of message lines (first gets timestamp, rest are indented)
+        """
+        if not lines:
+            return
+        
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.messages.append((timestamp, lines[0]))
+        
+        for line in lines[1:]:
+            self.messages.append(("", line))
+        
+        self._refresh_display()
+    
+    def _build_table(self) -> Table:
+        """Build a Rich Table from the messages."""
+        table = Table(
+            show_header=False,
+            show_edge=False,
+            box=None,
+            padding=(0, 1),
+            expand=True,
+        )
+        table.add_column("Time", style="dim", width=8, no_wrap=True)
+        table.add_column("Message", ratio=1)
+        
+        for timestamp, message in self.messages:
+            table.add_row(timestamp, Text.from_markup(message))
+        
+        return table
+    
+    def _refresh_display(self) -> None:
+        """Refresh the panel display."""
         try:
             content = self.query_one("#ai-content", Static)
-            content.update("\n".join(self.messages))
+            content.update(self._build_table())
             # Auto-scroll to bottom
             scroll = self.query_one("#ai-scroll", ScrollableContainer)
             scroll.scroll_end(animate=False)

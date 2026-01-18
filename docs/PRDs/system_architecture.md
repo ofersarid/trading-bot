@@ -1,7 +1,7 @@
 # System Architecture - Crypto AI Trading Bot
 
-> **Version:** 1.2  
-> **Last Updated:** January 16, 2026  
+> **Version:** 1.3  
+> **Last Updated:** January 18, 2026  
 > **Status:** Draft
 
 ---
@@ -9,12 +9,12 @@
 ## 1. Overview
 
 ### 1.1 Purpose
-A locally-run AI-powered trading bot that connects to Hyperliquid exchange for crypto futures scalping, using Claude as the analysis engine.
+A locally-run AI-powered trading bot that connects to Hyperliquid exchange for crypto futures scalping, using local AI (Ollama) for market analysis.
 
 ### 1.2 Key Design Principles
-- **Local-first**: Runs entirely on user's machine (no cloud dependency except APIs)
+- **Local-first**: Runs entirely on user's machine (AI via Ollama, no cloud dependency)
 - **Event-driven**: Reacts to market data streams in real-time
-- **AI-augmented**: Claude analyzes market data and generates trading decisions
+- **AI-augmented**: Local LLM analyzes market data and generates trading signals
 - **Risk-managed**: Hard limits prevent catastrophic losses
 
 ### 1.3 Target User
@@ -29,51 +29,40 @@ A locally-run AI-powered trading bot that connects to Hyperliquid exchange for c
 
 ### 2.1 High-Level Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         LOCAL MACHINE (Cursor IDE)                          │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                        TRADING BOT (Python)                          │   │
-│  │                                                                       │   │
-│  │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐           │   │
-│  │  │   Data       │    │   Strategy   │    │   Execution  │           │   │
-│  │  │   Manager    │───►│   Engine     │───►│   Router     │           │   │
-│  │  │              │    │              │    │              │           │   │
-│  │  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘           │   │
-│  │         │                   │                   │                    │   │
-│  │         │ Market Data       │ Analysis          │ Trade Decisions    │   │
-│  │         │ Buffer            │ Request           │                    │   │
-│  │         ▼                   ▼                   ▼                    │   │
-│  │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐           │   │
-│  │  │   State      │    │     AI       │    │   Risk       │           │   │
-│  │  │   Store      │    │   Analyzer   │    │   Manager    │           │   │
-│  │  │  (SQLite)    │    │   (Claude)   │    │              │           │   │
-│  │  └──────────────┘    └──────────────┘    └──────┬───────┘           │   │
-│  │                                                  │                    │   │
-│  │                              ┌───────────────────┼───────────────┐    │   │
-│  │                              │                   │               │    │   │
-│  │                              ▼                   ▼               ▼    │   │
-│  │                       ┌────────────┐    ┌─────────────┐  ┌─────────┐ │   │
-│  │                       │   Paper    │    │   Order     │  │  Order  │ │   │
-│  │                       │   Trading  │    │   Manager   │  │ Manager │ │   │
-│  │                       │ Simulator  │    │  (Testnet)  │  │ (Live)  │ │   │
-│  │                       └────────────┘    └──────┬──────┘  └────┬────┘ │   │
-│  │                              │                 │              │      │   │
-│  └──────────────────────────────┼─────────────────┼──────────────┼──────┘   │
-│                                 │                 │              │          │
-│         │                       │ Local           │ HTTPS        │ HTTPS    │
-│         │ WebSocket             │ Only            │              │          │
-│         ▼                       ▼                 ▼              ▼          │
-└─────────┼───────────────────────────────────────────────────────────────────┘
-          │                                         │              │
-          │ (Public - No Auth)                      │              │
-┌─────────▼─────────┐   ┌────────────────┐   ┌─────▼──────────────▼─────┐
-│   HYPERLIQUID     │   │   ANTHROPIC    │   │      HYPERLIQUID         │
-│   WebSocket API   │   │   Claude API   │   │       REST API           │
-│  (Market Data)    │   │  (Analysis)    │   │  (Testnet / Mainnet)     │
-└───────────────────┘   └────────────────┘   └──────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph LOCAL["LOCAL MACHINE (Cursor IDE)"]
+        subgraph BOT["TRADING BOT (Python)"]
+            WS[WebSocket Manager] --> OA[Opportunity Analyzer]
+            OA --> PT[Paper Trader]
+            
+            WS -->|Market Data| SS[(Session State<br/>JSON)]
+            OA -->|Opportunities| AI[AI Analyzer<br/>Ollama]
+            PT -->|Positions| TC[Trading Config]
+            
+            subgraph UI["TERMINAL UI (Textual)"]
+                P1[Prices] 
+                P2[Order Book]
+                P3[Trades Feed]
+                P4[AI Panel]
+                P5[Opportunities]
+                P6[Positions]
+                P7[History]
+                P8[Status Bar]
+            end
+        end
+    end
+    
+    HL_WS[("Hyperliquid<br/>WebSocket API<br/>(Market Data)")] -->|WebSocket<br/>Public - No Auth| WS
+    OLLAMA[("Ollama<br/>Local AI<br/>localhost:11434")] <-->|HTTP<br/>Local - No Auth| AI
+    HL_REST[("Hyperliquid<br/>REST API<br/>(Testnet/Mainnet)")] <-.->|HTTPS<br/>Auth Required| PT
+    
+    style LOCAL fill:#1a1a2e,stroke:#16213e,color:#fff
+    style BOT fill:#16213e,stroke:#0f3460,color:#fff
+    style UI fill:#0f3460,stroke:#e94560,color:#fff
+    style HL_WS fill:#0f3460,stroke:#e94560,color:#fff
+    style OLLAMA fill:#0f3460,stroke:#00ff88,color:#fff
+    style HL_REST fill:#0f3460,stroke:#e94560,color:#fff
 ```
 
 ### 2.2 Operating Modes
@@ -96,79 +85,131 @@ TRADING_MODE = "simulation"  # "simulation" | "testnet" | "live"
 
 ### 2.3 Data Flow
 
-```
-1. MARKET DATA STREAM (Public - No Auth Required)
-   Hyperliquid ──WebSocket──► Data Manager ──► Buffer (last N candles)
-                                    │
-                                    ▼
-                              Trigger Check
-                              (candle close / price move / volume spike)
-                                    │
-                                    ▼
-2. AI ANALYSIS TRIGGER
-   Buffer ──► Format Prompt ──► Claude API ──► Parse Response
-                                                    │
-                                                    ▼
-                                              Decision:
-                                              • LONG / SHORT / HOLD
-                                              • Entry price
-                                              • Stop loss
-                                              • Take profit
-                                              • Confidence score
-                                                    │
-                                                    ▼
-3. ORDER EXECUTION (Mode-Dependent)
-   Decision ──► Risk Check ──► Execution Router
-                    │                 │
-                    ▼                 ├──► [Simulation] Paper Trading Simulator
-              Position sizing         │         └──► Local position tracking
-              Loss limit check        │              P&L calculation
-                                      │              Trade history (SQLite)
-                                      │
-                                      ├──► [Testnet] Order Manager ──► Hyperliquid Testnet API
-                                      │
-                                      └──► [Live] Order Manager ──► Hyperliquid Mainnet API
+```mermaid
+flowchart TD
+    subgraph STEP1["1. MARKET DATA STREAM"]
+        HL[Hyperliquid] -->|WebSocket<br/>Public - No Auth| DM[Data Manager]
+        DM --> BUF[(Buffer<br/>last N candles)]
+        BUF --> TC{Trigger Check}
+        TC -->|candle close<br/>price move<br/>volume spike| TRIG[Trigger!]
+    end
+    
+    subgraph STEP2["2. AI ANALYSIS"]
+        TRIG --> FP[Format Prompt]
+        FP -->|HTTP| OLLAMA[Ollama<br/>Local AI]
+        OLLAMA --> PARSE[Parse Response]
+        PARSE --> DEC{Decision}
+        DEC --> |LONG / SHORT / HOLD| SIG[Signal]
+        DEC --> |Entry, SL, TP| PARAMS[Parameters]
+        DEC --> |1-10| CONF[Confidence]
+    end
+    
+    subgraph STEP3["3. ORDER EXECUTION"]
+        SIG --> RC{Risk Check}
+        PARAMS --> RC
+        CONF --> RC
+        RC -->|Position sizing<br/>Loss limit check| ER{Execution Router}
+        
+        ER -->|Simulation| SIM[Paper Trader]
+        SIM --> LOCAL[(Local tracking<br/>P&L calc<br/>JSON history)]
+        
+        ER -.->|Testnet| TEST[Order Manager]
+        TEST -.-> HL_TEST[Hyperliquid Testnet]
+        
+        ER -.->|Live| LIVE[Order Manager]
+        LIVE -.-> HL_LIVE[Hyperliquid Mainnet]
+    end
+    
+    style STEP1 fill:#1a1a2e,stroke:#16213e,color:#fff
+    style STEP2 fill:#16213e,stroke:#0f3460,color:#fff
+    style STEP3 fill:#0f3460,stroke:#e94560,color:#fff
 ```
 
 ---
 
 ## 3. Component Specifications
 
-### 3.1 Data Manager
+### 3.1 Data Manager (WebSocket Manager)
 
-**Responsibility:** Connect to exchange WebSocket, buffer market data, trigger analysis.
+**Responsibility:** Maintain robust WebSocket connection to exchange for real-time market data.
+
+**Location:** `bot/hyperliquid/websocket_manager.py`
 
 | Capability | Details |
 |------------|---------|
-| WebSocket connection | Persistent connection to Hyperliquid |
-| Data buffering | Rolling window of last 100 candles per symbol |
-| Multi-symbol support | BTC, ETH, and configurable list |
-| Trigger mechanisms | Candle close, price threshold, volume spike |
+| WebSocket connection | Persistent connection to Hyperliquid with auto-reconnect |
+| Reconnection | Exponential backoff (1s → 30s max), up to 50 attempts |
+| Heartbeat monitoring | Ping/pong every 20s, stale connection detection |
+| Multi-subscription | Prices, trades, orderbook subscriptions |
+| State tracking | DISCONNECTED, CONNECTING, CONNECTED, RECONNECTING, FATAL_ERROR |
 
 **Interfaces:**
 - Input: WebSocket messages from Hyperliquid
-- Output: Market data packages to Strategy Engine
+- Output: Parsed market data to dashboard via async callbacks
+
+**Key Features:**
+```python
+# bot/hyperliquid/websocket_manager.py
+class WebSocketManager:
+    def __init__(
+        self,
+        config: WebSocketConfig,
+        on_message: Callable[[dict], Awaitable[None]],
+        on_connect: Callable[[], Awaitable[None]],
+        on_disconnect: Callable[[str], Awaitable[None]],  # CRITICAL for safety
+    ):
+        ...
+    
+    async def start(self) -> None
+    async def stop(self) -> None
+    def add_subscription(self, subscription: dict) -> None
+    def get_status_string(self) -> str
+```
+
+**Safety Features:**
+- `on_disconnect` callback fires immediately on connection loss
+- Allows trading system to exit positions before reconnection
+- Detailed logging for debugging connection issues
 
 ### 3.2 AI Analyzer
 
-**Responsibility:** Send market data to Claude, receive and parse trading decisions.
+**Responsibility:** Analyze market data using local AI and generate trading signals.
+
+**Location:** `bot/ai/`
 
 | Capability | Details |
 |------------|---------|
-| Model selection | Configurable (Opus for complex, Sonnet for speed) |
-| Prompt engineering | Structured prompts for consistent output |
-| Response parsing | JSON extraction with fallback handling |
-| Rate limiting | Respect API limits, queue requests if needed |
+| Local AI inference | Uses Ollama for local LLM inference (no cloud dependency) |
+| Prompt engineering | Structured prompts for market analysis (`prompts.py`) |
+| Response parsing | Sentiment, confidence, and signal extraction (`models.py`) |
+| Async operation | Non-blocking AI calls via `httpx` |
 
 **Interfaces:**
-- Input: Market data package (candles, orderbook, etc.)
-- Output: TradingDecision object
+- Input: Market data (prices, momentum, orderbook, recent trades)
+- Output: `AnalysisResult` with sentiment, confidence (1-10), signal, and reasoning
 
-**Model Options:**
-| Model | Use Case | Cost | Latency |
-|-------|----------|------|---------|
-| claude-sonnet-4-20250514 | Default, fast analysis | Lower | ~1-2s |
-| claude-opus-4-20250514 | Complex patterns, high-stakes | Higher | ~3-5s |
+**Key Classes:**
+```python
+# bot/ai/analyzer.py
+class MarketAnalyzer:
+    async def analyze_market(coin, prices, momentum, orderbook, recent_trades) -> AnalysisResult
+    async def quick_sentiment(prices, bid_ratio, buys, sells) -> Sentiment
+    async def should_enter(coin, direction, price, momentum, bid_ratio) -> tuple[bool, int, str]
+
+# bot/ai/models.py
+class AnalysisResult:
+    coin: str
+    sentiment: Sentiment  # BULLISH, BEARISH, NEUTRAL
+    confidence: int       # 1-10
+    signal: Signal        # LONG, SHORT, HOLD
+    reason: str
+```
+
+**AI Backend:**
+| Backend | Use Case | Cost | Latency |
+|---------|----------|------|---------|
+| Ollama (local) | Default, privacy-focused | Free | ~1-3s (depends on hardware) |
+| Claude API | Optional, higher quality | $$ | ~1-2s |
 
 ### 3.3 Order Manager
 
@@ -206,35 +247,39 @@ TRADING_MODE = "simulation"  # "simulation" | "testnet" | "live"
 
 **Responsibility:** Simulate order execution locally for strategy testing without real funds.
 
+**Location:** `bot/simulation/paper_trader.py`
+
 | Capability | Details |
 |------------|---------|
 | Position tracking | Simulated long/short positions with entry prices |
 | P&L calculation | Real-time unrealized P&L based on live market prices |
 | Balance management | Configurable starting balance, track equity curve |
-| Trade history | Log all simulated trades to SQLite |
-| Slippage simulation | Optional: simulate realistic fill prices |
-| Fee simulation | Apply maker/taker fees to simulate real costs |
+| Trade history | Log all simulated trades (in-memory + JSON persistence) |
+| Fee simulation | Apply Hyperliquid maker/taker fees (-0.02% / +0.025%) |
 | Reset functionality | Clear all positions and reset to starting balance |
+| State persistence | Load/save state via `SessionStateManager` |
 
 **Interfaces:**
-- Input: TradingDecision from AI Analyzer, live prices from Data Manager
-- Output: Simulated fill confirmations, position updates, P&L reports
+- Input: Trade commands (coin, size, price), live prices from WebSocket
+- Output: `OrderResult` with success status, position updates, trade records
 
 **Key Features:**
 ```python
-class PaperTradingSimulator:
-    def __init__(self, starting_balance: float = 10000):
+# bot/simulation/paper_trader.py
+class PaperTrader:
+    def __init__(self, starting_balance: float = 10000, fees: FeeStructure = HYPERLIQUID_FEES):
         self.starting_balance = starting_balance
         self.balance = starting_balance
-        self.positions = {}
-        self.trade_history = []
+        self.positions: dict[str, Position] = {}
+        self.trade_history: list[Trade] = []
     
-    def execute_order(self, decision: TradingDecision, current_price: float) -> SimulatedFill
-    def get_positions(self) -> dict
-    def get_equity(self, current_prices: dict) -> float
-    def get_pnl(self) -> float
+    def open_long(self, coin: str, size: float, price: float, is_maker: bool = False) -> OrderResult
+    def open_short(self, coin: str, size: float, price: float, is_maker: bool = False) -> OrderResult
+    def close_position(self, coin: str, price: float, is_maker: bool = False) -> OrderResult
+    def get_equity(self, current_prices: dict[str, float]) -> float
+    def get_state(self, current_prices: dict | None = None) -> SimulatorState
     def reset(self) -> None
-    def export_history(self) -> list[Trade]
+    def load_state(self, balance: float, positions: dict, total_fees_paid: float) -> None
 ```
 
 **Advantages over Testnet:**
@@ -242,17 +287,91 @@ class PaperTradingSimulator:
 - Unlimited resets with any starting balance
 - Faster iteration (no network latency for orders)
 - Test edge cases (what if I had $500? $50,000?)
+- Session persistence - resume trading after restarts
 
-### 3.6 State Store
+### 3.6 State Store (Session State Manager)
 
-**Responsibility:** Persist trade history, positions, and performance metrics.
+**Responsibility:** Persist trading session state to disk for resumption after restarts.
+
+**Location:** `bot/simulation/state_manager.py`
 
 | Data | Storage | Retention |
 |------|---------|-----------|
-| Trade history | SQLite | Permanent |
-| Current positions | Memory + SQLite | Session |
-| Performance metrics | SQLite | Permanent |
-| Configuration | .env + config files | Permanent |
+| Session state | JSON (`data/sessions/<name>/state.json`) | Permanent |
+| Open positions | JSON (in session state) | Session |
+| Trade feedback | JSON (`data/feedback/trades.json`) | Permanent |
+| Configuration | Python dataclass (`bot/core/config.py`) | Code |
+
+**Session Structure:**
+```
+data/sessions/
+├── default/
+│   ├── state.json      # Balance, positions, stats
+│   └── reports/        # Tuning reports for this session
+├── aggressive/
+│   ├── state.json
+│   └── reports/
+└── ...
+```
+
+**Key Features:**
+```python
+# bot/simulation/state_manager.py
+class SessionStateManager:
+    def __init__(self, data_dir: str = "data", session_name: str = "default"):
+        ...
+    
+    def save(self, trader: PaperTrader, ...) -> None
+    def load(self) -> SessionState | None
+    def has_saved_state(self) -> bool
+    def list_sessions(self) -> list[str]
+    def get_reports_dir(self) -> Path
+```
+
+### 3.7 UI Dashboard
+
+**Responsibility:** Provide a terminal-based UI for monitoring and controlling the trading bot.
+
+**Location:** `bot/ui/dashboard.py`
+
+**Framework:** Textual (Python TUI framework)
+
+| Panel | Purpose |
+|-------|---------|
+| Prices Panel | Live prices with momentum indicators |
+| Order Book Panel | Bid/ask depth visualization |
+| Trades Panel | Real-time trade feed |
+| AI Panel | AI reasoning and analysis results |
+| Opportunities Panel | Pending trade opportunities with validation progress |
+| Positions Panel | Open positions with unrealized P&L |
+| History Panel | Closed trades with P&L |
+| Status Bar | Connection status, session info, balance |
+
+**Keybindings:**
+| Key | Action |
+|-----|--------|
+| `q` | Quit |
+| `r` | Reset session |
+| `p` | Pause/resume trading |
+| `Ctrl+S` | Save session |
+| `1-4` | Adjust thresholds |
+
+### 3.8 Tuning System
+
+**Responsibility:** Collect trade feedback and analyze performance for parameter optimization.
+
+**Location:** `bot/tuning/`
+
+| Module | Purpose |
+|--------|---------|
+| `collector.py` | Collect trade outcomes and market conditions |
+| `analyzer.py` | Calculate win rates, average P&L, drawdown |
+| `exporter.py` | Generate tuning reports |
+
+**Key Features:**
+- Track per-trade feedback (entry conditions, exit reason, P&L)
+- Analyze parameter effectiveness
+- Export reports for manual review
 
 ---
 
@@ -286,18 +405,45 @@ class PaperTradingSimulator:
 | REST | `https://api.hyperliquid-testnet.xyz/info` | Testnet info |
 | REST | `https://api.hyperliquid-testnet.xyz/exchange` | Testnet orders |
 
-### 4.2 Anthropic Claude API
+### 4.2 AI Backend (Ollama - Primary)
+
+**Why Ollama:**
+- **Local inference** - No API costs, no rate limits
+- **Privacy** - Trading data stays on your machine
+- **Offline capable** - Works without internet (after model download)
+- **Customizable** - Use any compatible model
+
+**Endpoints:**
+| Endpoint | Purpose |
+|----------|---------|
+| `POST http://localhost:11434/api/generate` | Generate analysis |
+| `GET http://localhost:11434/api/tags` | List available models |
+
+**Authentication:** None required (local server)
+
+**Setup:**
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull a model (e.g., llama3.2, mistral)
+ollama pull llama3.2
+```
+
+### 4.3 Anthropic Claude API (Optional)
 
 **Endpoints:**
 | Endpoint | Purpose |
 |----------|---------|
 | `POST /v1/messages` | Send analysis requests |
 
-**Authentication:** API key in header
+**Authentication:** API key in header (`ANTHROPIC_API_KEY`)
 
 **Rate Limits:** 
 - Tier 1: 60 requests/minute
 - Consider batching if hitting limits
+
+**Note:** Claude integration is optional. The bot defaults to Ollama for local inference.
 
 ---
 
@@ -306,47 +452,70 @@ class PaperTradingSimulator:
 ### 5.1 Environment Variables (.env)
 
 ```bash
-# Required for AI analysis
+# Optional - only needed if using Claude instead of Ollama
 ANTHROPIC_API_KEY=sk-ant-...
 
 # Required for testnet/live trading only (not needed for simulation mode)
 HYPERLIQUID_PRIVATE_KEY=0x...
 
 # Optional
-AI_MODEL=claude-sonnet-4-20250514
 LOG_LEVEL=INFO
-TRADING_MODE=simulation  # simulation | testnet | live
 ```
 
-### 5.2 Simulation Configuration
+### 5.2 Trading Configuration
+
+All trading parameters are centralized in a single dataclass:
 
 ```python
-# config/simulation.py
-STARTING_BALANCE = 10000      # USD - can be any amount
-MAKER_FEE = -0.0002           # Hyperliquid maker rebate
-TAKER_FEE = 0.00025           # Hyperliquid taker fee
-SIMULATE_SLIPPAGE = True      # Add realistic slippage
-SLIPPAGE_BPS = 1              # Basis points of slippage
+# bot/core/config.py
+@dataclass
+class TradingConfig:
+    """Configuration for trading behavior and thresholds."""
+    
+    # Opportunity Detection (TUNABLE)
+    track_threshold_pct: float = 0.02    # Min momentum to track opportunity
+    trade_threshold_pct: float = 0.04    # Min momentum to execute trade
+    momentum_timeframe_seconds: int = 5  # Lookback for momentum calc
+    
+    # Position Management (TUNABLE)
+    take_profit_pct: float = 0.10        # Exit at +10%
+    stop_loss_pct: float = -0.05         # Exit at -5%
+    position_size_pct: float = 0.10      # 10% of balance per trade
+    cooldown_seconds: float = 30.0       # Wait between trades on same coin
+    max_concurrent_positions: int = 2    # Max open positions
+    
+    # Analysis
+    market_analysis_interval_seconds: int = 10
+    price_history_maxlen: int = 500
+    
+    # Display
+    max_trades_history: int = 100
+    orderbook_depth: int = 8
+    max_trades_displayed: int = 15
 ```
 
-### 5.3 Strategy Configuration
+### 5.3 Fee Configuration
 
 ```python
-# config/strategy.py
-SYMBOLS = ["BTC", "ETH"]
-TIMEFRAME = "1m"
-CANDLES_FOR_ANALYSIS = 50
-MIN_CONFIDENCE = 0.7
+# bot/simulation/models.py
+HYPERLIQUID_FEES = FeeStructure(
+    maker_fee=-0.0002,   # -0.02% rebate
+    taker_fee=0.00025,   # +0.025% fee
+)
 ```
 
-### 5.4 Risk Configuration
+### 5.4 WebSocket Configuration
 
 ```python
-# config/risk.py
-MAX_POSITION_SIZE = 0.1      # BTC
-RISK_PER_TRADE = 0.01        # 1% of account
-MAX_DAILY_LOSS = 100         # USD
-MAX_OPEN_POSITIONS = 2
+# bot/hyperliquid/websocket_manager.py
+@dataclass
+class WebSocketConfig:
+    url: str = "wss://api.hyperliquid.xyz/ws"
+    max_reconnect_attempts: int = 50
+    initial_reconnect_delay: float = 1.0
+    max_reconnect_delay: float = 30.0
+    ping_interval: float = 20.0
+    message_timeout: float = 60.0
 ```
 
 ---
@@ -356,67 +525,100 @@ MAX_OPEN_POSITIONS = 2
 ```
 trading-bot/
 ├── .env                      # API keys (git-ignored)
-├── .env.example              # Template
+├── .gitignore
 ├── requirements.txt          # Python dependencies
-├── README.md                 # Project overview
+├── dev.sh                    # Development mode launcher (hot reload)
+├── start.sh                  # Production launcher
+├── stop.sh                   # Stop running bot
 │
 ├── bot/                      # Main Python package
 │   ├── __init__.py
+│   │
+│   ├── ai/                   # AI integration (Ollama/Claude)
+│   │   ├── __init__.py
+│   │   ├── analyzer.py       # MarketAnalyzer - main AI interface
+│   │   ├── ollama_client.py  # Local Ollama API client
+│   │   ├── prompts.py        # Prompt templates
+│   │   └── models.py         # AnalysisResult, Sentiment, Signal
+│   │
+│   ├── core/                 # Core business logic
+│   │   ├── __init__.py
+│   │   ├── config.py         # TradingConfig dataclass
+│   │   ├── models.py         # OpportunityCondition, PendingOpportunity
+│   │   └── analysis/         # Market analysis modules
+│   │       ├── __init__.py
+│   │       ├── market.py     # MarketAnalyzer (conditions)
+│   │       ├── momentum.py   # Momentum calculations
+│   │       └── opportunities.py  # OpportunityAnalyzer
 │   │
 │   ├── hyperliquid/          # Exchange integration
 │   │   ├── __init__.py
 │   │   ├── client.py         # Authenticated client
 │   │   ├── public_data.py    # Public market data (no auth)
+│   │   ├── stream.py         # Data streaming utilities
+│   │   ├── websocket_manager.py  # Robust WS with reconnection
+│   │   ├── watch_prices.py   # Price monitoring
+│   │   ├── test_connection.py
 │   │   └── examples/         # Usage examples
+│   │       ├── __init__.py
+│   │       ├── market_data.py
+│   │       └── place_order.py
 │   │
-│   ├── simulation/           # Paper trading (coming soon)
+│   ├── simulation/           # Paper trading system
 │   │   ├── __init__.py
-│   │   ├── paper_trader.py
-│   │   ├── fills.py
-│   │   └── metrics.py
+│   │   ├── paper_trader.py   # PaperTrader - simulated execution
+│   │   ├── models.py         # Position, Trade, Side, FeeStructure
+│   │   ├── state_manager.py  # Session persistence
+│   │   ├── opportunity_seeker.py  # Opportunity detection
+│   │   └── run_simulator.py  # Standalone simulator runner
 │   │
-│   ├── ai/                   # Claude integration (coming soon)
+│   ├── tuning/               # Feedback & optimization
 │   │   ├── __init__.py
-│   │   ├── analyzer.py
-│   │   ├── prompts.py
-│   │   └── parser.py
+│   │   ├── collector.py      # FeedbackCollector
+│   │   ├── analyzer.py       # PerformanceAnalyzer
+│   │   └── exporter.py       # TuningReportExporter
 │   │
-│   ├── trading/              # Order management (coming soon)
-│   │   ├── __init__.py
-│   │   ├── orders.py
-│   │   ├── positions.py
-│   │   └── risk.py
-│   │
-│   └── utils/
+│   └── ui/                   # Terminal UI (Textual)
 │       ├── __init__.py
-│       └── logger.py
+│       ├── dashboard.py      # Main TradingDashboard app
+│       ├── cli.py            # CLI argument parsing
+│       ├── components/       # UI panel components
+│       │   ├── __init__.py
+│       │   ├── prices_panel.py
+│       │   ├── orderbook_panel.py
+│       │   ├── trades_panel.py
+│       │   ├── ai_panel.py
+│       │   ├── opportunities_panel.py
+│       │   ├── positions_panel.py
+│       │   ├── history_panel.py
+│       │   └── status_bar.py
+│       └── styles/
+│           └── theme.css     # Retro dark theme
 │
-├── config/                   # Configuration files
-│   ├── __init__.py
-│   ├── settings.py
-│   ├── strategy.py
-│   └── risk.py
+├── data/                     # Persistent data
+│   ├── sessions/             # Named trading sessions
+│   │   └── default/
+│   │       ├── state.json    # Session state
+│   │       └── reports/      # Tuning reports
+│   └── feedback/
+│       └── trades.json       # Trade feedback log
 │
 ├── docs/                     # Documentation
-│   └── PRDs/
+│   ├── PRDs/
+│   │   ├── README.md
+│   │   ├── system_architecture.md
+│   │   └── local_ai_integration.md
+│   ├── setup-guide.md
+│   └── strategies/
 │       ├── README.md
-│       └── system_architecture.md
+│       └── momentum-scalping-v1.md
 │
-├── strategies/               # Pine Script strategies
-│   └── ...
+├── Old/                      # Archived/legacy files
+│   ├── indicators/           # Pine Script indicators
+│   ├── strategies/           # Pine Script strategies
+│   └── projects/             # Old project files
 │
-├── indicators/               # Pine Script indicators
-│   └── ...
-│
-├── data/                     # SQLite database
-│   └── trades.db
-│
-├── logs/                     # Log files
-│   └── trading.log
-│
-└── tests/                    # Test suite
-    ├── __init__.py
-    └── ...
+└── trading_bot.log           # Application log file
 ```
 
 ---
@@ -436,7 +638,7 @@ trading-bot/
 
 Every time a 1-minute candle closes:
 1. Package last 50 candles
-2. Send to Claude for analysis
+2. Send to AI (Ollama) for analysis
 3. Execute decision if confidence > threshold
 
 ### 7.3 Future Triggers (Roadmap)
@@ -495,32 +697,36 @@ Every time a 1-minute candle closes:
 
 ## 10. Development Phases
 
-### Phase 1: Foundation (Current)
+### Phase 1: Foundation ✅ Complete
 - [x] Project structure setup
-- [ ] Configuration management
-- [x] Hyperliquid public API wrapper
-- [ ] Basic WebSocket connection
+- [x] Configuration management (`bot/core/config.py`)
+- [x] Hyperliquid public API wrapper (`bot/hyperliquid/public_data.py`)
+- [x] Robust WebSocket connection (`bot/hyperliquid/websocket_manager.py`)
+  - Auto-reconnection with exponential backoff
+  - Heartbeat monitoring
+  - Connection state tracking
 
-### Phase 2: AI Integration
-- [ ] Claude API integration
-- [ ] Prompt engineering
-- [ ] Response parsing
-- [ ] Decision data models
+### Phase 2: AI Integration ✅ Complete
+- [x] Local AI integration via Ollama (`bot/ai/ollama_client.py`)
+- [x] Prompt engineering (`bot/ai/prompts.py`)
+- [x] Response parsing (`bot/ai/models.py`)
+- [x] Decision data models (`AnalysisResult`, `Sentiment`, `Signal`)
+- [x] MarketAnalyzer with async analysis (`bot/ai/analyzer.py`)
 
-### Phase 3: Trading Logic
-- [ ] Order placement
-- [ ] Position tracking
-- [ ] Risk management
-- [ ] Stop loss / take profit
+### Phase 3: Trading Logic 🔄 Partial
+- [ ] Order placement (real orders - testnet/live)
+- [x] Position tracking (`bot/simulation/paper_trader.py`)
+- [x] Risk management (position size limits, cooldowns in `config.py`)
+- [x] Stop loss / take profit (`take_profit_pct`, `stop_loss_pct` in config)
 
-### Phase 4: Paper Trading Simulation
-- [ ] Paper Trading Simulator implementation
-- [ ] Local position tracking and P&L calculation
-- [ ] Simulated order fills with fee calculation
-- [ ] Trade history logging to SQLite
-- [ ] Reset/restart functionality
-- [ ] Equity curve tracking
-- [ ] Performance metrics (win rate, avg P&L, max drawdown)
+### Phase 4: Paper Trading Simulation ✅ Complete
+- [x] Paper Trading Simulator implementation (`PaperTrader` class)
+- [x] Local position tracking and P&L calculation
+- [x] Simulated order fills with fee calculation (Hyperliquid fees)
+- [x] Trade history logging (JSON files)
+- [x] Reset/restart functionality
+- [x] Session persistence (`SessionStateManager`)
+- [x] Performance metrics via tuning system
 
 ### Phase 5: Testnet Validation
 - [ ] Hyperliquid testnet API integration
@@ -529,9 +735,9 @@ Every time a 1-minute candle closes:
 - [ ] API rate limit handling
 - [ ] Error recovery testing
 
-### Phase 6: Live Trading
+### Phase 6: Live Trading 🔄 Partial
 - [ ] Small position testing
-- [ ] Monitoring dashboard
+- [x] Monitoring dashboard (`bot/ui/dashboard.py` - Textual TUI)
 - [ ] Alerting system
 - [ ] Gradual position scaling
 
@@ -539,16 +745,22 @@ Every time a 1-minute candle closes:
 
 ## 11. Future Considerations
 
-### 11.1 Potential Enhancements
-- Web dashboard for monitoring
-- Telegram/Discord alerts
-- Multiple strategy support
-- Backtesting framework
-- Multi-exchange support (Bybit, OKX)
+### 11.1 Implemented ✅
+- Terminal dashboard for monitoring (Textual TUI)
+- Multiple symbol support (BTC, ETH, SOL, etc.)
+- Session persistence and resume
+- Performance tuning system
 
-### 11.2 Scalability
-- Current design: Single symbol, single strategy
-- Future: Multiple symbols in parallel, strategy switching
+### 11.2 Potential Enhancements
+- Web dashboard for remote monitoring
+- Telegram/Discord alerts
+- Backtesting framework with historical data
+- Multi-exchange support (Bybit, OKX)
+- Strategy hot-swapping
+
+### 11.3 Scalability
+- Current design: Multiple symbols, single strategy
+- Future: Strategy switching, A/B testing strategies
 
 ---
 
@@ -566,11 +778,15 @@ Every time a 1-minute candle closes:
 
 | Item | Estimated Cost |
 |------|----------------|
-| Claude API (Sonnet, ~1000 calls/day) | $30-50 |
+| AI Analysis (Ollama local) | $0 (runs on your hardware) |
+| AI Analysis (Claude API, optional) | $30-50 if used |
 | Hyperliquid fees | Rebates! (-$20 to +$50) |
 | Server (local machine) | $0 |
-| **Total** | **$30-80/month** |
+| Electricity (GPU inference) | ~$5-10 |
+| **Total (Ollama)** | **$0-10/month** |
+| **Total (Claude)** | **$30-80/month** |
 
 ---
 
-*Document maintained by: Trading Bot Development Team*
+*Document maintained by: Trading Bot Development Team*  
+*Last synced with codebase: January 18, 2026*
