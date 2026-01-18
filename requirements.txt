@@ -12,6 +12,9 @@ python-dotenv>=1.0.0
 # HTTP requests (for public API calls)
 requests>=2.31.0
 
+# Async HTTP client (for local AI server communication)
+httpx>=0.27.0
+
 # WebSocket streaming (for real-time data)
 websockets>=12.0
 

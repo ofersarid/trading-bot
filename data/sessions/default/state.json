@@ -1,0 +1,27 @@
+{
+  "session_name": "default",
+  "balance": 9999.225793254318,
+  "starting_balance": 10000.0,
+  "total_fees_paid": 1.9993124483986413,
+  "positions": {
+    "SOL": {
+      "coin": "SOL",
+      "side": "short",
+      "size": 7.022120786516854,
+      "entry_price": 142.4,
+      "entry_time": "2026-01-18T22:37:37.974236"
+    },
+    "BTC": {
+      "coin": "BTC",
+      "side": "short",
+      "size": 0.010484593995921086,
+      "entry_price": 95368.5,
+      "entry_time": "2026-01-18T22:37:58.888572"
+    }
+  },
+  "total_trades": 71,
+  "winning_trades": 1,
+  "last_report_timestamp": null,
+  "session_start": "2026-01-18T22:37:25.595667",
+  "last_update": "2026-01-18T22:39:35.333736"
+}

@@ -81,6 +81,15 @@ class AIPanel(Container):
                     f"🧠 ANALYSIS [dim]│[/dim] [yellow]📐 {analysis_mode}[/yellow] [dim]│[/dim] "
                     f"Model: [cyan]{ai_model}[/cyan]{conn_info}"
                 )
+            elif "Local" in analysis_mode:
+                # Local AI mode (Ollama)
+                avg_time = f"{tokens_used / max(ai_calls, 1):.0f}tok/call" if ai_calls > 0 else "—"
+                title.update(
+                    f"🧠 AI REASONING [dim]│[/dim] [#44ffaa]🤖 LOCAL AI[/#44ffaa] [dim]│[/dim] "
+                    f"Model: [cyan]{ai_model}[/cyan] [dim]│[/dim] "
+                    f"Tokens: [magenta]{tokens_used:,}[/magenta] [dim]│[/dim] "
+                    f"Calls: [blue]{ai_calls}[/blue]{conn_info}"
+                )
             else:
                 title.update(
                     f"🧠 AI REASONING [dim]│[/dim] [#44ffaa]🤖 {analysis_mode}[/#44ffaa] [dim]│[/dim] "

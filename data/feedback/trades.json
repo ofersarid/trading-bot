@@ -1,5 +1,5 @@
 {
-  "counter": 69,
+  "counter": 70,
   "trades": [
     {
       "trade_id": "T000001",
@@ -2068,6 +2068,36 @@
         "market_condition": "\ud83d\ude34_very_calm",
         "btc_momentum_at_entry": -0.028314500694753955,
         "eth_momentum_at_entry": 0.03586425379937754
+      },
+      "notes": ""
+    },
+    {
+      "trade_id": "T000070",
+      "timestamp": "2026-01-18T22:39:35.324042",
+      "coin": "ETH",
+      "side": "short",
+      "entry_price": 3346.65,
+      "exit_price": 3342.55,
+      "entry_momentum_pct": -0.04181538507489706,
+      "size": 0.2988062689555227,
+      "notional_value": 1000.0000000000001,
+      "outcome": "take_profit",
+      "pnl_usd": 0.7257182555689747,
+      "pnl_pct": 0.07257182555689747,
+      "fees_paid": 0.49938744714864125,
+      "duration_seconds": 134.954183,
+      "parameters": {
+        "track_threshold_pct": 0.02,
+        "trade_threshold_pct": 0.04,
+        "momentum_timeframe_seconds": 5,
+        "take_profit_pct": 0.1,
+        "stop_loss_pct": -0.05,
+        "position_size_pct": 0.1,
+        "cooldown_seconds": 30.0,
+        "max_concurrent_positions": 2,
+        "market_condition": "\ud83d\udcca_active",
+        "btc_momentum_at_entry": -0.0702228790332301,
+        "eth_momentum_at_entry": -0.16427472707994203
       },
       "notes": ""
     }

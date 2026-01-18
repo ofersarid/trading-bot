@@ -52,6 +52,7 @@ from bot.simulation.models import HYPERLIQUID_FEES, Side
 from bot.simulation.paper_trader import PaperTrader
 from bot.simulation.state_manager import SessionStateManager
 from bot.tuning import FeedbackCollector, PerformanceAnalyzer, TuningReportExporter
+from bot.ai import MarketAnalyzer as AIMarketAnalyzer, OllamaClient
 from bot.ui.components import (
     PricesPanel,
     OrderBookPanel,
@@ -150,11 +151,15 @@ class TradingDashboard(App):
         # Momentum timeframe (default 5 seconds)
         self.momentum_timeframe = 5  # seconds
         
-        # Analysis mode (for future AI integration)
-        self.analysis_mode = "RULE-BASED"  # "RULE-BASED" or "AI (Claude)"
-        self.ai_model = "None (Momentum Rules)"  # Will be "claude-sonnet-4-20250514" etc.
+        # Analysis mode - AI uses local Ollama with Mistral
+        self.analysis_mode = "RULE-BASED"  # "RULE-BASED" or "AI (Local)"
+        self.ai_model = "None (Momentum Rules)"  # Will be "mistral:7b" when AI enabled
         self.tokens_used = 0
         self.ai_calls = 0
+        
+        # Local AI analyzer (Ollama + Mistral)
+        self.ai_client = OllamaClient(model="mistral")
+        self.ai_analyzer = AIMarketAnalyzer(client=self.ai_client, enabled=False)
         
         # Session state manager for persistence (supports multiple named sessions)
         self.state_manager = SessionStateManager(session_name=self.session_name)
@@ -206,7 +211,7 @@ class TradingDashboard(App):
             on_connect=self._handle_ws_connect,
             on_disconnect=self._handle_ws_disconnect,
             on_state_change=self._handle_ws_state_change,
-            log_callback=self.log_ai,
+            log_callback=self._log_ai_threadsafe,
         )
         
         # State
@@ -328,28 +333,37 @@ class TradingDashboard(App):
     
     async def _handle_ws_connect(self) -> None:
         """Handle WebSocket connection established."""
+        import threading
         self.ws_connected = True
         self.emergency_exit_in_progress = False
-        self.log_ai(f"[{COLOR_UP}]✓ Connected to Hyperliquid WebSocket[/{COLOR_UP}]")
-        self.log_ai(f"[dim]📡 Subscribed to: prices, trades, orderbooks for {', '.join(self.coins)}[/dim]")
-        self.log_ai("[yellow]⏳ Waiting for market data...[/yellow]")
+        
+        coins_str = ', '.join(self.coins)
+        def update_ui() -> None:
+            self.log_ai(f"[{COLOR_UP}]✓ Connected to Hyperliquid WebSocket[/{COLOR_UP}]")
+            self.log_ai(f"[dim]📡 Subscribed to: prices, trades, orderbooks for {coins_str}[/dim]")
+            self.log_ai("[yellow]⏳ Waiting for market data...[/yellow]")
+        
+        if self._thread_id == threading.get_ident():
+            update_ui()
+        else:
+            self.call_from_thread(update_ui)
     
     async def _handle_ws_disconnect(self, reason: str) -> None:
         """
-        Handle WebSocket disconnection - CRITICAL SAFETY HANDLER.
+        Handle WebSocket disconnection - CRITICAL SAFETY HANDLER (called from worker thread).
         
         This is called IMMEDIATELY when connection is lost.
         We must exit all positions to protect capital.
         """
         self.ws_connected = False
         
-        # Log the disconnect with high visibility
-        self.log_ai(f"[{COLOR_DOWN}]🚨 WEBSOCKET DISCONNECTED: {reason}[/{COLOR_DOWN}]")
+        # Log the disconnect with high visibility (thread-safe)
+        self._log_ai_threadsafe(f"[{COLOR_DOWN}]🚨 WEBSOCKET DISCONNECTED: {reason}[/{COLOR_DOWN}]")
         
         # CRITICAL: Emergency exit all positions
         if self.trader.positions and not self.emergency_exit_in_progress:
             self.emergency_exit_in_progress = True
-            self.log_ai(f"[{COLOR_DOWN}]⚠️ EMERGENCY: Exiting all positions due to disconnect![/{COLOR_DOWN}]")
+            self._log_ai_threadsafe(f"[{COLOR_DOWN}]⚠️ EMERGENCY: Exiting all positions due to disconnect![/{COLOR_DOWN}]")
             
             await self._emergency_exit_all_positions(reason)
     
@@ -360,6 +374,7 @@ class TradingDashboard(App):
         CRITICAL: This protects capital when we lose market data connection.
         We cannot make informed trading decisions without live data.
         """
+        import threading
         positions_to_close = list(self.trader.positions.keys())
         
         for coin in positions_to_close:
@@ -367,7 +382,7 @@ class TradingDashboard(App):
                 # Use last known price (not ideal, but better than nothing)
                 price = self.prices.get(coin)
                 if not price:
-                    self.log_ai(f"[{COLOR_DOWN}]⚠️ No price for {coin} - cannot close safely![/{COLOR_DOWN}]")
+                    self._log_ai_threadsafe(f"[{COLOR_DOWN}]⚠️ No price for {coin} - cannot close safely![/{COLOR_DOWN}]")
                     continue
                 
                 position = self.trader.positions.get(coin)
@@ -375,41 +390,59 @@ class TradingDashboard(App):
                     result = self.trader.close_position(coin, price)
                     
                     pnl_color = COLOR_UP if result.trade and result.trade.pnl >= 0 else COLOR_DOWN
-                    self.log_ai(f"[{pnl_color}]🚨 EMERGENCY CLOSE: {result.message}[/{pnl_color}]")
+                    self._log_ai_threadsafe(f"[{pnl_color}]🚨 EMERGENCY CLOSE: {result.message}[/{pnl_color}]")
                     
                     if result.trade:
                         self._record_trade_feedback(result.trade, "emergency_exit")
-                        self.update_history_display(result.trade)
+                        if self._thread_id == threading.get_ident():
+                            self.update_history_display(result.trade)
+                        else:
+                            self.call_from_thread(self.update_history_display, result.trade)
                     
                     logger.warning(f"EMERGENCY EXIT: {coin} closed at ${price} due to: {reason}")
                     
             except Exception as e:
-                self.log_ai(f"[{COLOR_DOWN}]❌ FAILED to close {coin}: {e}[/{COLOR_DOWN}]")
+                self._log_ai_threadsafe(f"[{COLOR_DOWN}]❌ FAILED to close {coin}: {e}[/{COLOR_DOWN}]")
                 logger.error(f"EMERGENCY EXIT FAILED for {coin}: {e}")
         
-        self.update_positions_display()
-        self.update_status_bar()
+        def update_displays() -> None:
+            self.update_positions_display()
+            self.update_status_bar()
+        
+        if self._thread_id == threading.get_ident():
+            update_displays()
+        else:
+            self.call_from_thread(update_displays)
         self.emergency_exit_in_progress = False
     
     def _handle_ws_state_change(self, state: ConnectionState) -> None:
         """Handle WebSocket state changes for UI updates."""
-        state_msg = {
-            ConnectionState.DISCONNECTED: f"[{COLOR_DOWN}]⭕ Disconnected[/{COLOR_DOWN}]",
-            ConnectionState.CONNECTING: "[yellow]🔄 Connecting...[/yellow]",
-            ConnectionState.CONNECTED: f"[{COLOR_UP}]🟢 Connected[/{COLOR_UP}]",
-            ConnectionState.RECONNECTING: "[yellow]🟡 Reconnecting...[/yellow]",
-            ConnectionState.FATAL_ERROR: f"[{COLOR_DOWN}]🔴 FATAL ERROR[/{COLOR_DOWN}]",
-        }
+        import threading
         
-        msg = state_msg.get(state, f"Unknown state: {state}")
-        self.log_ai(f"WS State: {msg}")
+        def update_ui() -> None:
+            state_msg = {
+                ConnectionState.DISCONNECTED: f"[{COLOR_DOWN}]⭕ Disconnected[/{COLOR_DOWN}]",
+                ConnectionState.CONNECTING: "[yellow]🔄 Connecting...[/yellow]",
+                ConnectionState.CONNECTED: f"[{COLOR_UP}]🟢 Connected[/{COLOR_UP}]",
+                ConnectionState.RECONNECTING: "[yellow]🟡 Reconnecting...[/yellow]",
+                ConnectionState.FATAL_ERROR: f"[{COLOR_DOWN}]🔴 FATAL ERROR[/{COLOR_DOWN}]",
+            }
+            
+            msg = state_msg.get(state, f"Unknown state: {state}")
+            self.log_ai(f"WS State: {msg}")
+            
+            # If fatal error, show notification
+            if state == ConnectionState.FATAL_ERROR:
+                self.notify(
+                    "CRITICAL: WebSocket connection failed! Positions have been closed.",
+                    severity="error"
+                )
         
-        # If fatal error, show notification
-        if state == ConnectionState.FATAL_ERROR:
-            self.notify(
-                "CRITICAL: WebSocket connection failed! Positions have been closed.",
-                severity="error"
-            )
+        # Check if we're on main thread or worker thread
+        if self._thread_id == threading.get_ident():
+            update_ui()
+        else:
+            self.call_from_thread(update_ui)
     
     def update_connection_status(self) -> None:
         """Update connection status display."""
@@ -549,6 +582,79 @@ class TradingDashboard(App):
             elif abs_momentum >= self.track_threshold and abs_momentum < self.trade_threshold:
                 remaining = self.trade_threshold - abs_momentum
                 self.log_ai(f"[cyan]  🎯 {ca.coin} TRACKING - needs {remaining:.3f}% more to trade[/cyan]")
+        
+        # If AI mode is enabled, request AI analysis
+        if self.ai_analyzer.enabled and self.prices:
+            self.run_ai_market_analysis()
+    
+    @work(exclusive=False)
+    async def run_ai_market_analysis(self) -> None:
+        """Run AI-powered market analysis."""
+        if not self.prices:
+            return
+        
+        # Prepare data for AI
+        prices_data = {}
+        momentum_data = {}
+        orderbook_data = {}
+        
+        for coin in self.coins:
+            price = self.prices.get(coin)
+            if price:
+                momentum = self._calculate_momentum(coin)
+                prices_data[coin] = {
+                    "price": price,
+                    "change_1m": momentum if momentum else 0,
+                }
+                momentum_data[coin] = momentum if momentum else 0
+                
+                # Get orderbook data if available
+                book = self.orderbook.get(coin, {})
+                bids = book.get("bids", [])
+                asks = book.get("asks", [])
+                if bids and asks:
+                    bid_volume = sum(float(b.get("sz", 0)) for b in bids[:5])
+                    ask_volume = sum(float(a.get("sz", 0)) for a in asks[:5])
+                    total = bid_volume + ask_volume
+                    bid_ratio = (bid_volume / total * 100) if total > 0 else 50
+                    orderbook_data[coin] = {"bid_ratio": bid_ratio}
+        
+        # Get recent trades
+        recent_trades = [
+            {"side": t.get("side", "buy")}
+            for t in list(self.trades)[:20]
+        ]
+        
+        # Run AI analysis on primary coin (first in list)
+        primary_coin = self.coins[0]
+        try:
+            result = await self.ai_analyzer.analyze_market(
+                coin=primary_coin,
+                prices=prices_data,
+                momentum=momentum_data,
+                orderbook=orderbook_data,
+                recent_trades=recent_trades,
+            )
+            
+            # Display AI result
+            sentiment_color = {
+                "BULLISH": COLOR_UP,
+                "BEARISH": COLOR_DOWN,
+                "NEUTRAL": "yellow",
+            }.get(result.sentiment.value, "white")
+            
+            self.log_ai(f"[cyan]━━━ 🤖 AI ANALYSIS ━━━[/cyan]")
+            self.log_ai(f"  Sentiment: [{sentiment_color}]{result.sentiment.value}[/{sentiment_color}]")
+            self.log_ai(f"  Confidence: {result.confidence}/10")
+            self.log_ai(f"  Signal: [{sentiment_color}]{result.signal.value}[/{sentiment_color}]")
+            self.log_ai(f"  [dim]{result.reason}[/dim]")
+            self.log_ai(f"  [dim]⚡ Response: {result.response_time_ms:.0f}ms[/dim]")
+            
+            # Update metrics display
+            self.update_ai_title()
+            
+        except Exception as e:
+            self.log_ai(f"[{COLOR_DOWN}]AI analysis error: {e}[/{COLOR_DOWN}]")
     
     async def analyze_opportunity(self, coin: str, price: float, old_price: float) -> None:
         """Analyze price for trading opportunities."""
@@ -827,18 +933,35 @@ class TradingDashboard(App):
         except Exception as e:
             logger.debug(f"AI panel not ready: {e}")
     
+    def _log_ai_threadsafe(self, message: str) -> None:
+        """Thread-safe version of log_ai that works from any context."""
+        import threading
+        if self._thread_id == threading.get_ident():
+            # On main thread - call directly
+            self.log_ai(message)
+        else:
+            # On worker thread - use call_from_thread
+            self.call_from_thread(self.log_ai, message)
+    
     def update_ai_title(self) -> None:
         """Update AI panel title with mode and connection info."""
         try:
             panel = self.query_one(AIPanel)
-            metrics = self.ws_manager.metrics
+            ws_metrics = self.ws_manager.metrics
+            
+            # Get AI metrics from analyzer if AI mode is enabled
+            if self.ai_analyzer.enabled:
+                ai_metrics = self.ai_analyzer.get_metrics()
+                self.tokens_used = ai_metrics.total_tokens
+                self.ai_calls = ai_metrics.total_calls
+            
             panel.update_title(
                 analysis_mode=self.analysis_mode,
                 ai_model=self.ai_model,
                 tokens_used=self.tokens_used,
                 ai_calls=self.ai_calls,
-                disconnects=metrics.total_disconnects,
-                reconnects=metrics.reconnect_count,
+                disconnects=ws_metrics.total_disconnects,
+                reconnects=ws_metrics.reconnect_count,
             )
         except Exception as e:
             logger.debug(f"AI panel not ready: {e}")
@@ -941,16 +1064,33 @@ class TradingDashboard(App):
     def action_toggle_ai(self) -> None:
         """Toggle between rule-based and AI analysis mode."""
         if self.analysis_mode == "RULE-BASED":
-            # AI mode not yet implemented
-            self.log_ai("[yellow]⚠️ AI Mode (Claude) not yet integrated![/yellow]")
-            self.log_ai("[dim]  Coming soon: Claude claude-sonnet-4-20250514 for intelligent trade decisions[/dim]")
-            self.log_ai("[dim]  Will analyze: market structure, order flow, sentiment[/dim]")
-            self.notify("AI Mode coming soon! Currently using rule-based analysis.", severity="warning")
+            # Enable AI mode with local Ollama
+            self.ai_analyzer.enabled = True
+            self.analysis_mode = "AI (Local)"
+            self.ai_model = "mistral:7b"
+            self.log_ai(f"[{COLOR_UP}]🤖 Switched to AI analysis mode[/{COLOR_UP}]")
+            self.log_ai(f"[dim]  Model: {self.ai_model} (Local Ollama)[/dim]")
+            self.log_ai(f"[dim]  AI will analyze: market sentiment, entry signals[/dim]")
+            self.notify("AI Mode enabled! Using local Mistral model.", severity="information")
+            # Check AI availability
+            self.check_ai_availability()
         else:
+            self.ai_analyzer.enabled = False
             self.analysis_mode = "RULE-BASED"
             self.ai_model = "None (Momentum Rules)"
             self.log_ai(f"[{COLOR_UP}]✓ Switched to RULE-BASED analysis[/{COLOR_UP}]")
         self.update_ai_title()
+    
+    @work(exclusive=False)
+    async def check_ai_availability(self) -> None:
+        """Check if local AI server is available."""
+        is_available = await self.ai_analyzer.is_available()
+        if is_available:
+            self.log_ai(f"[{COLOR_UP}]✓ Ollama server connected[/{COLOR_UP}]")
+        else:
+            self.log_ai(f"[{COLOR_DOWN}]⚠️ Ollama server not available![/{COLOR_DOWN}]")
+            self.log_ai("[dim]  Run 'ollama serve' to start the server[/dim]")
+            self.notify("Ollama server not running! Start with 'ollama serve'", severity="warning")
     
     def action_tuning_report(self) -> None:
         """Generate and display incremental tuning report (only new trades)."""
@@ -1033,6 +1173,9 @@ class TradingDashboard(App):
         
         # Stop WebSocket manager
         await self.ws_manager.stop()
+        
+        # Close AI client
+        await self.ai_analyzer.close()
         
         logger.info("Dashboard shutdown complete")
         self.exit()
