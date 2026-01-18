@@ -30,7 +30,8 @@ Read all rule files from `.cursor/rules/` directory:
    - Thresholds and limits (e.g., max file size, max method length)
 
 **Rules to load:**
-- `python-coding-guidelines.mdc` - File size limits, type hints, constants, docstrings
+- `python-coding-guidelines.mdc` - Type hints, constants, docstrings, error handling
+- `python-file-organization.mdc` - File size limits (300-500 lines), extraction patterns
 - `textual-ui-patterns.mdc` - App structure, reactive state, component patterns
 - `dashboard-refactoring-plan.mdc` - Specific refactoring guidance for dashboard.py
 - Any other `.mdc` files present
@@ -57,14 +58,19 @@ If no response is given, default to **option 4 (changed files only)**.
 For each file in scope, analyze against ALL loaded rules. Check for:
 
 ### From `python-coding-guidelines.mdc`:
-- [ ] **File size**: Is file > 300 lines (excluding imports/docstrings)?
-- [ ] **Method length**: Are any methods > 30 lines?
 - [ ] **Type hints**: Do all functions have parameter and return type hints?
 - [ ] **Magic numbers**: Are there unexplained numeric literals in logic?
 - [ ] **CSS embedding**: Is there CSS embedded as Python strings?
 - [ ] **Module docstrings**: Does each file have a module-level docstring?
 - [ ] **Error handling**: Are there bare `except:` or silenced errors?
 - [ ] **Async patterns**: Are WebSocket handlers thin and delegating?
+
+### From `python-file-organization.mdc`:
+- [ ] **File size**: Is file > 400 lines (warning) or > 500 lines (must refactor)?
+- [ ] **Method length**: Are any methods > 30 lines?
+- [ ] **Single responsibility**: Does the class/module have multiple distinct responsibilities?
+- [ ] **Extraction candidates**: Are there groups of related functions that could be a module?
+- [ ] **Pure functions**: Are there methods that don't need `self` and could be utilities?
 
 ### From `textual-ui-patterns.mdc`:
 - [ ] **App class size**: Is the App class doing too much?
@@ -108,18 +114,6 @@ Scope: [what was reviewed]
 
 ## 📋 python-coding-guidelines.mdc
 
-### File Size Violations (Max: 300 lines)
-
-| File | Lines | Over By | Suggested Action |
-|------|-------|---------|------------------|
-| `bot/ui/dashboard.py` | 1195 | 895 | Extract CSS, models, analysis logic |
-
-### Method Length Violations (Max: 30 lines)
-
-| File | Method | Lines | Suggested Action |
-|------|--------|-------|------------------|
-| `bot/ui/dashboard.py` | `analyze_opportunity` | 45 | Extract helper methods |
-
 ### Missing Type Hints
 
 | File | Function | Missing |
@@ -131,6 +125,30 @@ Scope: [what was reviewed]
 | File | Line | Value | Context |
 |------|------|-------|---------|
 | `bot/ui/dashboard.py` | 234 | `0.3` | momentum threshold |
+
+---
+
+## 📋 python-file-organization.mdc
+
+### File Size Violations
+
+| File | Lines | Status | Suggested Action |
+|------|-------|--------|------------------|
+| `bot/ui/dashboard.py` | 951 | 🔴 > 500 | Extract handlers, actions to modules |
+
+### Method Length Violations (Max: 30 lines)
+
+| File | Method | Lines | Suggested Action |
+|------|--------|-------|------------------|
+| `bot/ui/dashboard.py` | `analyze_opportunity` | 45 | Extract helper methods |
+
+### Extraction Candidates
+
+| File | Candidate | Lines | Suggested Module |
+|------|-----------|-------|------------------|
+| `dashboard.py` | WebSocket handlers | ~100 | `handlers/websocket.py` |
+| `dashboard.py` | Message processing | ~90 | `handlers/messages.py` |
+| `dashboard.py` | Action methods | ~150 | `actions/dashboard_actions.py` |
 
 ---
 

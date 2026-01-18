@@ -43,6 +43,8 @@ class PricesPanel(Container):
         prices: dict[str, float],
         price_history: dict[str, deque],
         momentum_timeframe: int,
+        track_threshold: float,
+        trade_threshold: float,
     ) -> None:
         """
         Update the prices display.
@@ -51,6 +53,8 @@ class PricesPanel(Container):
             prices: Current prices by coin
             price_history: Price history deques by coin
             momentum_timeframe: Lookback period for momentum in seconds
+            track_threshold: Current track threshold (for momentum labels)
+            trade_threshold: Current trade threshold (for momentum labels)
         """
         lines = []
         
@@ -79,7 +83,7 @@ class PricesPanel(Container):
             momentum = calculate_momentum(price, history, momentum_timeframe) if history else None
             
             if momentum is not None:
-                momentum_str = self._format_momentum(momentum)
+                momentum_str = self._format_momentum(momentum, track_threshold, trade_threshold)
             else:
                 momentum_str = "[dim]building...[/dim]"
             
@@ -99,22 +103,34 @@ class PricesPanel(Container):
         content = self.query_one("#prices-content", Static)
         content.update("\n".join(lines))
     
-    def _format_momentum(self, momentum: float) -> str:
-        """Format momentum value with color and label."""
-        abs_mom = abs(momentum)
-        cfg = self.config
+    def _format_momentum(
+        self,
+        momentum: float,
+        track_threshold: float,
+        trade_threshold: float,
+    ) -> str:
+        """
+        Format momentum value with color and label.
         
-        if abs_mom < cfg.momentum_flat_threshold:
-            label = "flat"
-            color = "dim"
-        elif abs_mom < cfg.momentum_weak_threshold:
+        Labels are derived from trading thresholds:
+        - flat: below half of track threshold
+        - weak: below track threshold
+        - strong: at/above track threshold (tracking!)
+        - aggro: at/above trade threshold (trade territory!)
+        """
+        abs_mom = abs(momentum)
+        
+        if abs_mom >= trade_threshold:
+            label = "TRADE!"
+            color = COLOR_UP if momentum > 0 else COLOR_DOWN
+        elif abs_mom >= track_threshold:
+            label = "tracking"
+            color = COLOR_UP if momentum > 0 else COLOR_DOWN
+        elif abs_mom >= track_threshold * 0.5:
             label = "weak"
             color = COLOR_UP if momentum > 0 else COLOR_DOWN
-        elif abs_mom < cfg.momentum_strong_threshold:
-            label = "strong"
-            color = COLOR_UP if momentum > 0 else COLOR_DOWN
         else:
-            label = "aggro"
-            color = COLOR_UP if momentum > 0 else COLOR_DOWN
+            label = "flat"
+            color = "dim"
         
-        return f"[{color}]{momentum:+.2f}% {label}[/{color}]"
+        return f"[{color}]{momentum:+.3f}% {label}[/{color}]"

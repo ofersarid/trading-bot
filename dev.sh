@@ -2,18 +2,63 @@
 # Development mode with full hot reload
 # - CSS changes: instant (via TEXTUAL_DEV=1)
 # - Python changes: auto-restart (via watchfiles)
+#
+# Usage:
+#   ./dev.sh <session_name> [balance]
+#
+# Examples:
+#   ./dev.sh my_strategy           # Load/create session with $10000
+#   ./dev.sh aggressive 5000       # Load/create session with $5000
+#   ./dev.sh --list                # List all sessions
 
 cd "$(dirname "$0")"
 source venv/bin/activate
 
+# Handle --list flag
+if [ "$1" = "--list" ] || [ "$1" = "-l" ]; then
+    python bot/ui/dashboard.py --list-sessions
+    exit 0
+fi
+
+# Session name is required
+SESSION_NAME="$1"
+BALANCE="${2:-10000}"
+
+if [ -z "$SESSION_NAME" ]; then
+    echo ""
+    echo "Usage: ./dev.sh <session_name> [balance]"
+    echo ""
+    echo "Examples:"
+    echo "  ./dev.sh my_strategy           # Load/create 'my_strategy' with \$10000"
+    echo "  ./dev.sh aggressive 5000       # Load/create 'aggressive' with \$5000"
+    echo "  ./dev.sh --list                # List all sessions"
+    echo ""
+    
+    # Show available sessions if any
+    python bot/ui/dashboard.py --list-sessions 2>/dev/null
+    exit 1
+fi
+
 # Install watchfiles if not present
 pip show watchfiles > /dev/null 2>&1 || pip install watchfiles
 
+# Check if session exists
+SESSION_DIR="data/sessions/$SESSION_NAME"
+if [ -d "$SESSION_DIR" ] && [ -f "$SESSION_DIR/state.json" ]; then
+    echo "📂 Resuming session: $SESSION_NAME"
+    RESUME_FLAG="--resume"
+else
+    echo "📂 Creating new session: $SESSION_NAME (balance: \$$BALANCE)"
+    RESUME_FLAG=""
+fi
+
+echo ""
 echo "Starting development mode with hot reload..."
 echo "  - CSS changes update instantly"
 echo "  - Python changes trigger auto-restart"
+echo "  - Press Ctrl+S to save session"
 echo ""
 
 # TEXTUAL_DEV=1 enables CSS hot reload
 export TEXTUAL_DEV=1
-watchfiles "python bot/ui/dashboard.py --balance ${1:-10000}" bot/
+watchfiles "python bot/ui/dashboard.py --session $SESSION_NAME --balance $BALANCE $RESUME_FLAG" bot/

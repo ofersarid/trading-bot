@@ -291,6 +291,28 @@ class PaperTrader:
         self.trade_history.clear()
         self.total_fees_paid = 0.0
     
+    def load_state(
+        self,
+        balance: float,
+        positions: dict[str, Position],
+        total_fees_paid: float,
+    ) -> None:
+        """
+        Load state from a saved session.
+        
+        Args:
+            balance: The balance to restore
+            positions: Dictionary of open positions to restore
+            total_fees_paid: Total fees paid in the session
+        """
+        self.balance = balance
+        self.positions = positions.copy()
+        self.total_fees_paid = total_fees_paid
+    
+    def get_winning_count(self) -> int:
+        """Get the number of winning trades in history."""
+        return sum(1 for t in self.trade_history if t.pnl > 0)
+    
     def print_status(self, current_prices: dict[str, float] | None = None):
         """Print current status to console."""
         state = self.get_state(current_prices)

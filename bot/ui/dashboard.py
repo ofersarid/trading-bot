@@ -50,6 +50,8 @@ from bot.core.analysis import (
 from bot.hyperliquid.websocket_manager import WebSocketManager, WebSocketConfig, ConnectionState
 from bot.simulation.models import HYPERLIQUID_FEES, Side
 from bot.simulation.paper_trader import PaperTrader
+from bot.simulation.state_manager import SessionStateManager
+from bot.tuning import FeedbackCollector, PerformanceAnalyzer, TuningReportExporter
 from bot.ui.components import (
     PricesPanel,
     OrderBookPanel,
@@ -93,6 +95,7 @@ class TradingDashboard(App):
         Binding("r", "reset", "Reset"),
         Binding("p", "toggle_pause", "Pause"),
         Binding("ctrl+r", "restart", "Restart"),
+        Binding("ctrl+s", "save_session", "Save", priority=True),
         Binding("1", "decrease_track", "Track -"),
         Binding("2", "increase_track", "Track +"),
         Binding("3", "decrease_trade", "Trade -"),
@@ -100,6 +103,7 @@ class TradingDashboard(App):
         Binding("5", "cycle_momentum_down", "Mom -"),
         Binding("6", "cycle_momentum_up", "Mom +"),
         Binding("a", "toggle_ai", "AI Mode"),
+        Binding("t", "tuning_report", "Tuning"),
     ]
     
     # Available momentum timeframes in seconds
@@ -115,11 +119,15 @@ class TradingDashboard(App):
         starting_balance: float = 10000,
         coins: list[str] | None = None,
         config: TradingConfig | None = None,
+        resume: bool = False,
+        session_name: str | None = None,
     ):
         super().__init__()
         self.config = config or DEFAULT_CONFIG
         self.starting_balance = starting_balance
         self.coins = coins or ["BTC", "ETH", "SOL"]
+        self.resume_mode = resume
+        self.session_name = session_name or "default"
         
         # Data stores
         self.prices: dict[str, float] = {}
@@ -148,15 +156,39 @@ class TradingDashboard(App):
         self.tokens_used = 0
         self.ai_calls = 0
         
-        # Paper trader
+        # Session state manager for persistence (supports multiple named sessions)
+        self.state_manager = SessionStateManager(session_name=self.session_name)
+        
+        # Paper trader - may be restored from saved state
         self.trader = PaperTrader(
             starting_balance=starting_balance,
             fees=HYPERLIQUID_FEES,
         )
         
+        # Try to restore from saved session if resume mode
+        self._restored_from_state = False
+        if resume and self.state_manager.has_saved_state:
+            self._restore_session_state()
+        
         # Analysis modules (separate analysis logic from UI)
         self.market_analyzer = MarketAnalyzer(self.config)
         self.opportunity_analyzer = OpportunityAnalyzer(self.config)
+        
+        # Feedback loop for parameter tuning
+        # Reports are saved in the session's folder
+        self.feedback_collector = FeedbackCollector()
+        self.performance_analyzer = PerformanceAnalyzer(self.feedback_collector)
+        self.tuning_exporter = TuningReportExporter(
+            self.feedback_collector, 
+            self.performance_analyzer,
+            output_dir=str(self.state_manager.get_reports_dir()),
+        )
+        
+        # Track entry momentum for feedback recording
+        self.entry_momentum: dict[str, float] = {}  # {coin: momentum_at_entry}
+        
+        # Auto-save interval (save state every 30 seconds)
+        self._last_state_save = datetime.now()
         
         # WebSocket manager with robust reconnection
         ws_config = WebSocketConfig(
@@ -182,11 +214,44 @@ class TradingDashboard(App):
         self.ws_connected = False
         self.emergency_exit_in_progress = False
         self.start_time = datetime.now()
+    
+    def _restore_session_state(self) -> None:
+        """Restore session state from disk."""
+        state = self.state_manager.load_state()
+        if not state:
+            return
+        
+        # Restore trader state
+        positions = self.state_manager.deserialize_positions(state.positions)
+        self.trader.load_state(
+            balance=state.balance,
+            positions=positions,
+            total_fees_paid=state.total_fees_paid,
+        )
+        
+        # Update starting balance to match saved session
+        self.starting_balance = state.starting_balance
+        self.trader.starting_balance = state.starting_balance
+        
+        self._restored_from_state = True
+        logger.info(f"Restored session: balance=${state.balance:.2f}, {len(positions)} positions")
+    
+    def _save_session_state(self) -> None:
+        """Save current session state to disk."""
+        self.state_manager.update_from_trader(
+            balance=self.trader.balance,
+            starting_balance=self.starting_balance,
+            total_fees_paid=self.trader.total_fees_paid,
+            positions=self.trader.positions,
+            trade_count=len(self.trader.trade_history) + len(self.feedback_collector.trades),
+            winning_count=self.trader.get_winning_count(),
+        )
+        self._last_state_save = datetime.now()
         
     def compose(self) -> ComposeResult:
         """Create the dashboard layout using extracted components."""
-        # Custom title bar
-        yield Static("PAPER TRADING SIMULATOR", id="title-bar", classes="title-bar")
+        # Custom title bar with session name
+        yield Static(f"PAPER TRADING SIMULATOR  ⟫  {self.session_name}", id="title-bar", classes="title-bar")
         
         # Status bar
         yield StatusBar(id="status-row", classes="status-row")
@@ -218,7 +283,18 @@ class TradingDashboard(App):
         """Start data streams when app mounts."""
         self.update_ai_title()
         self.update_threshold_bar()  # Initialize threshold display
-        self.log_ai("Dashboard initialized. Connecting to Hyperliquid...")
+        
+        # Log session status
+        if self._restored_from_state:
+            pnl = self.trader.balance - self.starting_balance
+            pnl_color = COLOR_UP if pnl >= 0 else COLOR_DOWN
+            self.log_ai(f"[{COLOR_UP}]✓ Session '{self.session_name}' restored[/{COLOR_UP}]")
+            self.log_ai(f"[dim]  Balance: ${self.trader.balance:,.2f} | P&L: [{pnl_color}]${pnl:+,.2f}[/{pnl_color}][/dim]")
+            if self.trader.positions:
+                self.log_ai(f"[dim]  Open positions: {', '.join(self.trader.positions.keys())}[/dim]")
+        else:
+            self.log_ai(f"Dashboard initialized. Session: '{self.session_name}'")
+            
         self.log_ai(f"[dim]Analysis Mode: {self.analysis_mode} | Model: {self.ai_model}[/dim]")
         self.log_ai(f"[dim]WebSocket: Auto-reconnect enabled, emergency exit on disconnect[/dim]")
         
@@ -302,6 +378,7 @@ class TradingDashboard(App):
                     self.log_ai(f"[{pnl_color}]🚨 EMERGENCY CLOSE: {result.message}[/{pnl_color}]")
                     
                     if result.trade:
+                        self._record_trade_feedback(result.trade, "emergency_exit")
                         self.update_history_display(result.trade)
                     
                     logger.warning(f"EMERGENCY EXIT: {coin} closed at ${price} due to: {reason}")
@@ -566,6 +643,10 @@ class TradingDashboard(App):
         
         if result.success:
             self.log_ai(f"[{COLOR_UP}]✓ {result.message}[/{COLOR_UP}]")
+            # Store entry momentum for feedback recording
+            momentum = self._calculate_momentum(coin)
+            if momentum is not None:
+                self.entry_momentum[coin] = momentum
         else:
             self.log_ai(f"[{COLOR_DOWN}]✗ {result.message}[/{COLOR_DOWN}]")
         
@@ -575,6 +656,65 @@ class TradingDashboard(App):
         
         # Set up exit monitoring
         self.set_timer(1, lambda: self.check_exit_conditions(coin))
+    
+    def _get_market_condition(self) -> str:
+        """Get current market condition for feedback recording."""
+        analysis = self.market_analyzer.analyze(
+            coins=self.coins,
+            prices=self.prices,
+            price_history=self.price_history,
+            momentum_timeframe=self.momentum_timeframe,
+        )
+        if analysis:
+            return analysis.condition_label.lower().replace(" ", "_")
+        return "unknown"
+    
+    def _record_trade_feedback(self, trade, outcome: str) -> None:
+        """Record a completed trade to the feedback collector."""
+        if not trade:
+            return
+        
+        coin = trade.coin
+        entry_momentum = self.entry_momentum.pop(coin, 0.0)
+        
+        # Get BTC and ETH momentum for correlation analysis
+        btc_momentum = self._calculate_momentum("BTC") if "BTC" in self.coins else None
+        eth_momentum = self._calculate_momentum("ETH") if "ETH" in self.coins else None
+        
+        try:
+            self.feedback_collector.record_trade(
+                coin=coin,
+                side=trade.side,
+                entry_price=trade.entry_price,
+                exit_price=trade.exit_price,
+                entry_momentum_pct=entry_momentum,
+                size=trade.size,
+                outcome=outcome,
+                pnl_usd=trade.pnl,
+                fees_paid=trade.fees_paid,
+                entry_time=trade.entry_time,
+                exit_time=trade.exit_time,
+                # Current parameters
+                track_threshold_pct=self.track_threshold,
+                trade_threshold_pct=self.trade_threshold,
+                momentum_timeframe_seconds=self.momentum_timeframe,
+                take_profit_pct=self.config.take_profit_pct,
+                stop_loss_pct=self.config.stop_loss_pct,
+                position_size_pct=self.config.position_size_pct,
+                cooldown_seconds=self.config.cooldown_seconds,
+                max_concurrent_positions=self.config.max_concurrent_positions,
+                # Market context
+                market_condition=self._get_market_condition(),
+                btc_momentum=btc_momentum,
+                eth_momentum=eth_momentum,
+            )
+            recorded_count = len(self.feedback_collector.trades)
+            self.log_ai(f"[dim]📊 Trade recorded for tuning (#{recorded_count})[/dim]")
+            
+            # Save session state after each trade
+            self._save_session_state()
+        except Exception as e:
+            logger.error(f"Failed to record trade feedback: {e}")
     
     def check_exit_conditions(self, coin: str) -> None:
         """Check if we should exit a position."""
@@ -594,6 +734,7 @@ class TradingDashboard(App):
             self.log_ai(f"[{COLOR_UP}]🎯 Take profit triggered for {coin} (+{pnl_pct:.2f}%)[/{COLOR_UP}]")
             result = self.trader.close_position(coin, price)
             self.log_ai(f"[{COLOR_UP}]✓ {result.message}[/{COLOR_UP}]")
+            self._record_trade_feedback(result.trade, "take_profit")
             with self.batch_update():
                 self.update_positions_display()
                 self.update_history_display(result.trade)
@@ -602,6 +743,7 @@ class TradingDashboard(App):
             self.log_ai(f"[{COLOR_DOWN}]🛑 Stop loss triggered for {coin} ({pnl_pct:.2f}%)[/{COLOR_DOWN}]")
             result = self.trader.close_position(coin, price)
             self.log_ai(f"[{COLOR_DOWN}]✗ {result.message}[/{COLOR_DOWN}]")
+            self._record_trade_feedback(result.trade, "stop_loss")
             with self.batch_update():
                 self.update_positions_display()
                 self.update_history_display(result.trade)
@@ -625,7 +767,13 @@ class TradingDashboard(App):
     def update_prices_display(self) -> None:
         """Update prices panel."""
         panel = self.query_one(PricesPanel)
-        panel.update_display(self.prices, self.price_history, self.momentum_timeframe)
+        panel.update_display(
+            self.prices,
+            self.price_history,
+            self.momentum_timeframe,
+            self.track_threshold,
+            self.trade_threshold,
+        )
     
     def update_orderbook_display(self, coin: str) -> None:
         """Update order book panel."""
@@ -703,11 +851,24 @@ class TradingDashboard(App):
         """Reset the simulator."""
         self.trader.reset()
         self.pending_opportunities.clear()
+        
+        # Clear saved session state
+        self.state_manager.clear_state()
+        
         self.log_ai("[yellow]🔄 Simulator reset[/yellow]")
+        self.log_ai("[dim]💾 Saved session state cleared[/dim]")
         with self.batch_update():
             self.update_positions_display()
             self.update_history_display()
             self.update_status_bar()
+    
+    def action_save_session(self) -> None:
+        """Manually save the current session state (Ctrl+S)."""
+        self._save_session_state()
+        pnl = self.trader.balance - self.starting_balance
+        self.log_ai(f"[{COLOR_UP}]💾 Session '{self.session_name}' saved[/{COLOR_UP}]")
+        self.log_ai(f"[dim]  Balance: ${self.trader.balance:,.2f} | P&L: ${pnl:+,.2f}[/dim]")
+        self.notify(f"Session '{self.session_name}' saved!", severity="information")
     
     def action_toggle_pause(self) -> None:
         """Pause/unpause the simulator."""
@@ -791,6 +952,66 @@ class TradingDashboard(App):
             self.log_ai(f"[{COLOR_UP}]✓ Switched to RULE-BASED analysis[/{COLOR_UP}]")
         self.update_ai_title()
     
+    def action_tuning_report(self) -> None:
+        """Generate and display incremental tuning report (only new trades)."""
+        # Get last report timestamp from state manager
+        last_report = self.state_manager.get_last_report_timestamp()
+        
+        # Count new trades since last report
+        new_trades = self.feedback_collector.get_trades_since(last_report)
+        new_trade_count = len(new_trades)
+        total_trade_count = len(self.feedback_collector.trades)
+        
+        if total_trade_count == 0:
+            self.log_ai("[yellow]📊 No trades recorded yet for tuning analysis[/yellow]")
+            self.log_ai("[dim]  Trades are recorded when positions close (TP/SL/emergency)[/dim]")
+            self.notify("No trades recorded yet. Trade first!", severity="warning")
+            return
+        
+        if new_trade_count == 0 and last_report:
+            self.log_ai("[yellow]📊 No new trades since last report[/yellow]")
+            self.log_ai(f"[dim]  Last report: {last_report.strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
+            self.log_ai(f"[dim]  Total trades: {total_trade_count}[/dim]")
+            self.notify("No new trades since last report.", severity="warning")
+            return
+        
+        # Quick summary in AI panel
+        is_incremental = last_report is not None
+        report_type = "INCREMENTAL" if is_incremental else "FULL"
+        
+        self.log_ai(f"[cyan]━━━ {report_type} TUNING REPORT ━━━[/cyan]")
+        if is_incremental:
+            self.log_ai(f"[dim]  📈 {new_trade_count} new trades (since {last_report.strftime('%H:%M:%S')})[/dim]")
+        else:
+            self.log_ai(f"[dim]  📊 Analyzing all {total_trade_count} trades[/dim]")
+        
+        # Generate incremental report
+        try:
+            json_path, md_path = self.tuning_exporter.export_both(since=last_report)
+            
+            # Mark that we generated a report (for next incremental)
+            self.state_manager.mark_report_generated()
+            
+            self.log_ai(f"[{COLOR_UP}]✓ Report generated![/{COLOR_UP}]")
+            self.log_ai(f"[dim]  📄 {md_path}[/dim]")
+            self.log_ai(f"[dim]  📊 {json_path}[/dim]")
+            
+            # Show suggestions preview for the new trades
+            analysis = self.performance_analyzer.analyze(trades=new_trades if is_incremental else None)
+            suggestions = analysis.get("suggestions", [])
+            if suggestions:
+                self.log_ai(f"[yellow]💡 {len(suggestions)} suggestion(s):[/yellow]")
+                for s in suggestions[:3]:  # Show first 3
+                    if s.get("parameter"):
+                        self.log_ai(f"[dim]  • {s.get('parameter')}: {s.get('direction')} ({s.get('confidence')})[/dim]")
+                    elif s.get("message"):
+                        self.log_ai(f"[dim]  • {s.get('message')}[/dim]")
+            
+            self.notify(f"Report saved! {new_trade_count} new trades analyzed.", severity="information")
+        except Exception as e:
+            self.log_ai(f"[{COLOR_DOWN}]✗ Failed to generate report: {e}[/{COLOR_DOWN}]")
+            logger.error(f"Tuning report generation failed: {e}")
+    
     async def action_quit(self) -> None:
         """Quit the application with proper cleanup."""
         self.log_ai("[yellow]🛑 Shutting down...[/yellow]")
@@ -803,6 +1024,12 @@ class TradingDashboard(App):
                 if price:
                     result = self.trader.close_position(coin, price)
                     self.log_ai(f"Closed {coin}: {result.message}")
+                    if result.trade:
+                        self._record_trade_feedback(result.trade, "manual")
+        
+        # Save final session state
+        self._save_session_state()
+        self.log_ai(f"[dim]💾 Session '{self.session_name}' saved. Use --resume --session {self.session_name} to continue.[/dim]")
         
         # Stop WebSocket manager
         await self.ws_manager.stop()
@@ -820,12 +1047,99 @@ def main():
                         help="Starting balance (default: 10000)")
     parser.add_argument("--coins", "-c", nargs="+", default=["BTC", "ETH", "SOL"],
                         help="Coins to watch (default: BTC ETH SOL)")
+    parser.add_argument("--resume", "-r", action="store_true",
+                        help="Resume from saved session state")
+    parser.add_argument("--fresh", "-f", action="store_true",
+                        help="Start fresh, ignoring any saved state")
+    parser.add_argument("--session", "-s", type=str, default=None,
+                        help="Session name to use (required for trading)")
+    parser.add_argument("--list-sessions", "-l", action="store_true",
+                        help="List all available sessions and exit")
+    parser.add_argument("--delete-session", type=str, metavar="NAME",
+                        help="Delete a saved session and exit")
     
     args = parser.parse_args()
+    
+    # Handle --list-sessions
+    if args.list_sessions:
+        sessions = SessionStateManager.list_sessions()
+        if not sessions:
+            print("\n📂 No saved sessions found.")
+            print("   Sessions are saved to data/sessions/")
+            print()
+        else:
+            print(f"\n📂 Available Sessions ({len(sessions)}):")
+            print("-" * 70)
+            for s in sessions:
+                pnl_symbol = "+" if s['pnl'] >= 0 else ""
+                print(f"  📊 {s['name']}")
+                print(f"     Balance: ${s['balance']:,.2f} | P&L: {pnl_symbol}${s['pnl']:.2f} ({s['pnl_pct']:+.1f}%)")
+                report_status = "✓" if s.get('has_report') else "–"
+                print(f"     Trades: {s['total_trades']} | Win Rate: {s['win_rate']:.1f}% | Open: {s['open_positions']} | Report: {report_status}")
+                print(f"     Last updated: {s['last_update']}")
+                print()
+            print("   Use --session <name> --resume to load a session")
+            print()
+        return
+    
+    # Handle --delete-session
+    if args.delete_session:
+        if SessionStateManager.delete_session(args.delete_session):
+            print(f"✓ Deleted session '{args.delete_session}'")
+        else:
+            print(f"✗ Session '{args.delete_session}' not found")
+        return
+    
+    # Session name is required for trading
+    if not args.session:
+        print("\n❌ Session name required!")
+        print("\nUsage:")
+        print("  python bot/ui/dashboard.py --session <name> [--balance 10000] [--resume]")
+        print("\nExamples:")
+        print("  python bot/ui/dashboard.py --session my_strategy")
+        print("  python bot/ui/dashboard.py --session aggressive --balance 5000")
+        print("  python bot/ui/dashboard.py --session my_strategy --resume")
+        print("\nOr use dev.sh:")
+        print("  ./dev.sh my_strategy")
+        print("  ./dev.sh aggressive 5000")
+        print()
+        
+        # Show available sessions
+        sessions = SessionStateManager.list_sessions()
+        if sessions:
+            print(f"📂 Available Sessions ({len(sessions)}):")
+            for s in sessions:
+                print(f"  • {s['name']} - ${s['balance']:,.2f} ({s['total_trades']} trades)")
+            print()
+        return
+    
+    # Handle state manager for --fresh flag
+    if args.fresh:
+        state_manager = SessionStateManager(session_name=args.session)
+        if state_manager.has_saved_state:
+            state_manager.clear_state()
+            print(f"Cleared session '{args.session}'. Starting fresh.")
+    
+    # Show saved state info if available and not resuming
+    if not args.resume and not args.fresh:
+        state_manager = SessionStateManager(session_name=args.session)
+        summary = state_manager.get_session_summary()
+        if summary:
+            print(f"\n📊 Found saved session '{args.session}':")
+            print(f"   Balance: ${summary['balance']:,.2f} (started: ${summary['starting_balance']:,.2f})")
+            print(f"   P&L: ${summary['pnl']:+,.2f} ({summary['pnl_pct']:+.2f}%)")
+            print(f"   Trades: {summary['total_trades']} ({summary['win_rate']:.1f}% win rate)")
+            print(f"   Open positions: {summary['open_positions']}")
+            print(f"\n   Use --resume --session {args.session} to continue")
+            print(f"   Use --fresh --session {args.session} to reset this session")
+            print(f"   Use --session <new_name> to create a new session")
+            print()
     
     app = TradingDashboard(
         starting_balance=args.balance,
         coins=[c.upper() for c in args.coins],
+        resume=args.resume,
+        session_name=args.session,
     )
     app.run()
 
