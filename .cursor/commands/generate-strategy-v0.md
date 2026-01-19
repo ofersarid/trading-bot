@@ -241,7 +241,7 @@ Your stop loss method:
 Optional settings you can specify:
 - Position size (leave blank for default 100% of equity)
 - Trailing stop logic (describe if needed)
-- Break-even logic (describe if needed)  
+- Break-even logic (describe if needed)
 - Time/session filter (specify times if needed)
 - Maximum daily trades (specify number if needed)
 - Any other constraints or rules
@@ -476,7 +476,7 @@ strategy("Strategy Name v1.0",
     initial_capital=10000,
     default_qty_type=strategy.percent_of_equity,
     default_qty_value=100)
-    
+
 // ONLY add these if user explicitly requests:
 // commission_type=strategy.commission.percent,
 // commission_value=0.1,
@@ -507,21 +507,21 @@ Based on user specifications, add ONLY what's needed:
 // ══════════════════════════════════════════════════════════════════
 
 // Example: ONLY add if user said "position size" or different from 100%
-// positionSize = input.float(100, "Position Size (% of Equity)", 
-//     minval=1, maxval=100, step=1, 
+// positionSize = input.float(100, "Position Size (% of Equity)",
+//     minval=1, maxval=100, step=1,
 //     group="Strategy")
 
 // Example: ONLY add if user specified R:R ratio in their TP method
-// riskRewardRatio = input.float(2.0, "Risk:Reward Ratio", 
+// riskRewardRatio = input.float(2.0, "Risk:Reward Ratio",
 //     minval=0.5, maxval=10, step=0.5,
 //     group="Strategy")
 
 // Example: ONLY add if user said "use trailing stop"
-// useTrailingStop = input.bool(false, "Use Trailing Stop", 
+// useTrailingStop = input.bool(false, "Use Trailing Stop",
 //     group="Strategy")
 
 // Example: ONLY add if user requested time filter
-// useTimeFilter = input.bool(false, "Enable Time Filter", 
+// useTimeFilter = input.bool(false, "Enable Time Filter",
 //     group="Filters")
 ```
 
@@ -580,14 +580,14 @@ if shortEntry
 
 if longEntry and barstate.isconfirmed
     strategy.entry("Long", strategy.long)
-    strategy.exit("Long Exit", "Long", 
-        stop=longStopLoss, 
+    strategy.exit("Long Exit", "Long",
+        stop=longStopLoss,
         limit=longTakeProfit)
 
 if shortEntry and barstate.isconfirmed
     strategy.entry("Short", strategy.short)
-    strategy.exit("Short Exit", "Short", 
-        stop=shortStopLoss, 
+    strategy.exit("Short Exit", "Short",
+        stop=shortStopLoss,
         limit=shortTakeProfit)
 ```
 
@@ -599,31 +599,31 @@ if shortEntry and barstate.isconfirmed
 // ══════════════════════════════════════════════════════════════════
 
 // Plot entry signals
-plotshape(longEntry and barstate.isconfirmed, 
-    "Long Entry", 
-    style=shape.triangleup, 
-    location=location.belowbar, 
-    color=color.green, 
+plotshape(longEntry and barstate.isconfirmed,
+    "Long Entry",
+    style=shape.triangleup,
+    location=location.belowbar,
+    color=color.green,
     size=size.small)
 
-plotshape(shortEntry and barstate.isconfirmed, 
-    "Short Entry", 
-    style=shape.triangledown, 
-    location=location.abovebar, 
-    color=color.red, 
+plotshape(shortEntry and barstate.isconfirmed,
+    "Short Entry",
+    style=shape.triangledown,
+    location=location.abovebar,
+    color=color.red,
     size=size.small)
 
 // Plot stop loss and take profit levels
-plot(strategy.position_size > 0 ? longStopLoss : na, 
-    "Long SL", 
-    color=color.red, 
-    style=plot.style_linebr, 
+plot(strategy.position_size > 0 ? longStopLoss : na,
+    "Long SL",
+    color=color.red,
+    style=plot.style_linebr,
     linewidth=2)
 
-plot(strategy.position_size > 0 ? longTakeProfit : na, 
-    "Long TP", 
-    color=color.green, 
-    style=plot.style_linebr, 
+plot(strategy.position_size > 0 ? longTakeProfit : na,
+    "Long TP",
+    color=color.green,
+    style=plot.style_linebr,
     linewidth=2)
 ```
 
@@ -786,8 +786,8 @@ takeProfit = close + (risk * riskRewardRatio)
 // Trailing stop using strategy.exit()
 if strategy.position_size > 0
     trailOffset = (close - strategy.position_avg_price) * trailPercent
-    strategy.exit("Long Exit", "Long", 
-        trail_points=trailOffset, 
+    strategy.exit("Long Exit", "Long",
+        trail_points=trailOffset,
         trail_offset=trailOffset)
 ```
 
@@ -798,8 +798,8 @@ if strategy.position_size > 0
 if strategy.position_size > 0
     profitPercent = (close - strategy.position_avg_price) / strategy.position_avg_price
     if profitPercent > breakEvenThreshold
-        strategy.exit("Long Exit", "Long", 
-            stop=strategy.position_avg_price, 
+        strategy.exit("Long Exit", "Long",
+            stop=strategy.position_avg_price,
             limit=takeProfit)
 ```
 
@@ -956,8 +956,8 @@ if longEntry and barstate.isconfirmed
 
 // Set exits immediately after entries
 if longEntry
-    strategy.exit("Long Exit", "Long", 
-        stop=stopLoss, 
+    strategy.exit("Long Exit", "Long",
+        stop=stopLoss,
         limit=takeProfit)
 ```
 

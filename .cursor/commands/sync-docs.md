@@ -18,9 +18,9 @@ This command analyzes the current state of the codebase and updates a specified 
 
 **If no file is provided, STOP immediately and prompt:**
 > ⚠️ **No documentation file specified.**
-> 
+>
 > Please provide a markdown file from the `docs/` folder to update.
-> 
+>
 > **Available documentation files:**
 > ```
 > docs/
@@ -33,7 +33,7 @@ This command analyzes the current state of the codebase and updates a specified 
 >     ├── momentum-scalping-v1.md
 >     └── README.md
 > ```
-> 
+>
 > **Usage:** Run this command with a specific file, e.g., `@docs/PRDs/system_architecture.md`
 
 ---
@@ -197,18 +197,18 @@ For each discrepancy, show the proposed change:
 Before making changes, ask:
 
 > **Ready to update the documentation.**
-> 
+>
 > Changes will affect:
 > - X sections updated
 > - Y new sections added
 > - Z lines modified
-> 
+>
 > **Options:**
 > 1. **Apply all changes** - Update the entire document
 > 2. **Review changes one-by-one** - Approve each section individually
 > 3. **Apply specific sections** - Choose which sections to update
 > 4. **Export diff only** - Show changes without applying
-> 
+>
 > Which would you like?
 
 ---

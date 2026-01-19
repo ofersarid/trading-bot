@@ -63,15 +63,15 @@ class TradingConfig:
     trade_threshold: float = 0.30
     take_profit_pct: float = 0.50
     stop_loss_pct: float = -0.30
-    
+
     # Position sizing
     position_size_pct: float = 0.10
-    
+
     # Analysis
     momentum_lookback_seconds: int = 60
     market_analysis_interval: int = 10
     price_history_maxlen: int = 500
-    
+
     # Display
     max_trades_displayed: int = 15
     orderbook_depth: int = 8
@@ -102,16 +102,16 @@ Move to `bot/core/analysis/opportunities.py`:
 class OpportunityAnalyzer:
     def __init__(self, config: TradingConfig):
         self.config = config
-    
+
     def should_track(self, momentum_pct: float) -> bool:
         ...
-    
+
     def should_trade(self, momentum_pct: float) -> bool:
         ...
-    
+
     def create_opportunity(self, coin: str, direction: str, price: float) -> PendingOpportunity:
         ...
-    
+
     def validate_conditions(self, opp: PendingOpportunity, ...) -> None:
         ...
 ```
@@ -122,7 +122,7 @@ Move to `bot/core/analysis/market.py`:
 class MarketAnalyzer:
     def analyze_conditions(self, price_history: dict, prices: dict) -> MarketCondition:
         ...
-    
+
     def get_condition_description(self, avg_volatility: float) -> tuple[str, str, str]:
         """Returns (emoji_label, color, description)."""
         ...
@@ -137,11 +137,11 @@ class PricesPanel(Static):
     def __init__(self, coins: list[str]):
         super().__init__()
         self.coins = coins
-    
+
     def compose(self) -> ComposeResult:
         yield Static("💰 PRICES & MOMENTUM", classes="panel-title")
         yield RichLog(id="prices-log", highlight=True, markup=True)
-    
+
     def update(self, prices: dict, prev_prices: dict, momentum: dict) -> None:
         ...
 ```

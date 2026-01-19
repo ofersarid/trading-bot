@@ -15,8 +15,8 @@ This script lets you:
 4. Experiment with custom market scenarios
 """
 
-import asyncio
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
@@ -28,22 +28,23 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from bot.ai.ollama_client import OllamaClient
 from bot.ai.strategies import (
+    STRATEGY_DESCRIPTIONS,
     TradingStrategy,
     get_strategy_prompt,
-    list_strategies,
-    STRATEGY_DESCRIPTIONS,
 )
 from bot.core.models import MarketPressure
 
 # Custom style for questionary prompts
-MENU_STYLE = Style([
-    ("qmark", "fg:cyan bold"),
-    ("question", "fg:white bold"),
-    ("answer", "fg:green bold"),
-    ("pointer", "fg:cyan bold"),
-    ("highlighted", "fg:cyan bold"),
-    ("selected", "fg:green"),
-])
+MENU_STYLE = Style(
+    [
+        ("qmark", "fg:cyan bold"),
+        ("question", "fg:white bold"),
+        ("answer", "fg:green bold"),
+        ("pointer", "fg:cyan bold"),
+        ("highlighted", "fg:cyan bold"),
+        ("selected", "fg:green"),
+    ]
+)
 
 
 # =============================================================================
@@ -154,7 +155,7 @@ def format_prompt_with_data(
         trades_str = f"  {buys} buys, {sells} sells in last minute"
     else:
         trades_str = "  No recent trades"
-    
+
     # Calculate market pressure
     pressure = MarketPressure.calculate(
         orderbook=orderbook_for_pressure,
@@ -190,7 +191,7 @@ def print_section(title: str) -> None:
 async def check_ollama() -> OllamaClient | None:
     """Check if Ollama is running and return client."""
     client = OllamaClient(model="mistral")
-    
+
     if await client.is_available():
         print("✓ Ollama server connected")
         print(f"  Model: {client.model}")
@@ -213,7 +214,7 @@ async def run_analysis(
     show_prompt: bool = True,
 ) -> None:
     """Run AI analysis with a specific strategy and scenario."""
-    
+
     strategy_prompt = get_strategy_prompt(strategy)
     prompt = format_prompt_with_data(
         strategy_prompt,
@@ -222,22 +223,24 @@ async def run_analysis(
         scenario["orderbook"],
         scenario["recent_trades"],
     )
-    
+
     if show_prompt:
         print_section("PROMPT SENT TO AI")
         print(prompt)
-    
+
     print_section("AI RESPONSE")
     print("Thinking...", end="", flush=True)
-    
+
     response, tokens, time_ms = await client.analyze(prompt)
-    print(f"\r", end="")  # Clear "Thinking..."
-    
+    print("\r", end="")  # Clear "Thinking..."
+
     # Parse and highlight the response
     for line in response.strip().split("\n"):
         if line.startswith("SENTIMENT:"):
             sentiment = line.split(":", 1)[1].strip()
-            color = {"BULLISH": "\033[92m", "BEARISH": "\033[91m", "NEUTRAL": "\033[93m"}.get(sentiment, "")
+            color = {"BULLISH": "\033[92m", "BEARISH": "\033[91m", "NEUTRAL": "\033[93m"}.get(
+                sentiment, ""
+            )
             print(f"SENTIMENT: {color}{sentiment}\033[0m")
         elif line.startswith("CONFIDENCE:"):
             conf = line.split(":", 1)[1].strip()
@@ -280,7 +283,12 @@ async def run_analysis(
                 print(f"PRESSURE: {pressure_val}")
         elif line.startswith("FRESHNESS:"):
             freshness = line.split(":", 1)[1].strip()
-            colors = {"FRESH": "\033[92m", "DEVELOPING": "\033[96m", "EXTENDED": "\033[93m", "EXHAUSTED": "\033[91m"}
+            colors = {
+                "FRESH": "\033[92m",
+                "DEVELOPING": "\033[96m",
+                "EXTENDED": "\033[93m",
+                "EXHAUSTED": "\033[91m",
+            }
             color = colors.get(freshness.upper(), "")
             print(f"FRESHNESS: {color}{freshness}\033[0m")
         elif line.startswith("REASON:"):
@@ -288,16 +296,16 @@ async def run_analysis(
             print(f"REASON: \033[90m{reason}\033[0m")
         else:
             print(line)
-    
+
     print()
     print(f"⚡ {tokens} tokens in {time_ms:.0f}ms")
 
 
 async def interactive_mode(client: OllamaClient) -> None:
     """Run interactive testing mode."""
-    
+
     print_header("AI STRATEGY TESTER - Interactive Mode")
-    
+
     menu_choices = [
         "Test a strategy with a scenario",
         "Compare all strategies on one scenario",
@@ -305,7 +313,7 @@ async def interactive_mode(client: OllamaClient) -> None:
         "List strategies and their descriptions",
         "Exit",
     ]
-    
+
     while True:
         print()
         choice = await questionary.select(
@@ -315,7 +323,7 @@ async def interactive_mode(client: OllamaClient) -> None:
             use_arrow_keys=True,
             use_shortcuts=True,
         ).ask_async()
-        
+
         if choice is None or choice == "Exit":
             print("\nGoodbye!")
             break
@@ -332,7 +340,7 @@ async def interactive_mode(client: OllamaClient) -> None:
 def show_strategies() -> None:
     """Display all available strategies."""
     print_header("AVAILABLE STRATEGIES")
-    
+
     for strategy in TradingStrategy:
         print(f"\n  {strategy.value.upper()}")
         print(f"  └─ {STRATEGY_DESCRIPTIONS[strategy]}")
@@ -341,7 +349,7 @@ def show_strategies() -> None:
 def show_scenarios() -> None:
     """Display all available scenarios."""
     print("\nAvailable scenarios:")
-    for i, (key, scenario) in enumerate(SCENARIOS.items(), 1):
+    for i, scenario in enumerate(SCENARIOS.values(), 1):
         print(f"  {i}. {scenario['name']}")
         print(f"     {scenario['description']}")
 
@@ -356,7 +364,7 @@ async def select_strategy() -> TradingStrategy | None:
         )
         for s in strategies
     ]
-    
+
     return await questionary.select(
         "Select a strategy:",
         choices=choices,
@@ -374,7 +382,7 @@ async def select_scenario() -> dict | None:
         )
         for scenario in SCENARIOS.values()
     ]
-    
+
     return await questionary.select(
         "Select a market scenario:",
         choices=choices,
@@ -388,11 +396,11 @@ async def test_single(client: OllamaClient) -> None:
     strategy = await select_strategy()
     if strategy is None:
         return
-    
+
     scenario = await select_scenario()
     if scenario is None:
         return
-    
+
     print_header(f"Testing: {strategy.value.upper()} on {scenario['name']}")
     await run_analysis(client, strategy, scenario)
 
@@ -402,9 +410,9 @@ async def compare_strategies(client: OllamaClient) -> None:
     scenario = await select_scenario()
     if scenario is None:
         return
-    
+
     print_header(f"Comparing ALL strategies on: {scenario['name']}")
-    
+
     for strategy in TradingStrategy:
         print_section(f"Strategy: {strategy.value.upper()}")
         await run_analysis(client, strategy, scenario, show_prompt=False)
@@ -416,11 +424,11 @@ async def test_all_scenarios(client: OllamaClient) -> None:
     strategy = await select_strategy()
     if strategy is None:
         return
-    
+
     print_header(f"Testing {strategy.value.upper()} on ALL scenarios")
-    
-    for key, scenario in SCENARIOS.items():
-        print_section(scenario['name'])
+
+    for scenario in SCENARIOS.values():
+        print_section(scenario["name"])
         await run_analysis(client, strategy, scenario, show_prompt=False)
         print()
 
@@ -438,17 +446,20 @@ Examples:
         """,
     )
     parser.add_argument(
-        "-s", "--strategy",
+        "-s",
+        "--strategy",
         choices=[s.value for s in TradingStrategy],
         help="Strategy to use",
     )
     parser.add_argument(
-        "-c", "--scenario",
+        "-c",
+        "--scenario",
         choices=list(SCENARIOS.keys()),
         help="Market scenario to test",
     )
     parser.add_argument(
-        "--list", "-l",
+        "--list",
+        "-l",
         action="store_true",
         help="List available strategies and exit",
     )
@@ -457,30 +468,30 @@ Examples:
         action="store_true",
         help="Compare all strategies on the selected scenario",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.list:
         show_strategies()
         print()
         show_scenarios()
         return
-    
+
     # Check Ollama
     print_header("AI STRATEGY TESTER")
     client = await check_ollama()
     if not client:
         return
-    
+
     try:
         if args.strategy and args.scenario:
             # Direct mode: specific strategy + scenario
             strategy = TradingStrategy(args.strategy)
             scenario = SCENARIOS[args.scenario]
-            
+
             print_header(f"{strategy.value.upper()} on {scenario['name']}")
             await run_analysis(client, strategy, scenario)
-            
+
         elif args.strategy and args.compare:
             # Compare all strategies
             scenario = SCENARIOS.get(args.scenario, SCENARIOS["bullish_momentum"])
@@ -488,19 +499,19 @@ Examples:
             for strategy in TradingStrategy:
                 print_section(strategy.value.upper())
                 await run_analysis(client, strategy, scenario, show_prompt=False)
-                
+
         elif args.strategy:
             # Quick test with default bullish scenario
             strategy = TradingStrategy(args.strategy)
             scenario = SCENARIOS["bullish_momentum"]
-            
+
             print_header(f"Quick Test: {strategy.value.upper()}")
             await run_analysis(client, strategy, scenario)
-            
+
         else:
             # Interactive mode
             await interactive_mode(client)
-            
+
     finally:
         await client.close()
 

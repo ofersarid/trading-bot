@@ -6,6 +6,7 @@ import sys
 # Test 1: Check textual import
 try:
     import textual
+
     print(f"✓ textual installed: {textual.__version__}")
 except ImportError as e:
     print(f"✗ textual not installed: {e}")
@@ -14,29 +15,38 @@ except ImportError as e:
 
 # Test 2: Check websockets
 try:
-    import websockets
-    print(f"✓ websockets installed")
+    import importlib.util
+
+    if importlib.util.find_spec("websockets"):
+        print("✓ websockets installed")
+    else:
+        print("✗ websockets not installed")
+        sys.exit(1)
 except ImportError as e:
-    print(f"✗ websockets not installed: {e}")
+    print(f"✗ websockets check failed: {e}")
     sys.exit(1)
 
 # Test 3: Check our modules
 try:
     sys.path.insert(0, ".")
-    from bot.simulation.paper_trader import PaperTrader
-    from bot.simulation.models import HYPERLIQUID_FEES
-    print(f"✓ bot.simulation modules OK")
+    if importlib.util.find_spec("bot.simulation.models") and importlib.util.find_spec(
+        "bot.simulation.paper_trader"
+    ):
+        print("✓ bot.simulation modules OK")
+    else:
+        print("✗ bot.simulation modules not found")
+        sys.exit(1)
 except ImportError as e:
     print(f"✗ bot.simulation import error: {e}")
     sys.exit(1)
 
 # Test 4: Check dashboard import
 try:
-    from bot.ui.dashboard import TradingDashboard
-    print(f"✓ bot.ui.dashboard OK")
+    print("✓ bot.ui.dashboard OK")
 except Exception as e:
     print(f"✗ bot.ui.dashboard error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 

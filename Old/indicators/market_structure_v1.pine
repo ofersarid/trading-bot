@@ -214,7 +214,7 @@ plotshape(
 
 plotshape(
      show_swing_points and not na(pivot_low) ? pivot_low : na,
-     title="Swing Low", 
+     title="Swing Low",
      style=shape.triangleup,
      location=location.absolute,
      color=bull_color,
@@ -336,7 +336,7 @@ var table info_table = table.new(position.top_right, 2, 3, bgcolor=color.new(col
 if barstate.islast
     trend_text = trend_state == 1 ? "UPTREND" : trend_state == -1 ? "DOWNTREND" : "RANGING"
     trend_color = trend_state == 1 ? bull_color : trend_state == -1 ? bear_color : color.gray
-    
+
     table.cell(info_table, 0, 0, "Trend:", text_color=color.white, text_size=size.small)
     table.cell(info_table, 1, 0, trend_text, text_color=trend_color, text_size=size.small)
     table.cell(info_table, 0, 1, "BOS Count:", text_color=color.white, text_size=size.small)

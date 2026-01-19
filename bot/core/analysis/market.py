@@ -14,6 +14,7 @@ from bot.core.config import TradingConfig
 
 class MarketConditionLevel(Enum):
     """Market volatility classification levels."""
+
     VERY_CALM = "very_calm"
     CALM = "calm"
     ACTIVE = "active"
@@ -23,6 +24,7 @@ class MarketConditionLevel(Enum):
 
 class CoinStatus(Enum):
     """Individual coin momentum status."""
+
     RISING = "rising"
     FALLING = "falling"
     FLAT = "flat"
@@ -31,6 +33,7 @@ class CoinStatus(Enum):
 @dataclass
 class CoinAnalysis:
     """Analysis result for a single coin."""
+
     coin: str
     momentum: float
     price: float
@@ -41,10 +44,11 @@ class CoinAnalysis:
 @dataclass
 class MarketAnalysis:
     """Complete market analysis result."""
+
     condition: MarketConditionLevel
     avg_abs_momentum: float
     coin_analyses: list[CoinAnalysis]
-    
+
     @property
     def condition_label(self) -> str:
         """Human-readable condition label with emoji."""
@@ -56,7 +60,7 @@ class MarketAnalysis:
             MarketConditionLevel.VERY_VOLATILE: "🔥 VERY VOLATILE",
         }
         return labels[self.condition]
-    
+
     @property
     def condition_color(self) -> str:
         """Rich markup color for the condition."""
@@ -68,7 +72,7 @@ class MarketAnalysis:
             MarketConditionLevel.VERY_VOLATILE: "magenta",
         }
         return colors[self.condition]
-    
+
     @property
     def description(self) -> str:
         """Description of market condition."""
@@ -85,13 +89,13 @@ class MarketAnalysis:
 class MarketAnalyzer:
     """
     Analyzes market conditions based on price momentum.
-    
+
     Separates the computation logic from UI/display concerns.
     """
-    
+
     def __init__(self, config: TradingConfig):
         self.config = config
-    
+
     def analyze(
         self,
         coins: list[str],
@@ -101,28 +105,28 @@ class MarketAnalyzer:
     ) -> MarketAnalysis | None:
         """
         Analyze current market conditions.
-        
+
         Args:
             coins: List of coin symbols to analyze
             prices: Current prices by coin
             price_history: Price history deques by coin
             momentum_timeframe: Lookback period in seconds
-        
+
         Returns:
             MarketAnalysis result or None if insufficient data
         """
         now = datetime.now()
         coin_analyses: list[CoinAnalysis] = []
-        
+
         for coin in coins:
             history = price_history.get(coin)
             if not history or len(history) < 2:
                 continue
-            
+
             current_price = prices.get(coin, 0)
             if not current_price:
                 continue
-            
+
             # Get price from configured timeframe ago
             lookback_price = None
             for point in history:
@@ -130,13 +134,13 @@ class MarketAnalyzer:
                 if age >= momentum_timeframe:
                     lookback_price = point["price"]
                     break
-            
+
             if not lookback_price:
                 continue
-            
+
             momentum = ((current_price - lookback_price) / lookback_price) * 100
             change = current_price - lookback_price
-            
+
             # Determine coin status
             if momentum > self.config.coin_rising_threshold:
                 status = CoinStatus.RISING
@@ -144,21 +148,23 @@ class MarketAnalyzer:
                 status = CoinStatus.FALLING
             else:
                 status = CoinStatus.FLAT
-            
-            coin_analyses.append(CoinAnalysis(
-                coin=coin,
-                momentum=momentum,
-                price=current_price,
-                change=change,
-                status=status,
-            ))
-        
+
+            coin_analyses.append(
+                CoinAnalysis(
+                    coin=coin,
+                    momentum=momentum,
+                    price=current_price,
+                    change=change,
+                    status=status,
+                )
+            )
+
         if not coin_analyses:
             return None
-        
+
         # Calculate overall market volatility
         avg_abs_momentum = sum(abs(ca.momentum) for ca in coin_analyses) / len(coin_analyses)
-        
+
         # Determine market condition level
         cfg = self.config
         if avg_abs_momentum < cfg.market_very_calm_threshold:
@@ -171,10 +177,10 @@ class MarketAnalyzer:
             condition = MarketConditionLevel.VOLATILE
         else:
             condition = MarketConditionLevel.VERY_VOLATILE
-        
+
         # Sort by absolute momentum (most volatile first)
         coin_analyses.sort(key=lambda ca: abs(ca.momentum), reverse=True)
-        
+
         return MarketAnalysis(
             condition=condition,
             avg_abs_momentum=avg_abs_momentum,

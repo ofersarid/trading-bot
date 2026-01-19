@@ -111,7 +111,7 @@ market := last_l0 == l0 or last_h0 == h0 ? market : market == 1 and l0 < l1 and 
 bu_ob_index = bar_index
 bu_ob_index := nz(bu_ob_index[1], bar_index)
 for i=h1i to l0i[zigzag_len]
-    index = bar_index - i 
+    index = bar_index - i
     if open[index] > close[index]
         bu_ob_index := bar_index[index]
 
@@ -120,7 +120,7 @@ bu_ob_since = bar_index - bu_ob_index
 be_ob_index = bar_index
 be_ob_index := nz(be_ob_index[1], bar_index)
 for i=l1i to h0i[zigzag_len]
-    index = bar_index - i 
+    index = bar_index - i
     if open[index] < close[index]
         be_ob_index := bar_index[index]
 
@@ -169,7 +169,7 @@ for bull_ob in bu_ob_boxes
         alert("Price in the BU-OB zone")
     else
         box.set_right(bull_ob, bar_index + 10)
-    
+
 for bear_ob in be_ob_boxes
     top = box.get_top(bear_ob)
     bottom = box.get_bottom((bear_ob))
@@ -179,7 +179,7 @@ for bear_ob in be_ob_boxes
         alert("Price in the BE-OB zone")
     else
         box.set_right(bear_ob, bar_index + 10)
-        
+
 for bear_bb in be_bb_boxes
     top = box.get_top(bear_bb)
     bottom = box.get_bottom(bear_bb)
@@ -189,7 +189,7 @@ for bear_bb in be_bb_boxes
         alert("Price in the BE-BB zone")
     else
         box.set_right(bear_bb, bar_index + 10)
-        
+
 for bull_bb in bu_bb_boxes
     bottom = box.get_bottom(bull_bb)
     top = box.get_top(bull_bb)

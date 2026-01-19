@@ -45,7 +45,7 @@ Once all files are confirmed, generate a comprehensive report with the following
 #### Minimum Criteria (All Must Pass)
 - **Previous Trend BOS Count:** How many BOS in the opposite direction occurred before this setup?
 - **CHoCH Detected:** Was a Change of Character identified? At what price level?
-- **Valid FVG:** Was a Fair Value Gap formed? 
+- **Valid FVG:** Was a Fair Value Gap formed?
   - FVG size (percentage)
   - FVG top and bottom prices
 
@@ -94,7 +94,7 @@ This is crucial - explain what happened to the trade:
   - Take profit reached
   - Opposite CHoCH (counter-trend CHoCH that would close the position)
   - Opposite BOS accumulation
-  
+
 **Common exit scenarios:**
 1. **Stop Loss:** Price moved against position and hit stop
 2. **Take Profit:** Price reached target (rare in the data we saw)

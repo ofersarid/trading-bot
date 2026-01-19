@@ -20,8 +20,8 @@ float KDEBandwidth = input.float(0.10, "Bandwidth", minval = 0.01, step = 0.1, g
 int KDEStep = input.int(100, "Nº Bins", minval = 1, group = "KDE", tooltip = "The number of elements the KDE Probability array will have. Higher settings will result in greater precision.")
 float activationThresholdInput = input.float(70, "KDE Threshold %", minval = 0, maxval = 100, step = 2.50, group = "KDE", tooltip = "This setting sets the KDE% threshold that must be exceeeded to indicate buy or sell signals.")
 int barLength = input.int(25, "Relative Volume Length", minval = 1, group = "KDE", tooltip = "This setting sets the number of candles back to calculate Relative Breakout Volume")
-string probMode = "Sum"    
-activationThreshold = activationThresholdInput/100     
+string probMode = "Sum"
+activationThreshold = activationThresholdInput/100
 activationThresholdEnabled = input.bool(false, "Enable Activation Threshold", group = "KDE", tooltip = "Only trigger a supertrend direction change if the relative volume's percentile is above the KDE Threshold %")
 
 //Style Inputs
@@ -38,8 +38,8 @@ ShowErrors = input.bool(true, "Show Errors", group = "Style")
 gaussian (float distance, float bandwidth = 1.0) => 1.0 / math.sqrt(2.0 * math.pi) * math.pow(math.e, -0.5 * math.pow(distance / bandwidth, 2.0))
 
 //KDE Probability
-var float volumeProb = na      
-float maxVolumeProb = na        
+var float volumeProb = na
+float maxVolumeProb = na
 
 type KDE
     float mid = na
@@ -51,13 +51,13 @@ kde (array<float> arr, string kernel, float bandwidth, int steps) =>
     arrSize = arr.size()
     arrMax = 3  //99.7% of values fall between -3 and 3
     arrMin = -3
-    arrRange = arrMax - arrMin 
+    arrRange = arrMax - arrMin
     stepCount = arrRange / steps
-    
+
     densityRange = array.new<float>(steps)          //calculate values to apply the kernel estimate
     for i = 0 to (steps) - 1
         densityRange.set(i, arrMin + i * stepCount)
-    
+
     xArr = array.new<float>()
     yArr = array.new<float>()
     for i = 0 to densityRange.size() - 1
@@ -79,7 +79,7 @@ kde (array<float> arr, string kernel, float bandwidth, int steps) =>
 bullishBreak = ta.crossover(close, Pine_Supertrend) and barstate.isconfirmed
 bearishBreak = ta.crossunder(close, Pine_Supertrend) and barstate.isconfirmed
 
-// Buy Sell Volume 
+// Buy Sell Volume
 buyVolumeTotal = volume * (close-low)/(high-low)
 sellVolumeTotal = volume * (high-close)/(high-low)
 buyVolumeTotalAverage = ta.ema(buyVolumeTotal, barLength)
@@ -116,8 +116,8 @@ if(not na(volume))
         volumeOnBullishBreak.push(buyVolume)
         normalizedVolumeOnBreak = array.standardize(volumeOnBullishBreak) //normalized array
         [bullishKDEX1, bullishKDEY1] = kde(normalizedVolumeOnBreak, KDEKernel, KDEBandwidth, KDEStep)
-        
-        bullishKDE.X := bullishKDEX1     
+
+        bullishKDE.X := bullishKDEX1
         bullishKDE.Y := bullishKDEY1
 
         bullishKDE.YSum.clear()
@@ -134,7 +134,7 @@ if(not na(volume))
         volumeOnBearishBreak.push(sellVolume)
         normalizedVolumeOnBreak = array.standardize(volumeOnBearishBreak) //normalized array
         [bearishKDEX1, bearishKDEY1] = kde(normalizedVolumeOnBreak, KDEKernel, KDEBandwidth, KDEStep)
-        bearishKDE.X := bearishKDEX1     
+        bearishKDE.X := bearishKDEX1
         bearishKDE.Y := bearishKDEY1
         bearishKDE.YSum.clear()
 
@@ -143,16 +143,16 @@ if(not na(volume))
             temp += bearishKDE.Y.get(i)
             bearishKDE.YSum.push(temp)
         bearishKDE.mid := array.get(bearishKDE.X, array.indexof(bearishKDE.Y, array.max(bearishKDE.Y)))
-        
+
 prefixSum (array<float> arr, int l, int r) =>
     arr.get(r) - (l == 0 ? 0 : arr.get(l - 1))
 
 //Standardize param: val based on param arr
-standardize(float val, array<float> arr) =>    
-    meanValue = array.avg(arr)        
-    stdDevArr = array.stdev(arr)   
+standardize(float val, array<float> arr) =>
+    meanValue = array.avg(arr)
+    stdDevArr = array.stdev(arr)
     stdVal = (val-meanValue)/stdDevArr
-    stdVal                                     
+    stdVal
 
 getSupertrendTransparency(KDEProb) =>
     newValue = (KDEProb*(supertrend_max_opacity - supertrend_min_opacity)) + supertrend_min_opacity
@@ -166,8 +166,8 @@ overKDEThreshold(KDEprob) =>
         false
 
 
-bull = pineDirection < 0 and not na(volume) 
-bear = pineDirection > 0 and not na(volume) 
+bull = pineDirection < 0 and not na(volume)
+bear = pineDirection > 0 and not na(volume)
 
 
 //Finds Estimated Density Value
@@ -188,7 +188,7 @@ if(bear)
         nearestIndex = (math.abs(vol - bearishKDE.X.get(volXIndexL)) < math.abs(vol - bearishKDE.X.get(volXIndexR))) ? volXIndexL : volXIndexR
         if probMode == "Sum"
             volumeProb := prefixSum(bearishKDE.YSum, 0, nearestIndex)
-//#endregion   
+//#endregion
 
 threshold_condition = not activationThresholdEnabled or overKDEThreshold(volumeProb)
 
@@ -216,7 +216,7 @@ else
     //table.cell(table, row=0, column=0, text = "Relative Volume KDE: "+ str.tostring(volumeProb * 100, "#.#") + "%", text_color = color.white, bgcolor = color.new(color.blue, 60))
     table.clear(table, 0, 0)
 
- 
+
 upTrend = plot(bull ? Pine_Supertrend : na, "Up direction", showSuperTrendLine ? supertrend_color : na, style=plot.style_linebr )
 downTrend = plot(bear ? Pine_Supertrend : na, "Down direction", showSuperTrendLine ? supertrend_color : na, style=plot.style_linebr)
 bodyMiddle = plot(barstate.isfirst ? na : (open + close) / 2, "Body Middle",display = display.none)

@@ -18,7 +18,7 @@ CHoCH detects trend reversals. It builds on three concepts:
 
 ### Step 1: Swing Point Detection
 
-A **swing high** is a candle where the high is higher than X candles on both sides.  
+A **swing high** is a candle where the high is higher than X candles on both sides.
 A **swing low** is a candle where the low is lower than X candles on both sides.
 
 ```
@@ -37,7 +37,7 @@ BOS = price **closes** beyond the last swing point in the trend direction.
 | **Bullish BOS** | `close > last_swing_high` AND `close[1] <= last_swing_high` |
 | **Bearish BOS** | `close < last_swing_low` AND `close[1] >= last_swing_low` |
 
-Each BOS in the same direction increments `bos_count`.  
+Each BOS in the same direction increments `bos_count`.
 When direction changes, `bos_count` resets to 1.
 
 ### Step 3: CHoCH Detection
@@ -118,7 +118,7 @@ TIME →   [oldest]                      [newest]
 **In plain English:** Candle 2 dropped so fast that Candle 1's bottom doesn't touch Candle 3's top.
 
 **The gap = the empty space between them**
-- Top of gap = Candle 1's low  
+- Top of gap = Candle 1's low
 - Bottom of gap = Candle 3's high
 - Entry = middle of the gap (50%)
 

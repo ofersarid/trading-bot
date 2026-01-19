@@ -1,7 +1,7 @@
 # The Perfect Beginner DAY TRADING Strategy (Step-by-Step)
 
-**Author:** Craig Percoco  
-**Source:** YouTube  
+**Author:** Craig Percoco
+**Source:** YouTube
 **Date Watched:** January 11, 2026
 
 ---

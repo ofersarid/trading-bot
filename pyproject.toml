@@ -1,0 +1,91 @@
+# Python project configuration
+# https://packaging.python.org/en/latest/guides/writing-pyproject-toml/
+
+[project]
+name = "trading-bot"
+version = "0.1.0"
+description = "AI-powered crypto trading bot for Hyperliquid"
+requires-python = ">=3.11"
+readme = "docs/README.md"
+
+dependencies = [
+    "hyperliquid-python-sdk>=0.8.0",
+    "eth-account>=0.10.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "httpx>=0.27.0",
+    "websockets>=12.0",
+    "textual>=0.47.0",
+    "textual-slider>=0.1.0",
+    "questionary>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+    "pre-commit>=3.7.0",
+    "watchfiles>=0.21.0",
+]
+
+# ============================================================
+# RUFF - Linting & Formatting (replaces flake8, black, isort)
+# ============================================================
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["bot"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort (import sorting)
+    "B",      # flake8-bugbear (common bugs)
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade (modern Python syntax)
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "RUF",    # Ruff-specific rules
+    "ASYNC",  # async best practices
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # function call in default argument (needed for FastAPI-style DI)
+    "RUF012", # mutable class attrs - false positive for Textual BINDINGS
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bot"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+# ============================================================
+# MYPY - Static Type Checking
+# ============================================================
+[tool.mypy]
+python_version = "3.11"
+strict = false  # Start permissive, tighten over time
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disallow_untyped_defs = false  # Enable later when codebase is more typed
+
+# Per-module overrides - ignore missing stubs for third-party libs
+[[tool.mypy.overrides]]
+module = [
+    "hyperliquid.*",
+    "textual.*",
+    "questionary.*",
+    "websockets.*",
+    "eth_account.*",
+    "dotenv.*",
+    "rich.*",
+]
+ignore_missing_imports = true

@@ -27,7 +27,7 @@
 //
 // STRATEGY OVERVIEW
 // -----------------
-// This strategy identifies trend reversals using Change of Character (CHoCH) 
+// This strategy identifies trend reversals using Change of Character (CHoCH)
 // and enters at Fair Value Gap (FVG) retracements.
 //
 // THE 3-STEP SETUP (Craig Percoco):
@@ -75,7 +75,7 @@
 //
 // ============================================================================
 
-strategy("CHoCH + FVG Strategy", "CHoCH-FVG", overlay=true, 
+strategy("CHoCH + FVG Strategy", "CHoCH-FVG", overlay=true,
      default_qty_type=strategy.cash,
      default_qty_value=100,
      initial_capital=100,
@@ -330,7 +330,7 @@ cleanup_fvgs(FVG[] fvg_arr, int max_count, bool show_mit, int max_age) =>
                 box.delete(fvg.fvg_box)
                 line.delete(fvg.mid_line)
                 array.remove(fvg_arr, i)
-    
+
     while array.size(fvg_arr) > max_count
         old_fvg = array.shift(fvg_arr)
         box.delete(old_fvg.fvg_box)
@@ -556,15 +556,15 @@ if long_setup and strategy.position_size == 0 and not pending_short
     // Take profit at R:R ratio
     risk = entry_price - stop_loss
     take_profit := entry_price + (risk * risk_reward)
-    
+
     // Calculate position size based on grade
     // Position % is: A+ = 80%, A = 70%, B = 60%, C = 50% (configurable in inputs)
     position_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
     position_value = strategy.equity * (position_pct / 100)
     position_qty = position_value / entry_price
-    
+
     log.info("🔵 LONG SETUP DETECTED | Bar: " + str.tostring(bar_index) + " | Grade: " + current_grade + " | Entry: " + str.tostring(entry_price, "#.##") + " | Stop: " + str.tostring(stop_loss, "#.##") + " | Position: " + str.tostring(position_pct, "#") + "% of $" + str.tostring(strategy.equity, "#.##") + " = " + str.tostring(position_qty, "#.######") + " units")
-    
+
     // Check if price already touched entry zone on this bar
     if low <= entry_price
         // Price already touched entry - enter immediately
@@ -595,25 +595,25 @@ if long_setup and strategy.position_size == 0 and not pending_short
              color=entry_color, style=line.style_dashed, width=2)
         entry_label := label.new(bar_index + BOX_EXTEND_BARS, entry_price, "Entry " + str.tostring(entry_price, "#.##") + grade_text,
              style=label.style_label_left, color=color.new(entry_color, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
-        
+
         // Take Profit line and label
         tp_line := line.new(bar_index, take_profit, bar_index + BOX_EXTEND_BARS, take_profit,
              color=color.green, style=line.style_solid, width=2)
         tp_label := label.new(bar_index + BOX_EXTEND_BARS, take_profit, "TP " + str.tostring(take_profit, "#.##") + " (" + str.tostring(risk_reward, "#.#") + "R)",
              style=label.style_label_left, color=color.new(color.green, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
-        
+
         // Stop Loss line and label
         sl_line := line.new(bar_index, stop_loss, bar_index + BOX_EXTEND_BARS, stop_loss,
              color=color.red, style=line.style_solid, width=2)
         sl_label := label.new(bar_index + BOX_EXTEND_BARS, stop_loss, "SL " + str.tostring(stop_loss, "#.##"),
              style=label.style_label_left, color=color.new(color.red, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
-    
+
     // Show quality factor breakdown (positioned well below the SETUP label to avoid overlap)
     if not hide_all_visuals and show_quality_breakdown
         breakdown_text = "📊 LONG " + current_grade + " (" + str.tostring(current_quality_score) + "/5)\n" + get_quality_breakdown_long()
         // Position breakdown label further below to avoid overlapping SETUP label
         breakdown_y = low - (high - low) * 3.0
-        label.new(bar_index, breakdown_y, breakdown_text, 
+        label.new(bar_index, breakdown_y, breakdown_text,
              style=label.style_label_center, color=color.new(color.black, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
         // Draw connecting line from setup to breakdown
         line.new(bar_index, low, bar_index, breakdown_y, color=bull_color, width=1, style=line.style_dotted)
@@ -647,15 +647,15 @@ if short_setup and strategy.position_size == 0 and not pending_long
     // Take profit at R:R ratio
     risk = stop_loss - entry_price
     take_profit := entry_price - (risk * risk_reward)
-    
+
     // Calculate position size based on grade
     // Position % is: A+ = 80%, A = 70%, B = 60%, C = 50% (configurable in inputs)
     position_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
     position_value = strategy.equity * (position_pct / 100)
     position_qty = position_value / entry_price
-    
+
     log.info("🔴 SHORT SETUP DETECTED | Bar: " + str.tostring(bar_index) + " | Grade: " + current_grade + " | Entry: " + str.tostring(entry_price, "#.##") + " | Stop: " + str.tostring(stop_loss, "#.##") + " | Position: " + str.tostring(position_pct, "#") + "% of $" + str.tostring(strategy.equity, "#.##") + " = " + str.tostring(position_qty, "#.######") + " units")
-    
+
     // Check if price already touched entry zone on this bar
     if high >= entry_price
         // Price already touched entry - enter immediately
@@ -686,25 +686,25 @@ if short_setup and strategy.position_size == 0 and not pending_long
              color=entry_color, style=line.style_dashed, width=2)
         entry_label := label.new(bar_index + BOX_EXTEND_BARS, entry_price, "Entry " + str.tostring(entry_price, "#.##") + grade_text,
              style=label.style_label_left, color=color.new(entry_color, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
-        
+
         // Take Profit line and label
         tp_line := line.new(bar_index, take_profit, bar_index + BOX_EXTEND_BARS, take_profit,
              color=color.green, style=line.style_solid, width=2)
         tp_label := label.new(bar_index + BOX_EXTEND_BARS, take_profit, "TP " + str.tostring(take_profit, "#.##") + " (" + str.tostring(risk_reward, "#.#") + "R)",
              style=label.style_label_left, color=color.new(color.green, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
-        
+
         // Stop Loss line and label
         sl_line := line.new(bar_index, stop_loss, bar_index + BOX_EXTEND_BARS, stop_loss,
              color=color.red, style=line.style_solid, width=2)
         sl_label := label.new(bar_index + BOX_EXTEND_BARS, stop_loss, "SL " + str.tostring(stop_loss, "#.##"),
              style=label.style_label_left, color=color.new(color.red, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
-    
+
     // Show quality factor breakdown (positioned well above the SETUP label to avoid overlap)
     if not hide_all_visuals and show_quality_breakdown
         breakdown_text = "📊 SHORT " + current_grade + " (" + str.tostring(current_quality_score) + "/5)\n" + get_quality_breakdown_short()
         // Position breakdown label further above to avoid overlapping SETUP label
         breakdown_y = high + (high - low) * 3.0
-        label.new(bar_index, breakdown_y, breakdown_text, 
+        label.new(bar_index, breakdown_y, breakdown_text,
              style=label.style_label_center, color=color.new(color.black, 20), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
         // Draw connecting line from setup to breakdown
         line.new(bar_index, high, bar_index, breakdown_y, color=bear_color, width=1, style=line.style_dotted)
@@ -732,7 +732,7 @@ if pending_long and strategy.position_size == 0 and not na(entry_price) and not 
         position_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
         position_value = strategy.equity * (position_pct / 100)
         position_qty = position_value / entry_price
-        
+
         log.info("✅ LONG RETRACE FILLED | Bar: " + str.tostring(bar_index) + " | Entry: " + str.tostring(entry_price, "#.##") + " | Position: " + str.tostring(position_pct, "#") + "% of $" + str.tostring(strategy.equity, "#.##") + " = " + str.tostring(position_qty, "#.######") + " units")
         strategy.entry("Long", strategy.long, qty=position_qty)
         strategy.exit("Long Exit", "Long", stop=stop_loss, limit=take_profit)
@@ -757,7 +757,7 @@ if pending_short and strategy.position_size == 0 and not na(entry_price) and not
         position_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
         position_value = strategy.equity * (position_pct / 100)
         position_qty = position_value / entry_price
-        
+
         log.info("✅ SHORT RETRACE FILLED | Bar: " + str.tostring(bar_index) + " | Entry: " + str.tostring(entry_price, "#.##") + " | Position: " + str.tostring(position_pct, "#") + "% of $" + str.tostring(strategy.equity, "#.##") + " = " + str.tostring(position_qty, "#.######") + " units")
         strategy.entry("Short", strategy.short, qty=position_qty)
         strategy.exit("Short Exit", "Short", stop=stop_loss, limit=take_profit)
@@ -827,16 +827,16 @@ if last_position_size != 0 and strategy.position_size == 0
     // Position just closed - reset all position-specific flags
     trailing_active := false
     initial_risk := na
-    
+
     exit_price := close
     exit_pnl = strategy.netprofit - nz(strategy.netprofit[1], 0)
     exit_pnl_pct = last_position_size > 0 ? ((exit_price - strategy.position_avg_price[1]) / strategy.position_avg_price[1]) * 100 : ((strategy.position_avg_price[1] - exit_price) / strategy.position_avg_price[1]) * 100
-    
+
     // Determine exit reason
     // NOTE: Stops are triggered by wicks (high/low), not close prices
     exit_reason = ""
     price_tolerance = 50.0  // Wider tolerance to account for wick-based stops vs close-based detection
-    
+
     if last_position_size > 0
         // Was long - stop triggered by LOW, TP triggered by HIGH
         if not na(take_profit[1]) and high >= (take_profit[1] - price_tolerance)
@@ -853,7 +853,7 @@ if last_position_size != 0 and strategy.position_size == 0
             exit_reason := trailing_active[1] ? "Trailing Stop Hit" : "Stop Loss Hit"
         else
             exit_reason := "Manual Close (Close:" + str.tostring(exit_price, "#.##") + " | H:" + str.tostring(high, "#.##") + " | L:" + str.tostring(low, "#.##") + " | SL:" + str.tostring(stop_loss[1], "#.##") + " | TP:" + str.tostring(take_profit[1], "#.##") + ")"
-    
+
     direction = last_position_size > 0 ? "LONG" : "SHORT"
     trailing_status = trailing_active[1] ? "ACTIVE" : "INACTIVE"
     log.info("🚪 " + direction + " EXIT | Bar: " + str.tostring(bar_index) + " | Reason: " + exit_reason + " | Trailing: " + trailing_status + " | P&L: " + str.tostring(exit_pnl_pct, "#.##") + "% | Equity: $" + str.tostring(strategy.equity, "#.##"))
@@ -919,21 +919,21 @@ cleanup_fvgs(bear_fvgs, max_fvgs, show_mitigated, max_age_bars)
 // ============================================================================
 
 // Plot swing points
-plotshape(not hide_all_visuals and show_structure and not na(pivot_high) ? pivot_high : na, 
-     title="Swing High", style=shape.triangledown, 
+plotshape(not hide_all_visuals and show_structure and not na(pivot_high) ? pivot_high : na,
+     title="Swing High", style=shape.triangledown,
      location=location.absolute, color=bear_color, size=size.small, offset=-swing_length)
 
-plotshape(not hide_all_visuals and show_structure and not na(pivot_low) ? pivot_low : na, 
-     title="Swing Low", style=shape.triangleup, 
+plotshape(not hide_all_visuals and show_structure and not na(pivot_low) ? pivot_low : na,
+     title="Swing Low", style=shape.triangleup,
      location=location.absolute, color=bull_color, size=size.small, offset=-swing_length)
 
 // Draw CHoCH labels
 if not hide_all_visuals and show_structure and bullish_choch
-    label.new(bar_index, high, "CHoCH↑", style=label.style_label_down, 
+    label.new(bar_index, high, "CHoCH↑", style=label.style_label_down,
          color=color.new(DEFAULT_CHOCH_BULL_COLOR, 60), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
 
 if not hide_all_visuals and show_structure and bearish_choch
-    label.new(bar_index, low, "CHoCH↓", style=label.style_label_up, 
+    label.new(bar_index, low, "CHoCH↓", style=label.style_label_up,
          color=color.new(DEFAULT_CHOCH_BEAR_COLOR, 60), textcolor=color.white, size=DEFAULT_LABEL_SIZE)
 
 // Entry zone visuals are now created once when setup triggers (see ENTRY SIGNALS section)
@@ -959,60 +959,60 @@ var table info = table.new(position.bottom_right, 2, 11, bgcolor=color.new(color
 if barstate.islast and not hide_all_visuals
     // Clear the table before repopulating to avoid overlapping text
     table.clear(info, 0, 0, 1, 10)
-    
+
     trend_text = trend_state == 1 ? "UPTREND" : trend_state == -1 ? "DOWNTREND" : "RANGING"
     trend_col = trend_state == 1 ? bull_color : trend_state == -1 ? bear_color : color.gray
     confirmed_text = bos_count >= 2 ? "YES" : "NO"
-    
+
     // Grade color
     grade_col = current_grade == "A+" ? color.lime : current_grade == "A" ? color.green : current_grade == "B" ? color.yellow : current_grade == "C" ? color.orange : color.red
-    
+
     // Equity color (green if up, red if down from initial)
     equity_col = strategy.equity >= strategy.initial_capital ? color.lime : color.red
     pnl_pct = ((strategy.equity - strategy.initial_capital) / strategy.initial_capital) * 100
-    
+
     // Row 0: Equity
     table.cell(info, 0, 0, "💰 Equity:", text_color=color.white, text_size=size.normal)
     table.cell(info, 1, 0, "$" + str.tostring(strategy.equity, "#.##"), text_color=equity_col, text_size=size.normal)
-    
+
     // Row 1: Trend with BOS count
     table.cell(info, 0, 1, "📈 Trend:", text_color=color.white, text_size=size.normal)
     table.cell(info, 1, 1, trend_text, text_color=trend_col, text_size=size.normal)
-    
+
     // Row 2: BOS Count (Current / Previous)
     table.cell(info, 0, 2, "BOS (Cur/Prev):", text_color=color.white, text_size=size.normal)
     table.cell(info, 1, 2, str.tostring(bos_count) + " / " + str.tostring(previous_trend_bos_count), text_color=trend_col, text_size=size.normal)
-    
+
     // Row 3: Confirmed Trend
     table.cell(info, 0, 3, "Confirmed:", text_color=color.white, text_size=size.normal)
     table.cell(info, 1, 3, confirmed_text, text_color=bos_count >= 2 ? color.lime : color.red, text_size=size.normal)
-    
+
     // Row 4: Pending
     table.cell(info, 0, 4, "Pending:", text_color=color.white, text_size=size.normal)
-    table.cell(info, 1, 4, pending_long ? "LONG" : pending_short ? "SHORT" : "NONE", 
+    table.cell(info, 1, 4, pending_long ? "LONG" : pending_short ? "SHORT" : "NONE",
          text_color=pending_long ? bull_color : pending_short ? bear_color : color.gray, text_size=size.normal)
-    
+
     // Row 5: R:R
     table.cell(info, 0, 5, "R:R:", text_color=color.white, text_size=size.normal)
     table.cell(info, 1, 5, "1:" + str.tostring(risk_reward, "#.#"), text_color=color.white, text_size=size.normal)
-    
+
     // Row 6: Grade
     table.cell(info, 0, 6, "⭐ Grade:", text_color=color.yellow, text_size=size.normal)
     table.cell(info, 1, 6, current_grade + " (" + str.tostring(current_quality_score) + "/5)", text_color=grade_col, text_size=size.normal)
-    
+
     // Row 7: Position %
     table.cell(info, 0, 7, "Position %:", text_color=color.white, text_size=size.normal)
     display_pct = use_quality_grading ? current_risk_pct : risk_pct_a_plus
     table.cell(info, 1, 7, str.tostring(display_pct, "#.#") + "%", text_color=grade_col, text_size=size.normal)
-    
+
     // Row 8: Min Grade + Size Range combined
     table.cell(info, 0, 8, "Min Grade:", text_color=color.white, text_size=size.normal)
     table.cell(info, 1, 8, min_grade_to_trade, text_color=color.white, text_size=size.normal)
-    
+
     // Row 9: Size Range
     table.cell(info, 0, 9, "Size Range:", text_color=color.white, text_size=size.normal)
     table.cell(info, 1, 9, str.tostring(risk_pct_c, "#") + "% - " + str.tostring(risk_pct_a_plus, "#") + "%", text_color=color.white, text_size=size.normal)
-    
+
     // Row 10: Weekly Average Trades
     // Calculate weeks elapsed since first bar (estimate based on bars and timeframe)
     bars_elapsed = bar_index + 1

@@ -3,10 +3,10 @@
 ## 🎯 Objective
 Grow a $100 paper trading account to $1,000 using algorithmic trading strategies implemented in PineScript on TradingView.
 
-**Target Return:** 900% (10x)  
-**Timeframe:** 2 months  
-**Primary Instrument:** Bitcoin Futures (BTC perpetuals)  
-**Account Type:** Paper/Demo  
+**Target Return:** 900% (10x)
+**Timeframe:** 2 months
+**Primary Instrument:** Bitcoin Futures (BTC perpetuals)
+**Account Type:** Paper/Demo
 
 ---
 
@@ -123,19 +123,19 @@ For each strategy developed:
 **Concept:** [What edge is this exploiting?]
 
 **Entry Rules:**
-1. 
-2. 
+1.
+2.
 
 **Exit Rules:**
-1. 
-2. 
+1.
+2.
 
 **Backtest Results (BTC 15m, 6 months):**
-- Net Profit: 
-- Max Drawdown: 
-- Win Rate: 
-- Profit Factor: 
-- Total Trades: 
+- Net Profit:
+- Max Drawdown:
+- Win Rate:
+- Profit Factor:
+- Total Trades:
 
 **Notes:**
 

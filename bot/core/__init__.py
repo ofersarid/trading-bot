@@ -8,19 +8,19 @@ Modules:
 """
 
 from bot.core.models import (
+    CoinPressure,
+    MarketPressure,
+    MoveFreshness,
     OpportunityCondition,
     PendingOpportunity,
-    MarketPressure,
     PressureLevel,
-    MoveFreshness,
-    CoinPressure,
 )
 
 __all__ = [
+    "CoinPressure",
+    "MarketPressure",
+    "MoveFreshness",
     "OpportunityCondition",
     "PendingOpportunity",
-    "MarketPressure",
     "PressureLevel",
-    "MoveFreshness",
-    "CoinPressure",
 ]

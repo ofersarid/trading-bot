@@ -91,13 +91,13 @@ The transcript is structured into **sections**, each with a title. Match the sli
 3. **Present the located section** to the user:
 
 > **📄 Transcript Section Found:**
-> 
+>
 > **Section Title:** [Matched title from transcript]
 > **Lines [X-Y]:**
 > ```
 > [Full section content from title until next section title]
 > ```
-> 
+>
 > **Is this the correct section? (Yes/No)**
 > - If wrong, tell me the correct section title to search for
 
@@ -151,18 +151,18 @@ Once understanding is confirmed:
 1. **Check for existing concept** in `concepts.md` (same directory as transcript):
    - Search for the concept name (exact match and variations)
    - Search for similar concepts that might cover the same idea
-   
+
    **If concept already exists, STOP and inform the user:**
    > "⚠️ This concept already exists in `concepts.md`:
-   > 
+   >
    > [Show existing definition]
-   > 
+   >
    > Would you like to:
    > - **Update** - Merge new information into the existing definition
    > - **Replace** - Overwrite with the new definition
    > - **Skip** - Keep existing, don't change anything
    > - **Rename** - Add as a distinct variant with different name"
-   
+
    **Wait for user's choice before proceeding.**
 
 2. **If updating existing concept:**

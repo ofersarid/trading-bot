@@ -360,8 +360,8 @@ When implementing this spec as a Pine Script strategy:
 
 ```pinescript
 //@version=6
-strategy("SuperTrend Always-In Strategy", 
-         overlay=true, 
+strategy("SuperTrend Always-In Strategy",
+         overlay=true,
          initial_capital=10000,
          default_qty_type=strategy.percent_of_equity,
          commission_type=strategy.commission.percent,
@@ -377,7 +377,7 @@ atrLength = input.int(10, "ATR Length", minval=1)
 atrMultiplier = input.int(3, "ATR Multiplier", minval=1)
 stopBuffer = input.float(0.5, "Stop Buffer %", minval=0.0, maxval=5.0)
 positionSizePercent = input.float(100.0, "Position Size %", minval=1.0, maxval=100.0)
-minATRMultiplier = input.float(0.5, "Min ATR Multiplier", minval=0.0, maxval=1.0, 
+minATRMultiplier = input.float(0.5, "Min ATR Multiplier", minval=0.0, maxval=1.0,
                                tooltip="Minimum ATR as fraction of 50-period average. Set to 0.0 to disable filter.")
 
 // 3. Calculate SuperTrend
@@ -400,7 +400,7 @@ shortStop = supertrend * (1 + stopBuffer/100)
 // 7. Execute position flips with custom position sizing
 if bullishBreak
     strategy.entry("Long", strategy.long, qty=positionSizePercent, comment="Flip to Long")
-    
+
 if bearishBreak
     strategy.entry("Short", strategy.short, qty=positionSizePercent, comment="Flip to Short")
 
@@ -408,7 +408,7 @@ if bearishBreak
 if strategy.position_size > 0  // In long position
     newStop = supertrend * (1 - stopBuffer/100)
     strategy.exit("Long Stop", "Long", stop=newStop)
-    
+
 if strategy.position_size < 0  // In short position
     newStop = supertrend * (1 + stopBuffer/100)
     strategy.exit("Short Stop", "Short", stop=newStop)
@@ -416,13 +416,13 @@ if strategy.position_size < 0  // In short position
 // 9. Visualizations
 plot(supertrend, "SuperTrend", direction < 0 ? color.green : color.red, linewidth=2)
 
-plotshape(bullishBreak, "Flip to Long", shape.triangleup, 
+plotshape(bullishBreak, "Flip to Long", shape.triangleup,
           location.belowbar, color.green, size=size.normal)
-plotshape(bearishBreak, "Flip to Short", shape.triangledown, 
+plotshape(bearishBreak, "Flip to Short", shape.triangledown,
           location.abovebar, color.red, size=size.normal)
 
 // Background color for current position
-bgcolor(strategy.position_size > 0 ? color.new(color.green, 95) : 
+bgcolor(strategy.position_size > 0 ? color.new(color.green, 95) :
         strategy.position_size < 0 ? color.new(color.red, 95) : na)
 
 // Plot ATR filter status (optional)

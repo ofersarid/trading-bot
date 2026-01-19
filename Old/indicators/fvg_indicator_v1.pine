@@ -67,7 +67,7 @@ min_fvg_size_pct = input.float(DEFAULT_MIN_FVG_SIZE_PCT, "Min FVG Size (%)", min
 // This creates an imbalance where price "gapped" up
 bullish_fvg = high[2] < low
 
-// Bearish FVG: Gap down - low of candle 2 bars ago is above the high of current candle  
+// Bearish FVG: Gap down - low of candle 2 bars ago is above the high of current candle
 // This creates an imbalance where price "gapped" down
 bearish_fvg = low[2] > high
 
@@ -135,7 +135,7 @@ cleanup_fvgs(FVG[] fvg_arr, bool[] mitigated_arr, int max_count, bool show_mit, 
                 line.delete(fvg.mid_line)
                 array.remove(fvg_arr, i)
                 array.remove(mitigated_arr, i)
-    
+
     // Remove oldest if exceeding max
     while array.size(fvg_arr) > max_count
         old_fvg = array.shift(fvg_arr)
@@ -158,7 +158,7 @@ if bull_valid and show_bullish
          border_color=bull_border_color,
          border_width=1
          )
-    
+
     new_line = line.new(
          x1=bar_index - 2,
          y1=bull_fvg_mid,
@@ -168,7 +168,7 @@ if bull_valid and show_bullish
          style=line.style_dashed,
          width=1
          )
-    
+
     new_fvg = FVG.new(new_box, new_line, bull_fvg_top, bull_fvg_bottom, true, bar_index)
     array.push(bull_fvgs, new_fvg)
     array.push(bull_fvgs_mitigated, false)
@@ -184,7 +184,7 @@ if bear_valid and show_bearish
          border_color=bear_border_color,
          border_width=1
          )
-    
+
     new_line = line.new(
          x1=bar_index - 2,
          y1=bear_fvg_mid,
@@ -194,7 +194,7 @@ if bear_valid and show_bearish
          style=line.style_dashed,
          width=1
          )
-    
+
     new_fvg = FVG.new(new_box, new_line, bear_fvg_top, bear_fvg_bottom, false, bar_index)
     array.push(bear_fvgs, new_fvg)
     array.push(bear_fvgs_mitigated, false)
@@ -208,7 +208,7 @@ if array.size(bull_fvgs) > 0
     for i = 0 to array.size(bull_fvgs) - 1
         fvg = array.get(bull_fvgs, i)
         is_mitigated = array.get(bull_fvgs_mitigated, i)
-        
+
         // Check and mark mitigation
         if not is_mitigated and check_mitigation(fvg)
             array.set(bull_fvgs_mitigated, i, true)
@@ -216,7 +216,7 @@ if array.size(bull_fvgs) > 0
             box.set_border_color(fvg.fvg_box, color.gray)
             line.set_color(fvg.mid_line, color.new(color.gray, 70))
             is_mitigated := true
-        
+
         // Extend box if not mitigated
         if extend_boxes and not is_mitigated
             box.set_right(fvg.fvg_box, bar_index + BOX_EXTEND_BARS)
@@ -227,7 +227,7 @@ if array.size(bear_fvgs) > 0
     for i = 0 to array.size(bear_fvgs) - 1
         fvg = array.get(bear_fvgs, i)
         is_mitigated = array.get(bear_fvgs_mitigated, i)
-        
+
         // Check and mark mitigation
         if not is_mitigated and check_mitigation(fvg)
             array.set(bear_fvgs_mitigated, i, true)
@@ -235,7 +235,7 @@ if array.size(bear_fvgs) > 0
             box.set_border_color(fvg.fvg_box, color.gray)
             line.set_color(fvg.mid_line, color.new(color.gray, 70))
             is_mitigated := true
-        
+
         // Extend box if not mitigated
         if extend_boxes and not is_mitigated
             box.set_right(fvg.fvg_box, bar_index + BOX_EXTEND_BARS)

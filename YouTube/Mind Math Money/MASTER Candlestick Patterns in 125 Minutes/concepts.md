@@ -1,7 +1,7 @@
 # Trading Concepts Glossary
 
 > **Purpose:** LLM-optimized definitions serving as building blocks for understanding complex trading strategies.
-> 
+>
 > **Usage:** Reference these definitions when analyzing setups, building strategies, or explaining market behavior.
 
 ---

@@ -1,9 +1,8 @@
 """Data models for AI analysis responses and metrics."""
 
+import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
-import time
 
 
 class Sentiment(Enum):
@@ -20,6 +19,7 @@ class Signal(Enum):
 
 class Freshness(Enum):
     """How fresh/extended the current move is."""
+
     FRESH = "FRESH"  # Just starting
     DEVELOPING = "DEVELOPING"  # Building
     EXTENDED = "EXTENDED"  # May be exhausting
@@ -29,10 +29,11 @@ class Freshness(Enum):
 @dataclass
 class CoinMomentum:
     """Momentum data for a single coin."""
+
     coin: str
     momentum_pct: float
     direction: str  # "UP", "DOWN", "FLAT"
-    
+
     @classmethod
     def from_value(cls, coin: str, momentum: float) -> "CoinMomentum":
         if momentum > 0.05:
@@ -54,7 +55,7 @@ class AnalysisResult:
     coin: str
     reason: str
     response_time_ms: float
-    
+
     # Enhanced fields
     momentum_by_coin: dict[str, float] = field(default_factory=dict)  # {coin: momentum%}
     pressure_score: int = 50  # 0-100
@@ -91,7 +92,7 @@ class AnalysisResult:
             signal = Signal.WAIT
 
         reason = data.get("REASON", "No reason provided")
-        
+
         # Parse enhanced fields
         momentum_by_coin = cls._parse_momentum(data.get("MOMENTUM", ""))
         pressure_score, pressure_label = cls._parse_pressure(data.get("PRESSURE", "50"))
@@ -109,14 +110,14 @@ class AnalysisResult:
             pressure_label=pressure_label,
             freshness=freshness,
         )
-    
+
     @staticmethod
     def _parse_momentum(momentum_str: str) -> dict[str, float]:
         """Parse momentum string like 'BTC +0.45% | ETH +0.32%'"""
-        result = {}
+        result: dict[str, float] = {}
         if not momentum_str:
             return result
-        
+
         parts = momentum_str.split("|")
         for part in parts:
             part = part.strip()
@@ -133,7 +134,7 @@ class AnalysisResult:
                 except ValueError:
                     pass
         return result
-    
+
     @staticmethod
     def _parse_pressure(pressure_str: str) -> tuple[int, str]:
         """Parse pressure string like '72 (Strong Buying)' or just '72'"""
@@ -159,7 +160,7 @@ class AnalysisResult:
                 return score, label
         except ValueError:
             return 50, "Neutral"
-    
+
     @staticmethod
     def _parse_freshness(freshness_str: str) -> Freshness:
         """Parse freshness string."""

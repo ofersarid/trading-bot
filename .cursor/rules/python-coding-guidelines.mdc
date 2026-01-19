@@ -147,7 +147,7 @@ def analyze_opportunity(self, coin: str, price: float, old_price: float) -> None
     momentum = self._calculate_momentum(coin)
     if momentum is None:
         return
-    
+
     if self._should_track_opportunity(momentum):
         self._update_or_create_opportunity(coin, price, momentum)
     else:

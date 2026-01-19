@@ -31,11 +31,11 @@ import TradingView/ta/9 as ta
 // DEBUG SETTINGS (Set to true by default for easier debugging)
 // ══════════════════════════════════════════════════════════════════
 
-enableDebugTimeFilter = input.bool(true, "🔍 Enable Debug Time Filter", 
+enableDebugTimeFilter = input.bool(true, "🔍 Enable Debug Time Filter",
     group="🐛 Debug",
     tooltip="⚠️ ENABLED BY DEFAULT - Only trades within last N days. Uncheck for full backtest.")
 
-debugDaysBack = input.int(2, "⏰ Days to Look Back", 
+debugDaysBack = input.int(2, "⏰ Days to Look Back",
     minval=1, maxval=365,
     group="🐛 Debug",
     tooltip="Trades only in the last N days. Set to 2 for last 2 days, 365 for full year.")
@@ -53,7 +53,7 @@ isWithinDebugTimeRange = not enableDebugTimeFilter or barsFromEnd <= debugBarsBa
 // STRATEGY INPUTS
 // ══════════════════════════════════════════════════════════════════
 
-minATRMultiplier = input.float(0.5, "Min ATR Multiplier", 
+minATRMultiplier = input.float(0.5, "Min ATR Multiplier",
     minval=0.0, maxval=1.0, step=0.1,
     group="Strategy Settings",
     tooltip="Minimum ATR as fraction of 50-period average. Set to 0.0 to disable volatility filter.")
@@ -116,7 +116,7 @@ ShowErrors = input.bool(true, "Show Errors", group="Style")
 // ══════════════════════════════════════════════════════════════════
 
 // Gaussian Kernel Function
-gaussian(float distance, float bandwidth = 1.0) => 
+gaussian(float distance, float bandwidth = 1.0) =>
     1.0 / math.sqrt(2.0 * math.pi) * math.pow(math.e, -0.5 * math.pow(distance / bandwidth, 2.0))
 
 // KDE Probability
@@ -346,11 +346,11 @@ if bearishBreak
 if bullishBreak
     volumeFilterStatus = activationThresholdEnabled ? (overKDEThreshold(volumeProb) ? "PASS ✅ (" + str.tostring(volumeProb * 100, "#.#") + "% >= " + str.tostring(activationThreshold * 100, "#") + "%)" : "BLOCKED ❌ (" + str.tostring(volumeProb * 100, "#.#") + "% < " + str.tostring(activationThreshold * 100, "#") + "%)") : "Disabled"
     adxFilterStatus = adxEnabled ? (adxFilterPass ? "PASS ✅ (" + str.tostring(currentADX, "#.#") + " >= " + str.tostring(adxThreshold, "#") + ")" : "BLOCKED ❌ (" + str.tostring(currentADX, "#.#") + " < " + str.tostring(adxThreshold, "#") + " = CHOPPY)") : "Disabled"
-    log.info("SUPERTREND DEBUG: Bullish Break detected at bar " + str.tostring(bar_index) + 
-        "\n  Close: " + str.tostring(close, "#.##") + 
-        "\n  SuperTrend: " + str.tostring(Pine_Supertrend, "#.##") + 
-        "\n  ATR: " + str.tostring(currentATR, "#.####") + 
-        "\n  Min ATR Threshold: " + str.tostring(minATRThreshold, "#.####") + 
+    log.info("SUPERTREND DEBUG: Bullish Break detected at bar " + str.tostring(bar_index) +
+        "\n  Close: " + str.tostring(close, "#.##") +
+        "\n  SuperTrend: " + str.tostring(Pine_Supertrend, "#.##") +
+        "\n  ATR: " + str.tostring(currentATR, "#.####") +
+        "\n  Min ATR Threshold: " + str.tostring(minATRThreshold, "#.####") +
         "\n  ATR Filter: " + (atrFilterPass ? "PASS ✅" : "FAIL ❌") +
         "\n  Volume Prob: " + str.tostring(volumeProb * 100, "#.#") + "%" +
         "\n  Volume Filter: " + volumeFilterStatus +
@@ -361,11 +361,11 @@ if bullishBreak
 if bearishBreak
     volumeFilterStatus = activationThresholdEnabled ? (overKDEThreshold(volumeProb) ? "PASS ✅ (" + str.tostring(volumeProb * 100, "#.#") + "% >= " + str.tostring(activationThreshold * 100, "#") + "%)" : "BLOCKED ❌ (" + str.tostring(volumeProb * 100, "#.#") + "% < " + str.tostring(activationThreshold * 100, "#") + "%)") : "Disabled"
     adxFilterStatus = adxEnabled ? (adxFilterPass ? "PASS ✅ (" + str.tostring(currentADX, "#.#") + " >= " + str.tostring(adxThreshold, "#") + ")" : "BLOCKED ❌ (" + str.tostring(currentADX, "#.#") + " < " + str.tostring(adxThreshold, "#") + " = CHOPPY)") : "Disabled"
-    log.info("SUPERTREND DEBUG: Bearish Break detected at bar " + str.tostring(bar_index) + 
-        "\n  Close: " + str.tostring(close, "#.##") + 
-        "\n  SuperTrend: " + str.tostring(Pine_Supertrend, "#.##") + 
-        "\n  ATR: " + str.tostring(currentATR, "#.####") + 
-        "\n  Min ATR Threshold: " + str.tostring(minATRThreshold, "#.####") + 
+    log.info("SUPERTREND DEBUG: Bearish Break detected at bar " + str.tostring(bar_index) +
+        "\n  Close: " + str.tostring(close, "#.##") +
+        "\n  SuperTrend: " + str.tostring(Pine_Supertrend, "#.##") +
+        "\n  ATR: " + str.tostring(currentATR, "#.####") +
+        "\n  Min ATR Threshold: " + str.tostring(minATRThreshold, "#.####") +
         "\n  ATR Filter: " + (atrFilterPass ? "PASS ✅" : "FAIL ❌") +
         "\n  Volume Prob: " + str.tostring(volumeProb * 100, "#.#") + "%" +
         "\n  Volume Filter: " + volumeFilterStatus +
@@ -388,13 +388,13 @@ shortEntry = bearishBreak and atrFilterPass and threshold_condition and adxFilte
 
 // Log final entry decisions
 if longEntry
-    log.info("🟢 LONG ENTRY TRIGGERED at bar " + str.tostring(bar_index) + 
-        " | Price: " + str.tostring(close, "#.##") + 
+    log.info("🟢 LONG ENTRY TRIGGERED at bar " + str.tostring(bar_index) +
+        " | Price: " + str.tostring(close, "#.##") +
         " | SuperTrend: " + str.tostring(Pine_Supertrend, "#.##"))
 
 if shortEntry
-    log.info("🔴 SHORT ENTRY TRIGGERED at bar " + str.tostring(bar_index) + 
-        " | Price: " + str.tostring(close, "#.##") + 
+    log.info("🔴 SHORT ENTRY TRIGGERED at bar " + str.tostring(bar_index) +
+        " | Price: " + str.tostring(close, "#.##") +
         " | SuperTrend: " + str.tostring(Pine_Supertrend, "#.##"))
 
 // ══════════════════════════════════════════════════════════════════
@@ -418,7 +418,7 @@ chopExitCondition = adxEnabled and not adxFilterPass and inAnyPosition and isWit
 if chopExitCondition
     strategy.close_all(comment="Chop Exit (ADX=" + str.tostring(currentADX, "#.#") + ")")
     chopExitCount += 1
-    log.warning("⚠️ CHOP EXIT: Closing position at bar " + str.tostring(bar_index) + 
+    log.warning("⚠️ CHOP EXIT: Closing position at bar " + str.tostring(bar_index) +
         " | ADX: " + str.tostring(currentADX, "#.#") + " < " + str.tostring(adxThreshold, "#") +
         " | Position was: " + (inLongPosition ? "LONG" : "SHORT") +
         " | Total chop exits: " + str.tostring(chopExitCount))
@@ -454,51 +454,51 @@ var table debugTable = table.new(position=position.top_left, columns=2, rows=13,
 if barstate.islast
     table.cell(debugTable, 0, 0, "Metric", text_color=color.white, bgcolor=color.new(color.gray, 50))
     table.cell(debugTable, 1, 0, "Value", text_color=color.white, bgcolor=color.new(color.gray, 50))
-    
+
     table.cell(debugTable, 0, 1, "Strategy Type", text_color=color.white)
     table.cell(debugTable, 1, 1, "Trend-Following", text_color=color.blue)
-    
+
     table.cell(debugTable, 0, 2, "Debug Time Filter", text_color=color.white)
     debugFilterText = enableDebugTimeFilter ? str.tostring(debugDaysBack) + " days 🔍" : "Disabled"
     table.cell(debugTable, 1, 2, debugFilterText, text_color=enableDebugTimeFilter ? color.yellow : color.white)
-    
+
     table.cell(debugTable, 0, 3, "Position Size", text_color=color.white)
     positionSizeValue = 30.0  // Must match default_qty_value in strategy()
     positionSizeColor = positionSizeValue > 50 ? color.orange : positionSizeValue > 75 ? color.red : color.green
     positionSizeText = str.tostring(positionSizeValue, "#") + "% equity" + (positionSizeValue > 50 ? " ⚠️" : "")
     table.cell(debugTable, 1, 3, positionSizeText, text_color=positionSizeColor)
-    
+
     table.cell(debugTable, 0, 4, "Current ATR", text_color=color.white)
     table.cell(debugTable, 1, 4, str.tostring(currentATR, "#.####"), text_color=color.white)
-    
+
     table.cell(debugTable, 0, 5, "Min ATR Threshold", text_color=color.white)
     table.cell(debugTable, 1, 5, str.tostring(minATRThreshold, "#.####"), text_color=color.white)
-    
+
     table.cell(debugTable, 0, 6, "ATR Filter", text_color=color.white)
-    table.cell(debugTable, 1, 6, atrFilterPass ? "✅ PASS" : "❌ FAIL", 
+    table.cell(debugTable, 1, 6, atrFilterPass ? "✅ PASS" : "❌ FAIL",
         text_color=atrFilterPass ? color.green : color.red)
-    
+
     table.cell(debugTable, 0, 7, "KDE Threshold", text_color=color.white)
-    table.cell(debugTable, 1, 7, activationThresholdEnabled ? str.tostring(activationThreshold * 100, "#.#") + "%" : "Disabled", 
+    table.cell(debugTable, 1, 7, activationThresholdEnabled ? str.tostring(activationThreshold * 100, "#.#") + "%" : "Disabled",
         text_color=color.white)
-    
+
     table.cell(debugTable, 0, 8, "Volume Prob", text_color=color.white)
     table.cell(debugTable, 1, 8, str.tostring(volumeProb * 100, "#.#") + "%", text_color=color.white)
-    
+
     table.cell(debugTable, 0, 9, "ADX Value", text_color=color.white)
     table.cell(debugTable, 1, 9, str.tostring(currentADX, "#.#"), text_color=color.white)
-    
+
     table.cell(debugTable, 0, 10, "ADX Threshold", text_color=color.white)
     table.cell(debugTable, 1, 10, adxEnabled ? str.tostring(adxThreshold, "#") : "Disabled", text_color=color.white)
-    
+
     table.cell(debugTable, 0, 11, "ADX Filter", text_color=color.white)
     adxStatusText = not adxEnabled ? "Disabled" : (adxFilterPass ? "✅ TRENDING" : "❌ CHOPPY")
     adxStatusColor = not adxEnabled ? color.gray : (adxFilterPass ? color.green : color.red)
     table.cell(debugTable, 1, 11, adxStatusText, text_color=adxStatusColor)
-    
+
     table.cell(debugTable, 0, 12, "Chop Exits", text_color=color.white)
     table.cell(debugTable, 1, 12, str.tostring(chopExitCount), text_color=chopExitCount > 0 ? color.orange : color.white)
-    
+
     // Summary log on last bar
     log.info("═══════════════════════════════════════════════════════")
     log.info("STRATEGY DEBUG SUMMARY - Final Bar")
@@ -557,7 +557,7 @@ if barstate.islast
     log.info("  Open Trades: " + str.tostring(strategy.opentrades))
     log.info("  Chop Exits: " + str.tostring(chopExitCount))
     log.info("═══════════════════════════════════════════════════════")
-    
+
     if strategy.closedtrades == 0
         log.warning("⚠️ ZERO TRADES DETECTED")
         if totalBullishBreaks == 0 and totalBearishBreaks == 0
@@ -586,7 +586,7 @@ if barstate.islast
             log.warning("     Consider: Reduce to 30-40% to survive losing streaks")
         else
             log.info("  ✅ Position size is reasonable for leveraged trading")
-        
+
         log.info("")
         log.info("📊 PERFORMANCE OPTIMIZATION TIPS:")
         expectedTrades = totalBullishBreaks + totalBearishBreaks
@@ -655,20 +655,20 @@ bgcolor(adxEnabled and not adxFilterPass ? color.new(color.orange, 85) : na, tit
 
 // Debug: Add labels showing why trades are blocked
 if bullishBreak and not atrFilterPass
-    label.new(bar_index, low, "❌ ATR Filter\n" + str.tostring(currentATR, "#.##") + " < " + str.tostring(minATRThreshold, "#.##"), 
+    label.new(bar_index, low, "❌ ATR Filter\n" + str.tostring(currentATR, "#.##") + " < " + str.tostring(minATRThreshold, "#.##"),
         color=color.new(color.yellow, 0), textcolor=color.black, style=label.style_label_up, size=size.small)
 
 if bearishBreak and not atrFilterPass
-    label.new(bar_index, high, "❌ ATR Filter\n" + str.tostring(currentATR, "#.##") + " < " + str.tostring(minATRThreshold, "#.##"), 
+    label.new(bar_index, high, "❌ ATR Filter\n" + str.tostring(currentATR, "#.##") + " < " + str.tostring(minATRThreshold, "#.##"),
         color=color.new(color.yellow, 0), textcolor=color.black, style=label.style_label_down, size=size.small)
 
 // Debug: Add labels for ADX blocked trades
 if bullishBreak and atrFilterPass and not adxFilterPass
-    label.new(bar_index, low, "❌ ADX CHOPPY\n" + str.tostring(currentADX, "#.#") + " < " + str.tostring(adxThreshold, "#"), 
+    label.new(bar_index, low, "❌ ADX CHOPPY\n" + str.tostring(currentADX, "#.#") + " < " + str.tostring(adxThreshold, "#"),
         color=color.new(color.orange, 0), textcolor=color.white, style=label.style_label_up, size=size.small)
 
 if bearishBreak and atrFilterPass and not adxFilterPass
-    label.new(bar_index, high, "❌ ADX CHOPPY\n" + str.tostring(currentADX, "#.#") + " < " + str.tostring(adxThreshold, "#"), 
+    label.new(bar_index, high, "❌ ADX CHOPPY\n" + str.tostring(currentADX, "#.#") + " < " + str.tostring(adxThreshold, "#"),
         color=color.new(color.orange, 0), textcolor=color.white, style=label.style_label_down, size=size.small)
 
 // ══════════════════════════════════════════════════════════════════
@@ -685,7 +685,7 @@ plotshape(chopExitCondition, "Chop Exit", style=shape.xcross, location=location.
 // Add label for chop exit
 if chopExitCondition
     exitPrice = close
-    label.new(bar_index, exitPrice, "⚠️ CHOP EXIT\nADX: " + str.tostring(currentADX, "#.#"), 
+    label.new(bar_index, exitPrice, "⚠️ CHOP EXIT\nADX: " + str.tostring(currentADX, "#.#"),
         color=color.new(color.orange, 0), textcolor=color.white, style=label.style_label_center, size=size.small)
 
 // Background color for current position (flat during chop)
@@ -697,11 +697,11 @@ bgcolor(enableDebugTimeFilter and not isWithinDebugTimeRange ? color.new(color.b
 // Debug: Mark the start of trading window
 debugStartBarIndex = last_bar_index - debugBarsBack
 if enableDebugTimeFilter and bar_index == math.round(debugStartBarIndex)
-    label.new(bar_index, high * 1.02, "🔍 TRADING STARTS HERE\n(" + str.tostring(debugDaysBack) + " days back)\nBar: " + str.tostring(bar_index), 
-        style=label.style_label_down, color=color.new(color.yellow, 0), 
+    label.new(bar_index, high * 1.02, "🔍 TRADING STARTS HERE\n(" + str.tostring(debugDaysBack) + " days back)\nBar: " + str.tostring(bar_index),
+        style=label.style_label_down, color=color.new(color.yellow, 0),
         textcolor=color.black, size=size.large)
     // Draw a vertical line
-    line.new(bar_index, low * 0.98, bar_index, high * 1.02, 
+    line.new(bar_index, low * 0.98, bar_index, high * 1.02,
         color=color.yellow, width=2, style=line.style_solid)
 
 // ══════════════════════════════════════════════════════════════════

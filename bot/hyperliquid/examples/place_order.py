@@ -21,7 +21,7 @@ def example_market_order():
     result = client.market_buy("ETH", size=0.001, slippage=0.02)
 
     if result.success:
-        print(f"✓ Order filled!")
+        print("✓ Order filled!")
         print(f"  Order ID: {result.order_id}")
         print(f"  Filled: {result.filled_size} ETH")
         print(f"  Avg Price: ${result.avg_price:,.2f}")
@@ -52,7 +52,7 @@ def example_limit_order():
     )
 
     if result.success:
-        print(f"✓ Limit order placed!")
+        print("✓ Limit order placed!")
         print(f"  Order ID: {result.order_id}")
 
         # Cancel it since this is just a demo

@@ -1,248 +1,256 @@
 """
-Trading strategy prompts for AI analysis.
+AI Trading Strategies - Prompt-based strategy definitions.
 
-Each strategy teaches the AI a different trading approach.
-Modify these prompts to experiment with different trading styles.
+The AI has complete control over trading decisions.
+Strategies are defined as prompts that guide the AI's behavior.
 """
 
 from enum import Enum
 
 
 class TradingStrategy(Enum):
-    """Available trading strategies."""
-    GENERIC = "generic"           # Default balanced analysis
-    MOMENTUM = "momentum"         # Ride the trend
-    CONTRARIAN = "contrarian"     # Bet against the crowd
-    CONSERVATIVE = "conservative" # High-probability setups only
-    SCALPER = "scalper"          # Quick in-and-out trades
+    """Available AI trading strategies."""
+
+    MOMENTUM_SCALPER = "momentum_scalper"
+    TREND_FOLLOWER = "trend_follower"
+    MEAN_REVERSION = "mean_reversion"
+    CONSERVATIVE = "conservative"
 
 
-# =============================================================================
-# STRATEGY PROMPTS
-# =============================================================================
-
-GENERIC_STRATEGY_PROMPT = """You are a crypto trading analyst. Analyze this market data and provide a structured assessment.
-
-CURRENT PRICES:
-{prices}
-
-MOMENTUM (60s):
-{momentum}
-
-ORDER BOOK IMBALANCE:
-{orderbook}
-
-RECENT TRADES:
-{recent_trades}
-
-MARKET PRESSURE: {pressure_score}/100 ({pressure_label})
-
-Respond in this EXACT format (no extra text, no markdown):
-SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
-CONFIDENCE: [1-10]
-SIGNAL: [LONG/SHORT/WAIT]
-MOMENTUM: {momentum_format}
-PRESSURE: [0-100] ([Strong Selling/Moderate Selling/Neutral/Moderate Buying/Strong Buying])
-FRESHNESS: [FRESH/DEVELOPING/EXTENDED/EXHAUSTED]
-REASON: [One sentence explanation citing specific numbers]
-
-FRESHNESS Guidelines:
-- FRESH: Move just started (<0.2%), high potential
-- DEVELOPING: Building momentum (0.2-0.4%), good entry
-- EXTENDED: Move has run (0.4-0.6%), consider waiting
-- EXHAUSTED: Likely reversal zone (>0.6%), avoid chasing"""
-
-
-MOMENTUM_STRATEGY_PROMPT = """You are an aggressive momentum trader who rides breakouts and strong trends.
-
-YOUR TRADING RULES:
-1. LONG when: momentum > +0.2% AND pressure > 55 AND more buys than sells
-2. SHORT when: momentum < -0.2% AND pressure < 45 AND more sells than buys
-3. WAIT when: momentum is weak (-0.2% to +0.2%) or signals conflict
-4. Higher confidence when momentum is accelerating (>0.4%)
-5. Lower confidence when momentum is decelerating or EXHAUSTED
-
-WHAT TO LOOK FOR:
-- Strong directional moves (momentum > 0.3% is significant)
-- High pressure score supporting direction (>60 for LONG, <40 for SHORT)
-- FRESH or DEVELOPING moves have more potential
-
-CURRENT PRICES:
-{prices}
-
-MOMENTUM (60s):
-{momentum}
-
-ORDER BOOK IMBALANCE:
-{orderbook}
-
-RECENT TRADES:
-{recent_trades}
-
-MARKET PRESSURE: {pressure_score}/100 ({pressure_label})
-
-Respond in this EXACT format:
-SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
-CONFIDENCE: [1-10]
-SIGNAL: [LONG/SHORT/WAIT]
-MOMENTUM: {momentum_format}
-PRESSURE: [0-100] ([Strong Selling/Moderate Selling/Neutral/Moderate Buying/Strong Buying])
-FRESHNESS: [FRESH/DEVELOPING/EXTENDED/EXHAUSTED]
-REASON: [Cite specific numbers - e.g., "Momentum +0.35% with 65 pressure supports LONG"]"""
-
-
-CONTRARIAN_STRATEGY_PROMPT = """You are a contrarian trader who profits from market reversals and overextended moves.
-
-YOUR TRADING PHILOSOPHY:
-- When the crowd is euphoric, prepare to sell
-- When the crowd is panicking, prepare to buy
-- Extreme pressure readings often precede reversals
-- EXHAUSTED moves are your best opportunities
-
-YOUR TRADING RULES:
-1. LONG when: pressure < 35 (extreme selling) AND freshness is EXTENDED/EXHAUSTED
-2. SHORT when: pressure > 70 (extreme buying) AND freshness is EXTENDED/EXHAUSTED
-3. WAIT when: pressure is neutral (40-60) - no edge for contrarian
-4. Higher confidence at more extreme pressure + EXHAUSTED freshness
-5. Be patient - wait for exhaustion signals
-
-WARNING SIGNS TO WAIT:
-- FRESH or DEVELOPING moves (don't fight new trends)
-- Momentum still accelerating strongly
-
-CURRENT PRICES:
-{prices}
-
-MOMENTUM (60s):
-{momentum}
-
-ORDER BOOK IMBALANCE:
-{orderbook}
-
-RECENT TRADES:
-{recent_trades}
-
-MARKET PRESSURE: {pressure_score}/100 ({pressure_label})
-
-Respond in this EXACT format:
-SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
-CONFIDENCE: [1-10]
-SIGNAL: [LONG/SHORT/WAIT]
-MOMENTUM: {momentum_format}
-PRESSURE: [0-100] ([Strong Selling/Moderate Selling/Neutral/Moderate Buying/Strong Buying])
-FRESHNESS: [FRESH/DEVELOPING/EXTENDED/EXHAUSTED]
-REASON: [Explain the contrarian setup - e.g., "Strong Selling (28) + EXHAUSTED suggests bounce"]"""
-
-
-CONSERVATIVE_STRATEGY_PROMPT = """You are an extremely conservative trader who only takes high-probability setups.
-
-YOUR STRICT ENTRY REQUIREMENTS (ALL must be true for a trade):
-1. Momentum must be > 0.3% (strong move)
-2. Pressure must be > 60 (for LONG) or < 40 (for SHORT)
-3. Freshness must be FRESH or DEVELOPING (not chasing)
-4. All signals aligned in same direction
-
-CONFIDENCE SCORING:
-- 8-10: All conditions met with strong readings
-- 6-7: All conditions met with moderate readings
-- 1-5: One or more conditions NOT met (signal WAIT)
-
-IMPORTANT: If ANY requirement is not met, you MUST signal WAIT regardless of how good other factors look. Capital preservation is priority #1.
-
-CURRENT PRICES:
-{prices}
-
-MOMENTUM (60s):
-{momentum}
-
-ORDER BOOK IMBALANCE:
-{orderbook}
-
-RECENT TRADES:
-{recent_trades}
-
-MARKET PRESSURE: {pressure_score}/100 ({pressure_label})
-
-Respond in this EXACT format:
-SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
-CONFIDENCE: [1-10]
-SIGNAL: [LONG/SHORT/WAIT]
-MOMENTUM: {momentum_format}
-PRESSURE: [0-100] ([Strong Selling/Moderate Selling/Neutral/Moderate Buying/Strong Buying])
-FRESHNESS: [FRESH/DEVELOPING/EXTENDED/EXHAUSTED]
-REASON: [List which requirements are met/not met]"""
-
-
-SCALPER_STRATEGY_PROMPT = """You are a fast scalper looking for quick 0.1-0.3% moves.
-
-YOUR APPROACH:
-- Small, frequent profits
-- Very short holding time (seconds to minutes)
-- Need immediate momentum + pressure confirmation
-- FRESHNESS is critical - only trade FRESH or DEVELOPING moves
-
-ENTRY CONDITIONS:
-1. FRESHNESS must be FRESH or DEVELOPING (reject EXTENDED/EXHAUSTED)
-2. Pressure confirming direction (>55 for LONG, <45 for SHORT)
-3. Momentum showing directional bias
-
-SIGNAL GUIDELINES:
-- LONG: FRESH/DEVELOPING + positive momentum + pressure > 55
-- SHORT: FRESH/DEVELOPING + negative momentum + pressure < 45
-- WAIT: EXTENDED/EXHAUSTED (too late) or conflicting signals
-
-CONFIDENCE = How likely is the move to continue for another 0.1-0.2%?
-
-CURRENT PRICES:
-{prices}
-
-MOMENTUM (60s):
-{momentum}
-
-ORDER BOOK IMBALANCE:
-{orderbook}
-
-RECENT TRADES:
-{recent_trades}
-
-MARKET PRESSURE: {pressure_score}/100 ({pressure_label})
-
-Respond in this EXACT format:
-SENTIMENT: [BULLISH/BEARISH/NEUTRAL]
-CONFIDENCE: [1-10]
-SIGNAL: [LONG/SHORT/WAIT]
-MOMENTUM: {momentum_format}
-PRESSURE: [0-100] ([Strong Selling/Moderate Selling/Neutral/Moderate Buying/Strong Buying])
-FRESHNESS: [FRESH/DEVELOPING/EXTENDED/EXHAUSTED]
-REASON: [Quick assessment - is this move fresh enough to scalp?]"""
-
-
-# =============================================================================
-# STRATEGY REGISTRY
-# =============================================================================
-
+# Strategy prompts - these define HOW the AI should trade
 STRATEGY_PROMPTS = {
-    TradingStrategy.GENERIC: GENERIC_STRATEGY_PROMPT,
-    TradingStrategy.MOMENTUM: MOMENTUM_STRATEGY_PROMPT,
-    TradingStrategy.CONTRARIAN: CONTRARIAN_STRATEGY_PROMPT,
-    TradingStrategy.CONSERVATIVE: CONSERVATIVE_STRATEGY_PROMPT,
-    TradingStrategy.SCALPER: SCALPER_STRATEGY_PROMPT,
+    TradingStrategy.MOMENTUM_SCALPER: """You are an aggressive momentum scalper for crypto markets.
+
+YOUR TRADING STYLE:
+- Look for quick momentum moves (0.05%+ in 5 seconds)
+- Enter early when momentum is FRESH, exit quickly
+- Small profits are fine (0.05-0.15%), avoid holding losers
+- High trade frequency, tight risk management
+
+ENTRY CRITERIA:
+- Strong directional momentum building
+- Order book pressure supporting the direction
+- Freshness is FRESH or DEVELOPING (not chasing)
+
+EXIT CRITERIA:
+- Exit quickly at first sign of momentum reversal
+- Take small profits rather than waiting for big moves
+- Cut losses fast if momentum turns against you
+
+RISK RULES:
+- Never hold a losing position hoping it recovers
+- Exit immediately if momentum reverses
+- Maximum position: 10% of balance""",
+    TradingStrategy.TREND_FOLLOWER: """You are a patient trend follower for crypto markets.
+
+YOUR TRADING STYLE:
+- Wait for confirmed trends (sustained momentum over 30+ seconds)
+- Let winners run, cut losers quickly
+- Fewer trades but larger moves
+- Ride the trend until exhaustion
+
+ENTRY CRITERIA:
+- Clear directional trend established
+- Multiple timeframes aligning
+- Order book heavily favoring trend direction
+
+EXIT CRITERIA:
+- Exit when trend shows exhaustion (momentum fading)
+- Use trailing stops mentally (exit if gives back 30% of gains)
+- Don't exit just because of small pullbacks
+
+RISK RULES:
+- Wait for high-confidence setups only
+- Accept missing some moves for better entries
+- Maximum position: 15% of balance""",
+    TradingStrategy.MEAN_REVERSION: """You are a mean reversion trader for crypto markets.
+
+YOUR TRADING STYLE:
+- Look for overextended moves that will snap back
+- Fade extreme momentum (go opposite direction)
+- Quick exits when price reverts to mean
+
+ENTRY CRITERIA:
+- Momentum is EXTENDED or EXHAUSTED
+- Price moved too far too fast
+- Order book showing reversal pressure building
+
+EXIT CRITERIA:
+- Exit when price returns toward starting point
+- Take profits quickly on reversals
+- Cut if trend continues against you
+
+RISK RULES:
+- Only fade CLEARLY overextended moves
+- Small position sizes (fading is risky)
+- Maximum position: 8% of balance""",
+    TradingStrategy.CONSERVATIVE: """You are a conservative, risk-averse crypto trader.
+
+YOUR TRADING STYLE:
+- Only trade high-probability setups
+- Require multiple confirming signals
+- Preserve capital above all else
+- Miss opportunities rather than take bad trades
+
+ENTRY CRITERIA:
+- Very strong momentum (top 10% of moves)
+- Order book heavily skewed (65%+ in direction)
+- Market pressure strongly supporting direction
+- Multiple coins showing same direction
+
+EXIT CRITERIA:
+- Exit at first sign of weakness
+- Take profits early and often
+- Never let a winner turn into a loser
+
+RISK RULES:
+- Confidence must be 8+ to enter
+- Skip anything uncertain
+- Maximum position: 5% of balance""",
 }
 
-STRATEGY_DESCRIPTIONS = {
-    TradingStrategy.GENERIC: "Balanced analysis without specific rules",
-    TradingStrategy.MOMENTUM: "Ride strong trends and breakouts",
-    TradingStrategy.CONTRARIAN: "Bet against extreme market sentiment",
-    TradingStrategy.CONSERVATIVE: "Only high-probability setups (strict rules)",
-    TradingStrategy.SCALPER: "Quick in-and-out on fresh moves",
-}
+
+AI_TRADING_PROMPT = """You are an AI trading agent with COMPLETE CONTROL over trading decisions.
+
+{strategy_prompt}
+
+=== CURRENT MARKET STATE ===
+PRICES:
+{prices}
+
+MOMENTUM ({momentum_timeframe}s):
+{momentum}
+
+ORDER BOOK PRESSURE:
+{orderbook}
+
+MARKET PRESSURE: {pressure_score}/100 ({pressure_label})
+
+RECENT TRADES FLOW:
+{recent_trades}
+
+=== YOUR CURRENT POSITIONS ===
+{positions}
+
+=== ACCOUNT STATUS ===
+Balance: ${balance:,.2f}
+Equity: ${equity:,.2f}
+Open Positions: {num_positions}
+
+=== YOUR DECISION ===
+Analyze the market and decide your action.
+
+Respond in this EXACT format (no extra text):
+ACTION: [NONE/LONG/SHORT/EXIT_<COIN>]
+COIN: [BTC/ETH/SOL or N/A]
+SIZE_PCT: [5-20 or N/A]
+CONFIDENCE: [1-10]
+REASON: [One sentence explaining your decision]
+
+ACTION meanings:
+- NONE: No action, wait for better setup
+- LONG: Open a long position on COIN
+- SHORT: Open a short position on COIN
+- EXIT_BTC: Close your BTC position (use EXIT_<COIN> format)
+
+Only output ONE action per response."""
 
 
 def get_strategy_prompt(strategy: TradingStrategy) -> str:
-    """Get the prompt template for a strategy."""
-    return STRATEGY_PROMPTS[strategy]
+    """Get the full trading prompt for a strategy."""
+    return STRATEGY_PROMPTS.get(strategy, STRATEGY_PROMPTS[TradingStrategy.MOMENTUM_SCALPER])
+
+
+def format_ai_trading_prompt(
+    strategy: TradingStrategy,
+    prices: dict[str, float],
+    momentum: dict[str, float],
+    orderbook: dict[str, dict],
+    pressure_score: int,
+    pressure_label: str,
+    recent_trades: list[dict],
+    positions: dict,
+    balance: float,
+    equity: float,
+    momentum_timeframe: int,
+) -> str:
+    """Format the complete AI trading prompt with current market state."""
+
+    strategy_prompt = get_strategy_prompt(strategy)
+
+    # Format prices
+    price_lines = []
+    for coin, price in prices.items():
+        mom = momentum.get(coin, 0)
+        mom_str = f"+{mom:.3f}%" if mom >= 0 else f"{mom:.3f}%"
+        price_lines.append(f"  {coin}: ${price:,.2f} (momentum: {mom_str})")
+    prices_str = "\n".join(price_lines) if price_lines else "  No data"
+
+    # Format momentum
+    momentum_lines = []
+    for coin, mom in momentum.items():
+        direction = "📈 UP" if mom > 0.05 else "📉 DOWN" if mom < -0.05 else "➡️ FLAT"
+        momentum_lines.append(f"  {coin}: {mom:+.3f}% {direction}")
+    momentum_str = "\n".join(momentum_lines) if momentum_lines else "  No data"
+
+    # Format orderbook
+    orderbook_lines = []
+    for coin, book in orderbook.items():
+        bid_ratio = book.get("bid_ratio", 50)
+        if bid_ratio > 60:
+            pressure = "BUYERS dominating"
+        elif bid_ratio < 40:
+            pressure = "SELLERS dominating"
+        else:
+            pressure = "Balanced"
+        orderbook_lines.append(f"  {coin}: {bid_ratio:.0f}% bids - {pressure}")
+    orderbook_str = "\n".join(orderbook_lines) if orderbook_lines else "  No data"
+
+    # Format recent trades
+    if recent_trades:
+        buys = sum(1 for t in recent_trades if t.get("side") == "buy")
+        sells = len(recent_trades) - buys
+        trades_str = f"  Last {len(recent_trades)} trades: {buys} buys, {sells} sells"
+    else:
+        trades_str = "  No recent trades"
+
+    # Format positions
+    if positions:
+        pos_lines = []
+        for coin, pos in positions.items():
+            direction = "LONG" if pos.side.value == "long" else "SHORT"
+            current_price = prices.get(coin, pos.entry_price)
+            pnl_pct = pos.unrealized_pnl_percent(current_price)
+            pnl_color = "profit" if pnl_pct >= 0 else "loss"
+            pos_lines.append(
+                f"  {direction} {coin}: entry ${pos.entry_price:,.2f}, "
+                f"current ${current_price:,.2f}, P&L: {pnl_pct:+.2f}% ({pnl_color})"
+            )
+        positions_str = "\n".join(pos_lines)
+    else:
+        positions_str = "  No open positions"
+
+    return AI_TRADING_PROMPT.format(
+        strategy_prompt=strategy_prompt,
+        prices=prices_str,
+        momentum=momentum_str,
+        momentum_timeframe=momentum_timeframe,
+        orderbook=orderbook_str,
+        pressure_score=pressure_score,
+        pressure_label=pressure_label,
+        recent_trades=trades_str,
+        positions=positions_str,
+        balance=balance,
+        equity=equity,
+        num_positions=len(positions),
+    )
 
 
 def list_strategies() -> list[tuple[str, str]]:
-    """List all available strategies with descriptions."""
-    return [(s.value, STRATEGY_DESCRIPTIONS[s]) for s in TradingStrategy]
+    """List available strategies with descriptions."""
+    return [
+        ("momentum_scalper", "Aggressive momentum scalping - quick entries/exits"),
+        ("trend_follower", "Patient trend following - ride the wave"),
+        ("mean_reversion", "Fade overextended moves - contrarian"),
+        ("conservative", "High-confidence only - preserve capital"),
+    ]

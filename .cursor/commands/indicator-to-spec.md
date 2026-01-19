@@ -244,7 +244,7 @@ Even if the indicator doesn't explicitly grade setups, YOU should design quality
 - Position size: 60% of risk budget
 
 **B Grade (3/5 factors):**
-- 3 quality factors present  
+- 3 quality factors present
 - Position size: 40% of risk budget
 
 **C Grade (2/5 factors):**
@@ -821,7 +821,7 @@ Guidelines: Conservative swing trading, 1:3 R:R minimum
 
 A **48-section, complete specification** including everything from the indicator PLUS:
 - Quality grading system (not in indicator)
-- Multiple profit targets (not in indicator)  
+- Multiple profit targets (not in indicator)
 - Market condition filters (inferred from design)
 - Timeframe recommendations (calculated from lookback periods)
 - False signal patterns (analyzed from logic)

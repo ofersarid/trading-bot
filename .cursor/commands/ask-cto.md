@@ -113,7 +113,7 @@ When invoked without a specific question, perform a comprehensive architecture a
 
 **Impact:** [Low/Medium/High]
 
-**Recommendation:** 
+**Recommendation:**
 - [ ] Fix code to match docs
 - [ ] Update docs to match code
 - [ ] Redesign both
@@ -192,28 +192,28 @@ From the system architecture, enforce these principles:
 > "This change to the paper trader looks solid technically. However, I notice it adds a new `partial_close()` method that isn't documented in `system_architecture.md` section 3.5. Either:
 > 1. Add it to the PaperTrader interface docs (recommended since it's a useful feature), or
 > 2. If this is experimental, mark it with a TODO for documentation
-> 
+>
 > Also, consider adding type hints for the `percentage` parameter."
 
 ### During a general sweep:
 
 > "## 🏗️ Architecture Review Report
-> 
+>
 > I found 3 discrepancies in my audit:
-> 
+>
 > ### Critical (P0)
-> **AI Parser Mismatch**: `system_architecture.md` line 479 references `bot/ai/parser.py` but the actual implementation is in `bot/ai/models.py`. 
-> 
+> **AI Parser Mismatch**: `system_architecture.md` line 479 references `bot/ai/parser.py` but the actual implementation is in `bot/ai/models.py`.
+>
 > **Recommendation**: Update docs - `models.py` is a better name since it contains Pydantic models, not just parsing logic.
-> 
+>
 > ### Medium (P1)
 > **Missing trading/ directory**: Documented in section 6 but doesn't exist. The functionality appears to be split between `bot/simulation/` and `bot/hyperliquid/`.
-> 
+>
 > **Recommendation**: Remove from docs since current structure is cleaner.
-> 
+>
 > ### Low (P2)
 > **Phase checklist outdated**: Phase 1 shows WebSocket as incomplete but `websocket_manager.py` exists and is functional.
-> 
+>
 > **Recommendation**: Update checklist to reflect actual progress."
 
 ---

@@ -22,7 +22,7 @@ def main():
     # Load client from environment
     try:
         client = HyperliquidClient.from_env()
-        print(f"✓ Client initialized successfully")
+        print("✓ Client initialized successfully")
         print(f"  Environment: {client.env}")
         print(f"  Address: {client.address}")
     except ValueError as e:
@@ -37,7 +37,7 @@ def main():
     try:
         state = client.get_user_state()
         balance = client.get_balance()
-        print(f"✓ Account state retrieved")
+        print("✓ Account state retrieved")
         print(f"  Account Value: ${balance:,.2f}")
 
         margin = state.get("marginSummary", {})

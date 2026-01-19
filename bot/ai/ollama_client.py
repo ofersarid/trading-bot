@@ -1,9 +1,9 @@
 """Ollama API client for local LLM inference."""
 
-import httpx
-import time
 import logging
-from typing import Optional
+import time
+
+import httpx
 
 from bot.ai.models import AIMetrics
 
@@ -23,7 +23,7 @@ class OllamaClient:
         self.model = model
         self.timeout = timeout
         self.metrics = AIMetrics(model_name=model)
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the async HTTP client."""
@@ -88,9 +88,7 @@ class OllamaClient:
             # Record metrics
             self.metrics.record_call(total_tokens, response_time_ms)
 
-            logger.debug(
-                f"AI response: {total_tokens} tokens in {response_time_ms:.0f}ms"
-            )
+            logger.debug(f"AI response: {total_tokens} tokens in {response_time_ms:.0f}ms")
 
             return response_text, total_tokens, response_time_ms
 

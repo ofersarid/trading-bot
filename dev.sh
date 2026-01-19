@@ -33,7 +33,7 @@ if [ -z "$SESSION_NAME" ]; then
     echo "  ./dev.sh aggressive 5000       # Load/create 'aggressive' with \$5000"
     echo "  ./dev.sh --list                # List all sessions"
     echo ""
-    
+
     # Show available sessions if any
     python bot/ui/dashboard.py --list-sessions 2>/dev/null
     exit 1

@@ -24,3 +24,4 @@ Thumbs.db
 # Project specific
 Old/pinescriptv6/
 trading_bot.log
+data/sessions/*/logs/session_log_*.txt

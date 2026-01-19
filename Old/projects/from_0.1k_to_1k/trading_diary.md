@@ -1,6 +1,6 @@
 # Trading Diary: $100 → $1,000 Challenge
 
-**Starting Balance:** $100  
+**Starting Balance:** $100
 **Current Balance:** $100
 
 ---
@@ -36,7 +36,7 @@
 
 ### 🛠️ Strategy Development
 
-**Craig Percoco Strategy (3-Step Setup)**  
+**Craig Percoco Strategy (3-Step Setup)**
 Source: "The Perfect Beginner DAY TRADING Strategy (Step-by-Step)"
 
 | Indicator | Status | File |

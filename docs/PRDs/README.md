@@ -27,8 +27,8 @@ When adding a new PRD:
 ```markdown
 # [Document Title]
 
-> **Version:** 1.0  
-> **Last Updated:** [Date]  
+> **Version:** 1.0
+> **Last Updated:** [Date]
 > **Status:** Draft
 
 ---

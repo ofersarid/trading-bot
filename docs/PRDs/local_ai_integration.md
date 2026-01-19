@@ -1,8 +1,8 @@
 # PRD: Local AI Model Integration
 
-**Version:** 1.0  
-**Date:** 2026-01-17  
-**Status:** Draft  
+**Version:** 1.0
+**Date:** 2026-01-17
+**Status:** Draft
 
 ---
 
@@ -97,7 +97,7 @@ class OllamaClient:
     def __init__(self, base_url: str = "http://localhost:11434"):
         self.base_url = base_url
         self.model = "mistral"  # or llama3.2, phi3, etc.
-    
+
     async def analyze(self, prompt: str) -> str:
         """Send prompt to local Ollama and get response."""
         async with httpx.AsyncClient() as client:
@@ -181,7 +181,7 @@ class AIMetrics:
     total_calls: int = 0
     avg_response_time_ms: float = 0
     model_name: str = ""
-    
+
     # Per-session stats
     session_tokens: int = 0
     session_calls: int = 0
@@ -212,7 +212,7 @@ brew install ollama
 # Recommended for 8GB RAM
 ollama pull mistral
 
-# Lighter option for 6GB RAM  
+# Lighter option for 6GB RAM
 ollama pull phi3
 
 # Best quality (needs 16GB RAM)
@@ -247,10 +247,10 @@ curl http://localhost:11434/api/generate -d '{
 - [x] Track token usage
 
 ### Phase 2: Smart Analysis
-- [ ] Tune prompts for better trading signals
-- [ ] Add entry/exit analysis
-- [ ] Implement confidence scoring
-- [ ] Add AI toggle in UI (Rule-based vs AI)
+- [x] Tune prompts for better trading signals
+- [x] Add entry/exit analysis
+- [x] Implement confidence scoring
+- [x] Add AI toggle in UI (Rule-based vs AI)
 
 ### Phase 3: Advanced Features
 - [ ] Multi-model support (switch between models)

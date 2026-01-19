@@ -43,7 +43,7 @@ Read all rule files from `.cursor/rules/` directory:
 Ask the user to specify the scope of the review:
 
 > **What would you like to review?**
-> 
+>
 > 1. **Full codebase** - Review all Python files in `bot/`
 > 2. **Specific directory** - e.g., `bot/ui/`, `bot/core/`
 > 3. **Specific file** - e.g., `bot/ui/dashboard.py`
@@ -223,7 +223,7 @@ Categorize findings by effort/impact:
 After presenting the report, ask:
 
 > **How would you like to proceed?**
-> 
+>
 > 1. **Fix Quick Wins** - Apply all green-category fixes automatically
 > 2. **Fix specific category** - Choose which rule violations to address
 > 3. **Fix specific file** - Focus on one file at a time

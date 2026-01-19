@@ -1,7 +1,7 @@
 # System Architecture - Crypto AI Trading Bot
 
-> **Version:** 1.3  
-> **Last Updated:** January 18, 2026  
+> **Version:** 1.3
+> **Last Updated:** January 18, 2026
 > **Status:** Draft
 
 ---
@@ -35,13 +35,13 @@ flowchart TB
         subgraph BOT["TRADING BOT (Python)"]
             WS[WebSocket Manager] --> OA[Opportunity Analyzer]
             OA --> PT[Paper Trader]
-            
+
             WS -->|Market Data| SS[(Session State<br/>JSON)]
             OA -->|Opportunities| AI[AI Analyzer<br/>Ollama]
             PT -->|Positions| TC[Trading Config]
-            
+
             subgraph UI["TERMINAL UI (Textual)"]
-                P1[Prices] 
+                P1[Prices]
                 P2[Order Book]
                 P3[Trades Feed]
                 P4[AI Panel]
@@ -52,11 +52,11 @@ flowchart TB
             end
         end
     end
-    
+
     HL_WS[("Hyperliquid<br/>WebSocket API<br/>(Market Data)")] -->|WebSocket<br/>Public - No Auth| WS
     OLLAMA[("Ollama<br/>Local AI<br/>localhost:11434")] <-->|HTTP<br/>Local - No Auth| AI
     HL_REST[("Hyperliquid<br/>REST API<br/>(Testnet/Mainnet)")] <-.->|HTTPS<br/>Auth Required| PT
-    
+
     style LOCAL fill:#1a1a2e,stroke:#16213e,color:#fff
     style BOT fill:#16213e,stroke:#0f3460,color:#fff
     style UI fill:#0f3460,stroke:#e94560,color:#fff
@@ -93,7 +93,7 @@ flowchart TD
         BUF --> TC{Trigger Check}
         TC -->|candle close<br/>price move<br/>volume spike| TRIG[Trigger!]
     end
-    
+
     subgraph STEP2["2. AI ANALYSIS"]
         TRIG --> FP[Format Prompt]
         FP -->|HTTP| OLLAMA[Ollama<br/>Local AI]
@@ -103,23 +103,23 @@ flowchart TD
         DEC --> |Entry, SL, TP| PARAMS[Parameters]
         DEC --> |1-10| CONF[Confidence]
     end
-    
+
     subgraph STEP3["3. ORDER EXECUTION"]
         SIG --> RC{Risk Check}
         PARAMS --> RC
         CONF --> RC
         RC -->|Position sizing<br/>Loss limit check| ER{Execution Router}
-        
+
         ER -->|Simulation| SIM[Paper Trader]
         SIM --> LOCAL[(Local tracking<br/>P&L calc<br/>JSON history)]
-        
+
         ER -.->|Testnet| TEST[Order Manager]
         TEST -.-> HL_TEST[Hyperliquid Testnet]
-        
+
         ER -.->|Live| LIVE[Order Manager]
         LIVE -.-> HL_LIVE[Hyperliquid Mainnet]
     end
-    
+
     style STEP1 fill:#1a1a2e,stroke:#16213e,color:#fff
     style STEP2 fill:#16213e,stroke:#0f3460,color:#fff
     style STEP3 fill:#0f3460,stroke:#e94560,color:#fff
@@ -159,7 +159,7 @@ class WebSocketManager:
         on_disconnect: Callable[[str], Awaitable[None]],  # CRITICAL for safety
     ):
         ...
-    
+
     async def start(self) -> None
     async def stop(self) -> None
     def add_subscription(self, subscription: dict) -> None
@@ -272,7 +272,7 @@ class PaperTrader:
         self.balance = starting_balance
         self.positions: dict[str, Position] = {}
         self.trade_history: list[Trade] = []
-    
+
     def open_long(self, coin: str, size: float, price: float, is_maker: bool = False) -> OrderResult
     def open_short(self, coin: str, size: float, price: float, is_maker: bool = False) -> OrderResult
     def close_position(self, coin: str, price: float, is_maker: bool = False) -> OrderResult
@@ -320,7 +320,7 @@ data/sessions/
 class SessionStateManager:
     def __init__(self, data_dir: str = "data", session_name: str = "default"):
         ...
-    
+
     def save(self, trader: PaperTrader, ...) -> None
     def load(self) -> SessionState | None
     def has_saved_state(self) -> bool
@@ -439,7 +439,7 @@ ollama pull llama3.2
 
 **Authentication:** API key in header (`ANTHROPIC_API_KEY`)
 
-**Rate Limits:** 
+**Rate Limits:**
 - Tier 1: 60 requests/minute
 - Consider batching if hitting limits
 
@@ -471,23 +471,23 @@ All trading parameters are centralized in a single dataclass:
 @dataclass
 class TradingConfig:
     """Configuration for trading behavior and thresholds."""
-    
+
     # Opportunity Detection (TUNABLE)
     track_threshold_pct: float = 0.02    # Min momentum to track opportunity
     trade_threshold_pct: float = 0.04    # Min momentum to execute trade
     momentum_timeframe_seconds: int = 5  # Lookback for momentum calc
-    
+
     # Position Management (TUNABLE)
     take_profit_pct: float = 0.10        # Exit at +10%
     stop_loss_pct: float = -0.05         # Exit at -5%
     position_size_pct: float = 0.10      # 10% of balance per trade
     cooldown_seconds: float = 30.0       # Wait between trades on same coin
     max_concurrent_positions: int = 2    # Max open positions
-    
+
     # Analysis
     market_analysis_interval_seconds: int = 10
     price_history_maxlen: int = 500
-    
+
     # Display
     max_trades_history: int = 100
     orderbook_depth: int = 8
@@ -788,5 +788,5 @@ Every time a 1-minute candle closes:
 
 ---
 
-*Document maintained by: Trading Bot Development Team*  
+*Document maintained by: Trading Bot Development Team*
 *Last synced with codebase: January 18, 2026*

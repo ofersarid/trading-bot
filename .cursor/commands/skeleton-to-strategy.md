@@ -43,7 +43,7 @@ indicator("Indicator Name", overlay=true)
 
 // TO strategy:
 //@version=6
-strategy("Strategy Name v0.1", 
+strategy("Strategy Name v0.1",
     overlay=true,
     initial_capital=10000,
     default_qty_type=strategy.percent_of_equity,
@@ -89,8 +89,8 @@ strategy("Strategy Name v0.1",
 #### Script Header
 ```pinescript
 //@version=6
-strategy("[Strategy Name]", 
-    overlay=true, 
+strategy("[Strategy Name]",
+    overlay=true,
     initial_capital=10000,
     default_qty_type=strategy.percent_of_equity,
     default_qty_value=100,
@@ -127,7 +127,7 @@ Write to the appropriate version file in `strategies/{strategy_name}/`:
 
 ```pinescript
 //@version=6
-strategy("[Strategy Name] v0.1", 
+strategy("[Strategy Name] v0.1",
     overlay=true,
     initial_capital=10000,
     default_qty_type=strategy.percent_of_equity,
@@ -140,7 +140,7 @@ strategy("[Strategy Name] v0.1",
 // Entry Parameters
 // ...
 
-// Exit Parameters  
+// Exit Parameters
 // ...
 
 // ══════════════════════════════════════════════════════════════════════════════

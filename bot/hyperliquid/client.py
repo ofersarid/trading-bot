@@ -14,6 +14,7 @@ from typing import Literal
 
 import eth_account
 from dotenv import load_dotenv
+
 from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
 from hyperliquid.utils import constants
@@ -47,9 +48,7 @@ class HyperliquidClient:
     ):
         self.env = env
         self._wallet = eth_account.Account.from_key(private_key)
-        self._api_url = (
-            constants.TESTNET_API_URL if env == "testnet" else constants.MAINNET_API_URL
-        )
+        self._api_url = constants.TESTNET_API_URL if env == "testnet" else constants.MAINNET_API_URL
 
         self._info = Info(self._api_url, skip_ws=True)
         self._exchange = Exchange(self._wallet, self._api_url)
@@ -71,20 +70,20 @@ class HyperliquidClient:
         private_key = os.getenv("HYPERLIQUID_PRIVATE_KEY")
         if not private_key:
             raise ValueError(
-                "HYPERLIQUID_PRIVATE_KEY not found in environment. "
-                "Set it in .env or export it."
+                "HYPERLIQUID_PRIVATE_KEY not found in environment. Set it in .env or export it."
             )
 
         env = os.getenv("HYPERLIQUID_ENV", "testnet")
         if env not in ("testnet", "mainnet"):
             raise ValueError(f"HYPERLIQUID_ENV must be 'testnet' or 'mainnet', got: {env}")
 
-        return cls(private_key=private_key, env=env)
+        env_typed: Literal["testnet", "mainnet"] = "testnet" if env == "testnet" else "mainnet"
+        return cls(private_key=private_key, env=env_typed)
 
     @property
     def address(self) -> str:
         """The wallet address associated with this client."""
-        return self._wallet.address
+        return str(self._wallet.address)
 
     def get_user_state(self) -> dict:
         """
@@ -95,7 +94,8 @@ class HyperliquidClient:
         - crossMarginSummary: cross margin details
         - assetPositions: list of open positions
         """
-        return self._info.user_state(self.address)
+        result: dict = self._info.user_state(self.address)
+        return result
 
     def get_balance(self) -> float:
         """Get available USDC balance."""
@@ -105,12 +105,14 @@ class HyperliquidClient:
     def get_positions(self) -> list[dict]:
         """Get all open positions."""
         state = self.get_user_state()
-        return state.get("assetPositions", [])
+        result: list[dict] = state.get("assetPositions", [])
+        return result
 
     def get_markets(self) -> list[dict]:
         """Get all available trading pairs with their metadata."""
         meta = self._info.meta()
-        return meta.get("universe", [])
+        result: list[dict] = meta.get("universe", [])
+        return result
 
     def get_price(self, coin: str) -> float | None:
         """Get current mid price for a coin."""
@@ -280,7 +282,7 @@ class HyperliquidClient:
         """
         try:
             result = self._exchange.cancel(coin, order_id)
-            return result.get("status") == "ok"
+            return bool(result.get("status") == "ok")
         except Exception:
             return False
 
@@ -311,4 +313,5 @@ class HyperliquidClient:
 
     def get_open_orders(self) -> list[dict]:
         """Get all open orders for this account."""
-        return self._info.open_orders(self.address)
+        result: list[dict] = self._info.open_orders(self.address)
+        return result

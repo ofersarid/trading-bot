@@ -1,9 +1,9 @@
 # Momentum Scalping Strategy v1
 
-> **Status:** Active  
-> **Version:** 1.0  
-> **Last Updated:** January 18, 2026  
-> **Timeframe:** Sub-minute (scalping)  
+> **Status:** Active
+> **Version:** 1.0
+> **Last Updated:** January 18, 2026
+> **Timeframe:** Sub-minute (scalping)
 > **Assets:** BTC, ETH perpetual futures on Hyperliquid
 
 ---
@@ -108,11 +108,11 @@ class TradingConfig:
     track_threshold_pct: float = 0.02    # Start tracking at 0.02%
     trade_threshold_pct: float = 0.04    # Execute at 0.04%
     momentum_timeframe_seconds: int = 5  # Lookback for momentum
-    
+
     # Exit thresholds (TUNABLE)
     take_profit_pct: float = 0.10        # Take profit at +10%
     stop_loss_pct: float = -0.05         # Stop loss at -5%
-    
+
     # Position management (TUNABLE)
     position_size_pct: float = 0.10      # 10% of balance per trade
     cooldown_seconds: float = 30.0       # Wait between trades

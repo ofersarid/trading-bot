@@ -22,7 +22,7 @@ Use Textual's reactive properties for state that should trigger UI updates:
 ```python
 class TradingDashboard(App):
     balance = reactive(10000.0)
-    
+
     def watch_balance(self, new_value: float) -> None:
         """Called automatically when balance changes."""
         self.update_status_bar()
@@ -88,7 +88,7 @@ def __init__(self):
 
 async def handle_prices(self, data: dict) -> None:
     self._process_price_data(data)  # Always process
-    
+
     now = datetime.now()
     if (now - self._last_price_update).total_seconds() >= self._update_interval:
         self.update_prices_display()  # Throttle display updates

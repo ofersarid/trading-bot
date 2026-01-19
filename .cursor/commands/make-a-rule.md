@@ -37,9 +37,9 @@ Review the recent conversation to identify:
 
 **Output a summary:**
 > **Pattern Detected:** [Brief description]
-> 
+>
 > **Context:** [What triggered this - the fix/improvement that was made]
-> 
+>
 > **Proposed Rule:** [One-sentence rule statement]
 
 ---
@@ -57,12 +57,12 @@ Scan `.cursor/rules/` for existing rules that might cover this pattern:
 
 **If exact match found:**
 > "This pattern is already covered by `[rule-file].mdc` in the section about [topic]. No changes needed."
-> 
+>
 > *Show the relevant section from the existing rule.*
 
 **If partial match found:**
 > "Found related rule in `[rule-file].mdc`. Recommend updating the [section] to include this pattern."
-> 
+>
 > *Show the existing section and proposed addition.*
 
 **If no match found:**
@@ -86,13 +86,13 @@ Show the proposed diff:
 [Existing content...]
 
 + ### [New Pattern Name]
-+ 
++
 + [Description of what to do/not do]
-+ 
++
 + ```python
 + # Good
 + [example of correct pattern]
-+ 
++
 + # Bad
 + [example of incorrect pattern]
 + ```
@@ -136,14 +136,14 @@ If the pattern doesn't fit existing rules, propose a new `.mdc` file:
 Ask the user:
 
 > **Proposed rule change:**
-> 
+>
 > - **Action:** [Create new / Update existing]
 > - **File:** `[filename].mdc`
 > - **Section:** [New section / Updated section name]
-> 
+>
 > **Preview:**
 > [Show the exact content that will be added/changed]
-> 
+>
 > **Proceed?**
 > 1. Yes, apply this change
 > 2. Modify the proposed rule first
@@ -192,10 +192,10 @@ After all changes are applied:
 > - File: `[filename].mdc`
 > - Section: [section name]
 > - Pattern: [brief description]
-> 
+>
 > **Code Maintenance Updated:** [Yes/No]
 > - Added checks for: [list of new checks]
-> 
+>
 > **Next time you run `code-maintenance`, it will check for this pattern.**
 
 ---

@@ -113,21 +113,21 @@ flowchart TD
         C --> D[Mark 50% Level]
         D --> E[Track Mitigation]
     end
-    
+
     subgraph phase2 [Phase 2: Market Structure]
         F[Price Action] --> G[Detect Swing Points]
         G --> H[Identify BOS]
         H --> I[Count BOS for Trend]
         I --> J[Detect CHoCH]
     end
-    
+
     subgraph phase3 [Phase 3: Strategy]
         K[CHoCH + FVG] --> L{Valid Setup?}
         L -->|Yes| M[Entry Signal at 50%]
         M --> N[Calculate SL/TP]
         N --> O[Alert]
     end
-    
+
     E --> K
     J --> K
 ```
