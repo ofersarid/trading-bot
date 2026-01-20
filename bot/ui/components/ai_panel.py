@@ -97,10 +97,11 @@ class AIPanel(Container):
         self,
         analysis_mode: str,
         ai_model: str,
-        tokens_used: int = 0,
+        _tokens_used: int = 0,
         ai_calls: int = 0,
         disconnects: int = 0,
         reconnects: int = 0,
+        scalper_age: float | None = None,
     ) -> None:
         """
         Update the AI panel title with mode and stats.
@@ -112,6 +113,7 @@ class AIPanel(Container):
             ai_calls: Number of AI API calls made
             disconnects: Total WebSocket disconnects
             reconnects: Successful reconnection count
+            scalper_age: Seconds since last scalper interpretation (optional)
         """
         try:
             title = self.query_one("#ai-title", Static)
@@ -121,25 +123,104 @@ class AIPanel(Container):
             if disconnects > 0:
                 conn_info = f" [dim]│[/dim] [yellow]Reconn: {reconnects}[/yellow] [dim]│[/dim] [red]Disc: {disconnects}[/red]"
 
+            # Scalper staleness indicator
+            scalper_info = ""
+            if scalper_age is not None:
+                if scalper_age > 30:
+                    scalper_info = f" [dim]│[/dim] [red]Scalper: {scalper_age:.0f}s ago[/red]"
+                elif scalper_age > 20:
+                    scalper_info = f" [dim]│[/dim] [yellow]Scalper: {scalper_age:.0f}s ago[/yellow]"
+                else:
+                    scalper_info = (
+                        f" [dim]│[/dim] [#44ffaa]Scalper: {scalper_age:.0f}s ago[/#44ffaa]"
+                    )
+
             if analysis_mode == "RULE-BASED":
                 title.update(
                     f"🧠 ANALYSIS [dim]│[/dim] [yellow]📐 {analysis_mode}[/yellow] [dim]│[/dim] "
-                    f"Model: [cyan]{ai_model}[/cyan]{conn_info}"
+                    f"Model: [cyan]{ai_model}[/cyan]{scalper_info}{conn_info}"
                 )
             elif "Local" in analysis_mode:
                 # Local AI mode (Ollama)
                 title.update(
                     f"🧠 AI REASONING [dim]│[/dim] [#44ffaa]🤖 LOCAL AI[/#44ffaa] [dim]│[/dim] "
                     f"Model: [cyan]{ai_model}[/cyan] [dim]│[/dim] "
-                    f"Tokens: [magenta]{tokens_used:,}[/magenta] [dim]│[/dim] "
-                    f"Calls: [blue]{ai_calls}[/blue]{conn_info}"
+                    f"Calls: [blue]{ai_calls}[/blue]{scalper_info}{conn_info}"
                 )
             else:
                 title.update(
                     f"🧠 AI REASONING [dim]│[/dim] [#44ffaa]🤖 {analysis_mode}[/#44ffaa] [dim]│[/dim] "
                     f"Model: [cyan]{ai_model}[/cyan] [dim]│[/dim] "
-                    f"Tokens: [magenta]{tokens_used:,}[/magenta] [dim]│[/dim] "
-                    f"Calls: [blue]{ai_calls}[/blue]{conn_info}"
+                    f"Calls: [blue]{ai_calls}[/blue]{scalper_info}{conn_info}"
                 )
         except Exception as e:
             logger.debug(f"AI title not ready: {e}")
+
+    def log_scalper_interpretation(
+        self,
+        coin: str,
+        momentum: int,
+        pressure: int,
+        prediction: int,
+        freshness: str,
+        action: str,
+        confidence: int,
+        reason: str,
+        response_time_ms: float,
+    ) -> None:
+        """
+        Log a scalper interpretation with visual formatting.
+
+        Args:
+            coin: Coin symbol
+            momentum: AI-interpreted momentum (0-100)
+            pressure: AI-interpreted pressure (0-100, 50=neutral)
+            prediction: Continuation probability (0-100)
+            freshness: FRESH/DEVELOPING/EXTENDED/EXHAUSTED
+            action: NONE/LONG/SHORT/EXIT
+            confidence: Confidence level (1-10)
+            reason: Scalper's reasoning
+            response_time_ms: AI response time
+        """
+
+        # Color helpers
+        def metric_color(val: int, neutral: int = 50) -> str:
+            if val >= neutral + 10:
+                return "#44ffaa"
+            elif val <= neutral - 10:
+                return "#ff7777"
+            return "yellow"
+
+        freshness_colors = {
+            "FRESH": "#44ffaa",
+            "DEVELOPING": "yellow",
+            "EXTENDED": "orange1",
+            "EXHAUSTED": "#ff7777",
+        }
+
+        action_colors = {
+            "LONG": "#44ffaa",
+            "SHORT": "#ff7777",
+            "EXIT": "orange1",
+            "NONE": "dim",
+        }
+
+        mom_color = metric_color(momentum)
+        press_color = metric_color(pressure)
+        pred_color = metric_color(prediction)
+        fresh_color = freshness_colors.get(freshness, "white")
+        act_color = action_colors.get(action, "white")
+
+        lines = [
+            f"[cyan]━━━ 🎯 SCALPER: {coin} ━━━[/cyan]",
+            f"[bold]Mom:[/bold] [{mom_color}]{momentum}[/{mom_color}] "
+            f"[bold]Press:[/bold] [{press_color}]{pressure}[/{press_color}] "
+            f"[bold]Pred:[/bold] [{pred_color}]{prediction}%[/{pred_color}]",
+            f"[bold]Setup:[/bold] [{fresh_color}]{freshness}[/{fresh_color}] "
+            f"[bold]Action:[/bold] [{act_color}]{action}[/{act_color}] "
+            f"[bold]Conf:[/bold] {confidence}/10",
+            f"[dim]{reason}[/dim]",
+            f"[dim]⚡ {response_time_ms:.0f}ms[/dim]",
+        ]
+
+        self.log_block(lines)

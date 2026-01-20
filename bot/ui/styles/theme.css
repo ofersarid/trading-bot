@@ -71,12 +71,17 @@ Footer {
 
 #markets-panel {
     width: 100%;
-    height: 3fr;
+    height: 1fr;
+}
+
+#charts-panel {
+    width: 100%;
+    height: 1fr;
 }
 
 #history-panel {
     width: 100%;
-    height: 2fr;
+    height: 1fr;
 }
 
 /* ============================================================

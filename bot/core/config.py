@@ -106,6 +106,34 @@ class TradingConfig:
     # Log momentum analysis every N updates
     momentum_analysis_log_interval: int = 100
 
+    # =========================================================
+    # Scalper AI Interpretation Settings
+    # =========================================================
+    # These control when and how the Scalper persona interprets market data.
+    # Timing is designed for human decision pace, not algorithmic.
+
+    # Seconds between periodic AI interpretations (human rhythm)
+    # Range: 8-20 seconds | Lower = more AI calls, faster updates
+    scalper_periodic_interval: float = 12.0
+
+    # Price change threshold to trigger immediate interpretation
+    # Range: 0.001 - 0.003 (0.1% - 0.3%) | Lower = more triggers
+    scalper_price_move_threshold: float = 0.0015  # 0.15%
+
+    # Trade size multiplier to consider a trade "large" (whale)
+    # Range: 2.0 - 5.0 | Lower = more trades considered large
+    scalper_large_trade_multiplier: float = 3.0
+
+    # Seconds between position checks when in a trade
+    # Range: 5-15 seconds | Lower = more attentive monitoring
+    scalper_position_check_interval: float = 10.0
+
+    # Interpretation staleness thresholds (for UI indicators)
+    # After warning threshold: show yellow indicator
+    # After error threshold: show red indicator
+    scalper_staleness_warning: float = 20.0  # seconds
+    scalper_staleness_error: float = 30.0  # seconds
+
 
 # Default configuration instance
 DEFAULT_CONFIG = TradingConfig()

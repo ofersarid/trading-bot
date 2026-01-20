@@ -39,8 +39,17 @@ from textual.widgets import Footer, Static
 
 from bot.ai import AIDecision, OllamaClient, TradingStrategy
 from bot.ai import MarketAnalyzer as AIMarketAnalyzer
-from bot.core.analysis import MarketAnalyzer, calculate_momentum
+from bot.ai.interpretation_scheduler import InterpretationScheduler
+from bot.ai.scalper_interpreter import ScalperInterpretation, ScalperInterpreter
+from bot.core.analysis import (
+    MarketAnalyzer,
+    MomentumResult,
+    calculate_momentum,
+    calculate_momentum_with_acceleration,
+)
+from bot.core.candle_aggregator import MultiCoinCandleManager
 from bot.core.config import DEFAULT_CONFIG, TradingConfig
+from bot.core.data_buffer import CoinDataBufferManager
 from bot.core.models import MarketPressure
 from bot.hyperliquid.websocket_manager import ConnectionState, WebSocketConfig, WebSocketManager
 from bot.simulation.models import HYPERLIQUID_FEES
@@ -49,6 +58,7 @@ from bot.simulation.state_manager import SessionStateManager
 from bot.tuning import FeedbackCollector, PerformanceAnalyzer, TuningReportExporter
 from bot.ui.components import (
     AIPanel,
+    ChartsPanel,
     HistoryPanel,
     MarketsPanel,
     StatusBar,
@@ -134,6 +144,9 @@ class TradingDashboard(App):
             coin: deque(maxlen=self.config.price_history_maxlen) for coin in self.coins
         }
 
+        # Velocity tracking for acceleration calculation
+        self._previous_velocity: dict[str, float] = {}
+
         # Market analysis state
         self.last_market_analysis = datetime.now()
 
@@ -156,6 +169,31 @@ class TradingDashboard(App):
         # AI decision interval (how often AI makes decisions)
         self.ai_decision_interval = 10  # seconds
         self._last_ai_decision = datetime.now()
+
+        # Scalper AI Interpretation System
+        # Data buffer for raw market data (human-scale: 60s prices, 50 trades, 3 orderbooks)
+        self.data_buffer_manager = CoinDataBufferManager(self.coins)
+
+        # Scalper interpreter (calls AI with persona prompt)
+        self.scalper_interpreter = ScalperInterpreter(client=self.ai_client)
+
+        # Interpretation scheduler (determines when to call AI)
+        self.interpretation_scheduler = InterpretationScheduler(
+            periodic_interval=self.config.scalper_periodic_interval,
+            price_move_threshold=self.config.scalper_price_move_threshold,
+            large_trade_multiplier=self.config.scalper_large_trade_multiplier,
+            position_check_interval=self.config.scalper_position_check_interval,
+        )
+
+        # Cached interpretations per coin
+        self._scalper_interpretations: dict[str, ScalperInterpretation] = {}
+
+        # Candle aggregator for charting (1-minute candles)
+        self.candle_manager = MultiCoinCandleManager(
+            coins=self.coins,
+            max_candles=60,  # Keep 1 hour of candles
+            on_candle_complete=self._on_candle_complete,
+        )
 
         # Session state manager for persistence (supports multiple named sessions)
         self.state_manager = SessionStateManager(session_name=self.session_name)
@@ -308,10 +346,13 @@ class TradingDashboard(App):
             # Left sidebar: AI Reasoning log
             yield AIPanel(id="ai-panel", classes="panel")
 
-            # Right side: Markets table + History
+            # Right side: Markets table + Charts + History
             with Vertical(classes="data-panels"):
                 # Markets panel with DataTable
                 yield MarketsPanel(self.coins, id="markets-panel", classes="panel")
+
+                # Candlestick charts for each coin
+                yield ChartsPanel(self.coins, id="charts-panel", classes="panel")
 
                 # Global trade history at bottom
                 yield HistoryPanel(id="history-panel", classes="panel")
@@ -358,6 +399,8 @@ class TradingDashboard(App):
         self.set_interval(1, self.update_positions_display)
         # Update AI title periodically
         self.set_interval(5, self.update_ai_title)
+        # Update candlestick charts every 5 seconds
+        self.set_interval(5, self._refresh_all_charts)
         # Auto-save session state and logs every minute
         self.set_interval(self.AUTO_SAVE_INTERVAL, self._auto_save)
 
@@ -505,8 +548,26 @@ class TradingDashboard(App):
 
                 self.prices[coin] = new_price
 
-                # Store history for momentum calculation
+                # Store history for momentum calculation (legacy)
                 self.price_history[coin].append({"price": new_price, "time": datetime.now()})
+
+                # Update scalper data buffer (new system)
+                self.data_buffer_manager.update_price(coin, new_price)
+
+                # Feed candle aggregator for charting
+                self.candle_manager.add_tick(coin, new_price)
+
+                # Check if scalper interpretation should be triggered
+                has_position = coin in self.trader.positions
+                should_interpret, reason = self.interpretation_scheduler.should_interpret(
+                    coin=coin,
+                    current_price=new_price,
+                    last_trade_size=0,  # No trade in price update
+                    has_position=has_position,
+                )
+
+                if should_interpret:
+                    self.run_scalper_interpretation(coin, reason)
 
         # Log when all coins have prices
         if first_update and len(self.prices) >= len(self.coins):
@@ -548,6 +609,24 @@ class TradingDashboard(App):
                 }
             )
 
+            # Update scalper data buffer with trade
+            if coin in self.coins:
+                self.data_buffer_manager.update_trade(coin, trade)
+                self.interpretation_scheduler.record_trade(coin, size)
+
+                # Check for large trade trigger
+                has_position = coin in self.trader.positions
+                current_price = self.prices.get(coin, price)
+                should_interpret, reason = self.interpretation_scheduler.should_interpret(
+                    coin=coin,
+                    current_price=current_price,
+                    last_trade_size=size,
+                    has_position=has_position,
+                )
+
+                if should_interpret and reason == "large_trade":
+                    self.run_scalper_interpretation(coin, reason)
+
     async def handle_orderbook(self, data: dict) -> None:
         """Handle order book updates."""
         book = data.get("data", {})
@@ -555,13 +634,40 @@ class TradingDashboard(App):
         levels = book.get("levels", [[], []])
 
         depth = self.config.orderbook_depth
+        bids = levels[0][:depth] if len(levels) > 0 else []
+        asks = levels[1][:depth] if len(levels) > 1 else []
+
         self.orderbook[coin] = {
-            "bids": levels[0][:depth] if len(levels) > 0 else [],
-            "asks": levels[1][:depth] if len(levels) > 1 else [],
+            "bids": bids,
+            "asks": asks,
         }
+
+        # Update scalper data buffer with orderbook
+        if coin in self.coins:
+            self.data_buffer_manager.update_orderbook(coin, bids, asks)
 
         # Calculate pressure and update instrument row
         self._update_market_pressure(coin)
+
+    def _on_candle_complete(self, coin: str, _candle) -> None:
+        """Called when a 1-minute candle completes."""
+        # Update the chart for this coin
+        self._update_chart(coin)
+
+    def _update_chart(self, coin: str) -> None:
+        """Update the candlestick chart for a coin."""
+        try:
+            charts_panel = self.query_one(ChartsPanel)
+            candles = self.candle_manager.get_candles(coin, include_current=True)
+            current_price = self.prices.get(coin)
+            charts_panel.update_chart(coin, candles, current_price)
+        except Exception:
+            pass  # Chart panel may not be ready yet
+
+    def _refresh_all_charts(self) -> None:
+        """Refresh all candlestick charts with current data."""
+        for coin in self.coins:
+            self._update_chart(coin)
 
     def analyze_market_conditions(self) -> None:
         """Trigger AI trading decisions at configured intervals."""
@@ -574,21 +680,31 @@ class TradingDashboard(App):
             self._last_ai_decision = now
             self.run_ai_trading_decision()
 
-    def _prepare_ai_analysis_data(self) -> tuple[dict, dict, dict, list, MarketPressure | None]:
-        """Prepare market data for AI analysis."""
+    def _prepare_ai_analysis_data(
+        self,
+    ) -> tuple[dict, dict, dict, dict, list, MarketPressure | None]:
+        """Prepare market data for AI analysis including acceleration."""
         prices_data = {}
         momentum_data = {}
+        acceleration_data = {}
         orderbook_data = {}
 
         for coin in self.coins:
             price = self.prices.get(coin)
             if price:
-                momentum = self._calculate_momentum(coin)
+                # Use momentum with acceleration for AI analysis
+                result = self._get_momentum_with_acceleration(coin)
+                if result:
+                    momentum_data[coin] = result.velocity
+                    acceleration_data[coin] = result.acceleration
+                else:
+                    momentum_data[coin] = 0
+                    acceleration_data[coin] = 0
+
                 prices_data[coin] = {
                     "price": price,
-                    "change_1m": momentum if momentum else 0,
+                    "change_1m": momentum_data.get(coin, 0),
                 }
-                momentum_data[coin] = momentum if momentum else 0
 
                 book = self.orderbook.get(coin, {})
                 bids = book.get("bids", [])
@@ -610,7 +726,14 @@ class TradingDashboard(App):
         )
         self.market_pressure = pressure
 
-        return prices_data, momentum_data, orderbook_data, recent_trades, pressure
+        return (
+            prices_data,
+            momentum_data,
+            acceleration_data,
+            orderbook_data,
+            recent_trades,
+            pressure,
+        )
 
     def _display_ai_analysis_result(
         self, result, _prices_data: dict, pressure: MarketPressure | None
@@ -674,7 +797,7 @@ class TradingDashboard(App):
         if not self.prices:
             return
 
-        prices_data, momentum_data, orderbook_data, recent_trades, pressure = (
+        prices_data, momentum_data, _acceleration_data, orderbook_data, recent_trades, pressure = (
             self._prepare_ai_analysis_data()
         )
         primary_coin = self.coins[0]
@@ -694,6 +817,129 @@ class TradingDashboard(App):
         except Exception as e:
             self.log_ai(f"[{COLOR_DOWN}]AI analysis error: {e}[/{COLOR_DOWN}]")
 
+    @work(exclusive=True, group="scalper")
+    async def run_scalper_interpretation(self, coin: str, reason: str) -> None:
+        """
+        Run Scalper AI interpretation for a specific coin.
+
+        The Scalper persona interprets raw market data and returns
+        AI-derived momentum, pressure, and prediction values.
+
+        Args:
+            coin: Coin symbol to interpret
+            reason: Trigger reason (periodic, price_move, large_trade, position_check)
+        """
+        window = self.data_buffer_manager.get_window(coin)
+        if window is None:
+            return
+
+        # Get current position for this coin (if any)
+        position = self.trader.positions.get(coin)
+
+        try:
+            # Call the Scalper interpreter
+            interpretation = await self.scalper_interpreter.interpret(window, position)
+
+            # Cache the interpretation
+            self._scalper_interpretations[coin] = interpretation
+
+            # Mark as interpreted in scheduler
+            current_price = self.prices.get(coin, 0)
+            self.interpretation_scheduler.mark_interpreted(coin, current_price)
+
+            # Update UI with interpretation
+            self._display_scalper_interpretation(coin, interpretation, reason)
+
+            # Update AI metrics
+            self.ai_calls += 1
+            self.update_ai_title()
+
+        except Exception as e:
+            self.log_ai(
+                f"[{COLOR_DOWN}]Scalper interpretation error for {coin}: {e}[/{COLOR_DOWN}]"
+            )
+            logger.error(f"Scalper interpretation failed for {coin}: {e}")
+
+    def _display_scalper_interpretation(
+        self,
+        coin: str,
+        interpretation: ScalperInterpretation,
+        reason: str,
+    ) -> None:
+        """Display the Scalper's interpretation in the AI panel."""
+        # Color coding based on interpretation
+        mom = interpretation.momentum
+        press = interpretation.pressure
+        pred = interpretation.prediction
+
+        # Momentum color
+        if mom >= 60:
+            mom_color = COLOR_UP
+        elif mom <= 40:
+            mom_color = COLOR_DOWN
+        else:
+            mom_color = "yellow"
+
+        # Pressure color (>50 = buying, <50 = selling)
+        if press >= 60:
+            press_color = COLOR_UP
+        elif press <= 40:
+            press_color = COLOR_DOWN
+        else:
+            press_color = "yellow"
+
+        # Prediction color
+        if pred >= 60:
+            pred_color = COLOR_UP
+        elif pred <= 40:
+            pred_color = COLOR_DOWN
+        else:
+            pred_color = "yellow"
+
+        # Freshness color
+        freshness_colors = {
+            "FRESH": COLOR_UP,
+            "DEVELOPING": "yellow",
+            "EXTENDED": "orange1",
+            "EXHAUSTED": COLOR_DOWN,
+        }
+        fresh_color = freshness_colors.get(interpretation.freshness, "white")
+
+        # Action color
+        action_colors = {
+            "LONG": COLOR_UP,
+            "SHORT": COLOR_DOWN,
+            "EXIT": "orange1",
+            "NONE": "dim",
+        }
+        action_color = action_colors.get(interpretation.action, "white")
+
+        # Build the display
+        self.log_ai_block(
+            [
+                f"[cyan]━━━ 🎯 SCALPER READ: {coin} ({reason}) ━━━[/cyan]",
+                f"[bold]Momentum:[/bold] [{mom_color}]{mom}/100[/{mom_color}] | "
+                f"[bold]Pressure:[/bold] [{press_color}]{press}/100[/{press_color}] | "
+                f"[bold]Predict:[/bold] [{pred_color}]{pred}%[/{pred_color}]",
+                f"[bold]Freshness:[/bold] [{fresh_color}]{interpretation.freshness}[/{fresh_color}] | "
+                f"[bold]Action:[/bold] [{action_color}]{interpretation.action}[/{action_color}] | "
+                f"[bold]Confidence:[/bold] {interpretation.confidence}/10",
+                f"[dim]{interpretation.reason}[/dim]",
+                f"[dim]⚡ {interpretation.response_time_ms:.0f}ms[/dim]",
+            ]
+        )
+
+        # Update the markets panel with scalper values
+        markets_panel = self.query_one(MarketsPanel)
+        markets_panel.update_scalper(
+            coin,
+            momentum=interpretation.momentum,
+            pressure=interpretation.pressure,
+            prediction=interpretation.prediction,
+            freshness=interpretation.freshness,
+            age_seconds=interpretation.age_seconds,
+        )
+
     @work(exclusive=False)
     async def run_ai_trading_decision(self) -> None:
         """
@@ -703,8 +949,8 @@ class TradingDashboard(App):
         if not self.prices:
             return
 
-        # Prepare market data
-        prices_data, momentum_data, orderbook_data, recent_trades, pressure = (
+        # Prepare market data including acceleration
+        _prices_data, momentum_data, acceleration_data, orderbook_data, recent_trades, pressure = (
             self._prepare_ai_analysis_data()
         )
 
@@ -716,6 +962,7 @@ class TradingDashboard(App):
                 strategy=self.ai_strategy,
                 prices=prices_flat,
                 momentum=momentum_data,
+                acceleration=acceleration_data,
                 orderbook=orderbook_data,
                 pressure_score=int(pressure.score) if pressure else 50,
                 pressure_label=pressure.label if pressure else "Neutral",
@@ -1048,6 +1295,21 @@ class TradingDashboard(App):
             return None
         return calculate_momentum(current_price, history, self.momentum_timeframe)
 
+    def _get_momentum_with_acceleration(self, coin: str) -> MomentumResult | None:
+        """Get full momentum result with acceleration for AI analysis."""
+        history = self.price_history.get(coin)
+        current_price = self.prices.get(coin)
+        if not history or not current_price:
+            return None
+
+        prev_velocity = self._previous_velocity.get(coin)
+        result = calculate_momentum_with_acceleration(
+            current_price, history, self.momentum_timeframe, prev_velocity
+        )
+        if result:
+            self._previous_velocity[coin] = result.velocity
+        return result
+
     def _update_market_price(self, coin: str) -> None:
         """Update price and momentum for a market."""
         try:
@@ -1116,21 +1378,36 @@ class TradingDashboard(App):
         """Update AI signals in markets based on AI decision."""
         for coin in self.coins:
             momentum = self._calculate_momentum(coin) or 0
+            abs_momentum = abs(momentum)
 
-            # Determine signal based on momentum
-            if momentum > 0.1:
+            # Determine signal and confidence based on momentum strength
+            if abs_momentum > 0.2:
+                # Very strong momentum
+                confidence = 10
+            elif abs_momentum > 0.1:
+                # Strong momentum
+                confidence = 7
+            elif abs_momentum > 0.05:
+                # Moderate momentum
+                confidence = 5
+            elif abs_momentum > 0.02:
+                # Weak momentum
+                confidence = 3
+            else:
+                # No clear signal
+                confidence = 0
+
+            # Determine signal direction
+            if momentum > 0.02:
                 signal = "BULLISH"
-            elif momentum < -0.1:
-                signal = "BEARISH"
-            elif momentum > 0.03:
-                signal = "BULLISH"
-            elif momentum < -0.03:
+            elif momentum < -0.02:
                 signal = "BEARISH"
             else:
                 signal = "NEUTRAL"
 
-            # If this coin is the target of the decision, use decision confidence
-            confidence = decision.confidence if decision.coin == coin else 0
+            # If this coin is the target of the AI decision, boost confidence
+            if decision.coin == coin and decision.confidence > confidence:
+                confidence = decision.confidence
 
             self._update_market_ai(coin, signal, confidence)
 

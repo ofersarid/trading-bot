@@ -8,6 +8,12 @@ This folder contains documentation for trading strategies implemented in the bot
 |----------|--------|-------------|
 | [Momentum Scalping v1](./momentum-scalping-v1.md) | Active | Short-term momentum-based scalping |
 
+## Research & RFCs
+
+| Document | Status | Description |
+|----------|--------|-------------|
+| [Momentum Calculation Methods](./momentum-calculation-methods.md) | **Decision Made** | Hybrid velocity + acceleration approach selected |
+
 ## Strategy Document Structure
 
 Each strategy document should include:

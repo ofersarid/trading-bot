@@ -55,6 +55,49 @@ Perform a comprehensive architecture review. See [General Sweep Mode](#general-s
 
 ---
 
+### Step 3: Save Recommendation (ALWAYS DO THIS)
+
+After providing your response, **save the recommendation** to the CTO documentation folder:
+
+1. **Generate filename**: `YYYY-MM-DD-<topic-slug>.md`
+   - Use today's date
+   - Create a short, descriptive slug from the topic (e.g., `ai-response-caching`, `websocket-architecture-review`)
+
+2. **Save to**: `docs/Team/CTO/<filename>.md`
+
+3. **Document format**:
+
+```markdown
+# [Topic Title]
+
+**Date:** YYYY-MM-DD
+**Type:** [Architecture Review | Code Review | Technical Decision | Q&A]
+**Status:** [Recommendation | Approved | Implemented]
+
+## Context
+
+[Brief description of what was asked or reviewed]
+
+## Recommendation
+
+[Your full recommendation - copy from your response above]
+
+## Action Items
+
+- [ ] [Specific action item 1]
+- [ ] [Specific action item 2]
+
+## References
+
+- [Links to relevant files, PRDs, or external resources]
+```
+
+4. **Update the folder README** if this is a significant decision that should be listed.
+
+**Skip saving only if:** The interaction was a simple clarifying question with no actionable recommendation.
+
+---
+
 ## General Sweep Mode
 
 When invoked without a specific question, perform a comprehensive architecture audit:

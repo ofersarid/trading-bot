@@ -43,6 +43,13 @@ class MarketData:
     ai_confidence: int  # 1-10
     position: Position | None
 
+    # Scalper AI interpretation values (0-100 scale)
+    scalper_momentum: int | None = None  # 0-100 from AI
+    scalper_pressure: int | None = None  # 0-100 from AI (50 = neutral)
+    scalper_prediction: int | None = None  # 0-100 from AI
+    scalper_freshness: str | None = None  # FRESH/DEVELOPING/EXTENDED/EXHAUSTED
+    scalper_age_seconds: float = 0.0  # Seconds since last interpretation
+
 
 class MarketsPanel(Container):
     """Panel displaying all trading markets in a DataTable."""
@@ -76,7 +83,7 @@ class MarketsPanel(Container):
         self._initialized = False
 
     def compose(self) -> ComposeResult:
-        yield Static("📊 MARKETS", classes="panel-title")
+        yield Static("📊 TRADE DESK", classes="panel-title")
         yield DataTable(id="markets-table", cursor_type="none", header_height=2)
 
     def on_mount(self) -> None:
@@ -87,9 +94,9 @@ class MarketsPanel(Container):
         table.add_column("COIN", key="coin", width=8)
         table.add_column("PRICE", key="price", width=14)
         table.add_column("MOMENTUM", key="momentum", width=10)
-        table.add_column("Market Pressure", key="pressure", width=26)
-        table.add_column("AI", key="ai", width=10)
-        table.add_column("POSITION", key="position", width=22)
+        table.add_column("MARKET PRESSURE", key="pressure", width=26)
+        table.add_column("AI PREDICTION", key="ai", width=26)
+        table.add_column("POSITION", key="position", width=32)
 
         # Add initial rows for each coin
         for coin in self.coins:
@@ -98,7 +105,7 @@ class MarketsPanel(Container):
                 Text("Loading...", style="dim"),
                 Text("—", style="dim"),
                 Text("────────────│────────────", style="dim"),
-                Text("⚪ —", style="dim"),
+                Text.from_markup("[dim]—[/dim]   [#333333]● ● ● ● ● ● ● ● ● ●[/#333333]"),
                 Text("—", style="dim"),
                 key=coin,
                 height=ROW_HEIGHT,
@@ -154,6 +161,34 @@ class MarketsPanel(Container):
                 self._data[coin].price = price
             self._update_row(coin)
 
+    def update_scalper(
+        self,
+        coin: str,
+        momentum: int,
+        pressure: int,
+        prediction: int,
+        freshness: str,
+        age_seconds: float,
+    ) -> None:
+        """
+        Update scalper AI interpretation values for a market.
+
+        Args:
+            coin: Coin symbol
+            momentum: AI-interpreted momentum (0-100)
+            pressure: AI-interpreted pressure (0-100, 50=neutral)
+            prediction: AI-interpreted continuation probability (0-100)
+            freshness: FRESH/DEVELOPING/EXTENDED/EXHAUSTED
+            age_seconds: Seconds since this interpretation
+        """
+        if coin in self._data:
+            self._data[coin].scalper_momentum = momentum
+            self._data[coin].scalper_pressure = pressure
+            self._data[coin].scalper_prediction = prediction
+            self._data[coin].scalper_freshness = freshness
+            self._data[coin].scalper_age_seconds = age_seconds
+            self._update_row(coin)
+
     def _update_row(self, coin: str) -> None:
         """Update a single row in the table."""
         if not self._initialized:
@@ -199,26 +234,39 @@ class MarketsPanel(Container):
         return Text(price_str)
 
     def _format_momentum(self, data: MarketData) -> Text:
-        """Format momentum column."""
-        if data.momentum is not None:
-            mom = data.momentum
-            if mom > 0:
-                return Text.from_markup(f"[{COLOR_UP}]{mom:+.2f}%[/{COLOR_UP}]")
-            elif mom < 0:
-                return Text.from_markup(f"[{COLOR_DOWN}]{mom:+.2f}%[/{COLOR_DOWN}]")
+        """Format momentum column - shows scalper AI value only."""
+        if data.scalper_momentum is not None:
+            mom = data.scalper_momentum
+            # Color based on 0-100 scale (50 = neutral)
+            if mom >= 60:
+                color = COLOR_UP
+            elif mom <= 40:
+                color = COLOR_DOWN
             else:
-                return Text("+0.00%", style="dim")
-        else:
-            return Text("—", style="dim")
+                color = "yellow"
+            return Text.from_markup(f"[{color}]{mom}/100[/{color}]")
+
+        return Text("—", style="dim")
 
     def _format_pressure(self, data: MarketData) -> Text:
-        """Format pressure bar column."""
-        buy_pct = data.buy_pressure
-        sell_pct = data.sell_pressure
+        """Format pressure bar column - uses scalper AI pressure only."""
+        if data.scalper_pressure is not None:
+            pressure = data.scalper_pressure
+            # Convert 0-100 scale to buy/sell bars
+            # >50 = buy pressure, <50 = sell pressure
+            if pressure >= 50:
+                buy_pct = (pressure - 50) * 2  # 50->0, 100->100
+                sell_pct = 0
+            else:
+                buy_pct = 0
+                sell_pct = (50 - pressure) * 2  # 50->0, 0->100
 
-        # Calculate filled bars
-        buy_filled = int((buy_pct / 100) * PRESSURE_BAR_WIDTH)
-        sell_filled = int((sell_pct / 100) * PRESSURE_BAR_WIDTH)
+            buy_filled = int((buy_pct / 100) * PRESSURE_BAR_WIDTH)
+            sell_filled = int((sell_pct / 100) * PRESSURE_BAR_WIDTH)
+        else:
+            # No scalper interpretation yet - show empty/neutral bar
+            buy_filled = 0
+            sell_filled = 0
 
         # Build buy side (green, fills from left)
         buy_bar = "█" * buy_filled + "░" * (PRESSURE_BAR_WIDTH - buy_filled)
@@ -231,20 +279,62 @@ class MarketsPanel(Container):
         return Text.from_markup(bar)
 
     def _format_ai(self, data: MarketData) -> Text:
-        """Format AI signal column."""
-        signal = data.ai_signal
-        confidence = data.ai_confidence
+        """
+        Format AI signal column with freshness indicator and confidence dots.
 
-        if signal == "BULLISH":
-            icon = f"[{COLOR_UP}]🟢[/{COLOR_UP}]"
-        elif signal == "BEARISH":
-            icon = f"[{COLOR_DOWN}]🔴[/{COLOR_DOWN}]"
-        else:
-            icon = "[dim]⚪[/dim]"
+        Format: FRE ●●●●●○○○○○
+        - Left: Freshness code (FRE/DEV/EXT/EXH)
+        - Right: 10 dots, colored count = prediction value / 10
+        - Green dots = bullish (>50%), Red dots = bearish (<50%), Yellow = neutral (50%)
+        """
+        if data.scalper_prediction is not None and data.scalper_freshness is not None:
+            pred = data.scalper_prediction
+            fresh = data.scalper_freshness
+            age = data.scalper_age_seconds
 
-        conf_str = f"{confidence}/10" if confidence > 0 else "—"
+            # Number of colored dots (1-10 scale from 0-100 prediction)
+            colored_count = round(pred / 10)
+            colored_count = max(0, min(10, colored_count))  # Clamp to 0-10
+            gray_count = 10 - colored_count
 
-        return Text.from_markup(f"{icon} {conf_str}")
+            # Dot color based on prediction direction
+            if pred > 50:
+                dot_color = COLOR_UP  # Bullish = green
+            elif pred < 50:
+                dot_color = COLOR_DOWN  # Bearish = red
+            else:
+                dot_color = "yellow"  # Neutral
+
+            # Build dots string with spaces between dots
+            colored_dots = f"[{dot_color}]" + " ".join("●" * colored_count) + f"[/{dot_color}]"
+            gray_dots = "[#333333]" + " ".join("●" * gray_count) + "[/#333333]"
+            # Add separator space between colored and gray sections
+            separator = " " if colored_count > 0 and gray_count > 0 else ""
+
+            # Freshness color
+            if fresh == "FRESH":
+                fresh_color = COLOR_UP
+            elif fresh == "DEVELOPING":
+                fresh_color = "yellow"
+            elif fresh == "EXTENDED":
+                fresh_color = "orange1"
+            else:  # EXHAUSTED
+                fresh_color = COLOR_DOWN
+
+            # Staleness indicator (data getting old)
+            if age > 30:
+                stale = "[red]![/red]"
+            elif age > 20:
+                stale = "[yellow]·[/yellow]"
+            else:
+                stale = ""
+
+            return Text.from_markup(
+                f"[{fresh_color}]{fresh[:3]}[/{fresh_color}] {colored_dots}{separator}{gray_dots}{stale}"
+            )
+
+        # No scalper interpretation yet - show all gray dots
+        return Text.from_markup("[dim]—[/dim]   [#333333]● ● ● ● ● ● ● ● ● ●[/#333333]")
 
     def _format_position(self, data: MarketData) -> Text:
         """Format position column."""
@@ -263,11 +353,10 @@ class MarketsPanel(Container):
         # Size
         size_str = f"{pos.size:.4f}"
 
-        # P&L
+        # P&L in dollars and percentage
+        pnl_dollars = pos.unrealized_pnl(price)
         pnl_pct = pos.unrealized_pnl_percent(price)
-        if pnl_pct >= 0:
-            pnl_str = f"[{COLOR_UP}]{pnl_pct:+.2f}%[/{COLOR_UP}]"
-        else:
-            pnl_str = f"[{COLOR_DOWN}]{pnl_pct:+.2f}%[/{COLOR_DOWN}]"
+        pnl_color = COLOR_UP if pnl_dollars >= 0 else COLOR_DOWN
+        pnl_str = f"[{pnl_color}]{pnl_dollars:+.2f}$ ({pnl_pct:+.2f}%)[/{pnl_color}]"
 
         return Text.from_markup(f"{direction} {size_str} {pnl_str}")

@@ -23,23 +23,24 @@ STRATEGY_PROMPTS = {
 
 YOUR TRADING STYLE:
 - Look for quick momentum moves (0.05%+ in 5 seconds)
-- Enter early when momentum is FRESH, exit quickly
+- Enter early when momentum is FRESH and BUILDING, exit quickly
 - Small profits are fine (0.05-0.15%), avoid holding losers
 - High trade frequency, tight risk management
 
 ENTRY CRITERIA:
-- Strong directional momentum building
+- Strong directional momentum with POSITIVE acceleration (BUILDING, not FADING)
 - Order book pressure supporting the direction
-- Freshness is FRESH or DEVELOPING (not chasing)
+- DO NOT enter if acceleration is negative - momentum is fading, you'll chase a dying move
 
 EXIT CRITERIA:
-- Exit quickly at first sign of momentum reversal
+- Exit when acceleration turns negative (momentum FADING)
+- Don't wait for price reversal - fading momentum IS the exit signal
 - Take small profits rather than waiting for big moves
 - Cut losses fast if momentum turns against you
 
 RISK RULES:
 - Never hold a losing position hoping it recovers
-- Exit immediately if momentum reverses
+- Exit immediately if momentum reverses OR starts fading
 - Maximum position: 10% of balance""",
     TradingStrategy.TREND_FOLLOWER: """You are a patient trend follower for crypto markets.
 
@@ -121,6 +122,12 @@ PRICES:
 MOMENTUM ({momentum_timeframe}s):
 {momentum}
 
+MOMENTUM INTERPRETATION:
+- Velocity: How fast price is moving (% change from average over window)
+- Acceleration: Is momentum BUILDING (positive) or FADING (negative)?
+- BUILDING momentum suggests move will continue - good for entries
+- FADING momentum suggests move is exhausting - avoid chasing, consider exits
+
 ORDER BOOK PRESSURE:
 {orderbook}
 
@@ -165,6 +172,7 @@ def format_ai_trading_prompt(
     strategy: TradingStrategy,
     prices: dict[str, float],
     momentum: dict[str, float],
+    acceleration: dict[str, float],
     orderbook: dict[str, dict],
     pressure_score: int,
     pressure_label: str,
@@ -186,11 +194,21 @@ def format_ai_trading_prompt(
         price_lines.append(f"  {coin}: ${price:,.2f} (momentum: {mom_str})")
     prices_str = "\n".join(price_lines) if price_lines else "  No data"
 
-    # Format momentum
+    # Format momentum WITH acceleration
     momentum_lines = []
     for coin, mom in momentum.items():
-        direction = "📈 UP" if mom > 0.05 else "📉 DOWN" if mom < -0.05 else "➡️ FLAT"
-        momentum_lines.append(f"  {coin}: {mom:+.3f}% {direction}")
+        accel = acceleration.get(coin, 0)
+        direction = "UP" if mom > 0.05 else "DOWN" if mom < -0.05 else "FLAT"
+
+        # Show if momentum is building or fading
+        if accel > 0.01:
+            trend = "BUILDING"
+        elif accel < -0.01:
+            trend = "FADING"
+        else:
+            trend = "STEADY"
+
+        momentum_lines.append(f"  {coin}: {mom:+.3f}% {direction} | Accel: {accel:+.3f}% ({trend})")
     momentum_str = "\n".join(momentum_lines) if momentum_lines else "  No data"
 
     # Format orderbook

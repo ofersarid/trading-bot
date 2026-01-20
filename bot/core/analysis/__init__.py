@@ -11,7 +11,12 @@ from bot.core.analysis.market import (
     MarketAnalyzer,
     MarketConditionLevel,
 )
-from bot.core.analysis.momentum import calculate_momentum, get_lookback_price
+from bot.core.analysis.momentum import (
+    MomentumResult,
+    calculate_momentum,
+    calculate_momentum_with_acceleration,
+    get_lookback_price,
+)
 from bot.core.analysis.opportunities import (
     OpportunityAction,
     OpportunityAnalysisResult,
@@ -24,9 +29,11 @@ __all__ = [
     "MarketAnalysis",
     "MarketAnalyzer",
     "MarketConditionLevel",
+    "MomentumResult",
     "OpportunityAction",
     "OpportunityAnalysisResult",
     "OpportunityAnalyzer",
     "calculate_momentum",
+    "calculate_momentum_with_acceleration",
     "get_lookback_price",
 ]
