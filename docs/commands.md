@@ -319,6 +319,108 @@ python bot/simulation/run_simulator.py \
 
 ---
 
+## 3-Layer Backtest Engine
+
+Advanced backtesting with the Indicators → Signals → AI Brain architecture.
+
+### Quick Start
+
+```bash
+# Signals-only mode (fast, no AI required)
+python3 run_backtest.py
+
+# With AI decisions (requires Ollama running)
+python3 run_backtest.py --ai
+
+# Specific persona
+python3 run_backtest.py --persona scalper
+python3 run_backtest.py --persona conservative
+python3 run_backtest.py --persona balanced
+
+# Custom data file
+python3 run_backtest.py --data data/historical/BTCUSD_1m_20260120_1328_to_20260126_0847.csv
+```
+
+### Options
+
+| Option | Short | Default | Description |
+|--------|-------|---------|-------------|
+| `--data` | `-d` | latest CSV | Path to historical data CSV |
+| `--ai` | - | disabled | Enable AI decisions (requires Ollama) |
+| `--persona` | `-p` | balanced | Trading persona (scalper/conservative/balanced) |
+| `--balance` | `-b` | 10000 | Starting balance in USD |
+| `--signals` | `-s` | all | Signal detectors to use (momentum rsi macd) |
+
+### Personas
+
+| Persona | Style | Description |
+|---------|-------|-------------|
+| `scalper` | Aggressive | Quick trades, tight stops, acts on single strong signals |
+| `conservative` | Cautious | Waits for consensus, wider stops, higher confidence threshold |
+| `balanced` | Moderate | Weighs risk/reward, reasonable stops, adaptable |
+
+### Signal Detectors
+
+| Detector | Description |
+|----------|-------------|
+| `momentum` | EMA crossover (9/21 period) |
+| `rsi` | Oversold (<30) / Overbought (>70) |
+| `macd` | MACD/Signal line crossover |
+
+### Example Output
+
+```
+🚀 BACKTEST CONFIGURATION
+============================================================
+  Data:      data/historical/BTCUSD_1m_20260120_1328_to_20260126_0847.csv
+  Persona:   balanced
+  Balance:   $10,000.00
+  Signals:   momentum, rsi, macd
+  AI Mode:   Disabled (signals-only)
+============================================================
+
+📊 BACKTEST RESULTS
+============================================================
+💰 PERFORMANCE
+  Initial Balance: $10,000.00
+  Final Balance:   $10,245.32
+  Total P&L:       +$245.32 (+2.45%)
+
+📊 RISK METRICS
+  Win Rate:        62.5%
+  Max Drawdown:    1.23%
+  Sharpe Ratio:    1.45
+
+🔄 TRADE STATISTICS
+  Total Trades:    24
+  Winning:         15
+  Losing:          9
+```
+
+### Running Unit Tests
+
+```bash
+# Test indicators (SMA, EMA, RSI, MACD, ATR)
+python3 tests/test_indicators.py
+
+# Test signal detectors
+python3 tests/test_signals.py
+
+# Test backtest components
+python3 tests/test_backtest.py
+```
+
+### Architecture Overview
+
+```
+Historical CSV → Indicators (pure math) → Signals (pattern detection) → AI Brain → Position Manager
+                     │                        │                           │              │
+                 SMA/EMA/RSI              Momentum                    TradePlan      Trailing
+                 MACD/ATR                 RSI/MACD                    Execution      Stops
+```
+
+---
+
 ## Ollama Commands
 
 Local AI server management.
@@ -499,20 +601,25 @@ git add . && git commit -m "message"
 │  START:      ./dev.sh <session>                             │
 │  STOP:       ./stop.sh                                      │
 ├─────────────────────────────────────────────────────────────┤
-│  HISTORICAL REPLAY                                          │
-│  ─────────────────                                          │
+│  HISTORICAL REPLAY (Visual)                                 │
+│  ──────────────────────────                                 │
 │  FETCH DATA: ./get-data-set-from                            │
 │              ./get-data-set-from --start dd-mm-yyyy:hh-mm   │
 │                                                             │
 │  DASHBOARD:  ./dev.sh --historical data/historical/FILE.csv │
 │              ./dev.sh --historical FILE.csv --speed 0.1     │
-│                                                             │
-│  CLI:        python bot/simulation/run_simulator.py \       │
-│              --historical data/historical/FILE.csv --quiet  │
+├─────────────────────────────────────────────────────────────┤
+│  3-LAYER BACKTEST (Fast)                                    │
+│  ───────────────────────                                    │
+│  SIGNALS:    python3 run_backtest.py                        │
+│  WITH AI:    python3 run_backtest.py --ai                   │
+│  PERSONA:    python3 run_backtest.py --persona scalper      │
+│  DATA:       python3 run_backtest.py --data FILE.csv        │
 ├─────────────────────────────────────────────────────────────┤
 │  AI & TOOLS                                                 │
 │  ──────────                                                 │
 │  OLLAMA:     ollama serve                                   │
 │  AI TEST:    python test_ai.py                              │
+│  UNIT TESTS: python3 tests/test_indicators.py               │
 └─────────────────────────────────────────────────────────────┘
 ```
