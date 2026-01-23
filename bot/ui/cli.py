@@ -38,6 +38,20 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--delete-session", type=str, metavar="NAME", help="Delete a saved session and exit"
     )
+    # Historical replay mode
+    parser.add_argument(
+        "--historical",
+        "-H",
+        type=str,
+        metavar="CSV_FILE",
+        help="Run in historical replay mode with specified CSV file",
+    )
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=0.5,
+        help="Playback speed in seconds between candles (default: 0.5)",
+    )
     return parser
 
 
@@ -125,6 +139,8 @@ def show_existing_session_info(session_name: str) -> None:
 
 def run_cli() -> None:
     """Parse arguments and run the appropriate command or launch the dashboard."""
+    from pathlib import Path
+
     from bot.ui.dashboard import TradingDashboard
 
     parser = create_parser()
@@ -140,7 +156,34 @@ def run_cli() -> None:
         handle_delete_session(args.delete_session)
         return
 
-    # Session name is required for trading
+    # Historical mode doesn't require session name
+    if args.historical:
+        historical_path = Path(args.historical)
+        if not historical_path.exists():
+            print(f"\n❌ Historical data file not found: {args.historical}")
+            return
+
+        # Generate session name from filename if not provided
+        session_name = args.session or f"historical_{historical_path.stem}"
+
+        print("\n📼 Historical Replay Mode")
+        print(f"   File: {historical_path.name}")
+        print(f"   Session: {session_name}")
+        print(f"   Speed: {args.speed}s per candle")
+        print()
+
+        app = TradingDashboard(
+            starting_balance=args.balance,
+            coins=[c.upper() for c in args.coins],
+            resume=False,  # Don't resume in historical mode
+            session_name=session_name,
+            historical_file=str(historical_path),
+            historical_speed=args.speed,
+        )
+        app.run()
+        return
+
+    # Session name is required for live trading
     if not args.session:
         show_session_required_error()
         return

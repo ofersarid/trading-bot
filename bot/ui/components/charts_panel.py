@@ -1,7 +1,7 @@
 """
 Charts Panel - Price charts for each trading coin.
 
-Uses Unicode block characters for reliable terminal rendering.
+Uses Unicode block characters for terminal rendering.
 Shows one chart at a time with coin toggle buttons.
 """
 
@@ -19,9 +19,9 @@ def _get_interval_label() -> str:
     return f"{CANDLE_INTERVAL_SECONDS}s"
 
 
-# Chart dimensions
-CHART_WIDTH = 80
-CHART_HEIGHT = 12
+# Default chart dimensions (fallback when size not yet available)
+DEFAULT_CHART_WIDTH = 80
+DEFAULT_CHART_HEIGHT = 12
 
 # Minimum data points before showing chart
 MIN_POINTS_TO_DISPLAY = 10
@@ -34,7 +34,7 @@ class PriceLineChart(Static):
     """
     Single coin price chart using Unicode blocks.
 
-    Renders price movements as a clean bar/area chart in the terminal.
+    Renders price movements as a bar chart in the terminal.
     """
 
     DEFAULT_CSS = """
@@ -50,19 +50,51 @@ class PriceLineChart(Static):
         super().__init__(**kwargs)
         self.coin = coin
         self._prices: list[float] = []
+        self._candles: list[Candle] = []
         self._last_price: float | None = None
+        self._last_timestamp: str | None = None
+        self._ai_marker_timestamps: set[str] = set()
+
+    def _get_chart_dimensions(self) -> tuple[int, int]:
+        """Calculate available chart dimensions from widget size."""
+        width = self.size.width
+        height = self.size.height
+
+        if width == 0 or height == 0:
+            return DEFAULT_CHART_WIDTH, DEFAULT_CHART_HEIGHT
+
+        usable_width = width - 4 - 2
+        chart_width = max(10, usable_width - 12)
+        usable_height = height - 2 - 2 - 2
+
+        if self._ai_marker_timestamps:
+            usable_height -= 1
+
+        chart_height = max(4, usable_height)
+
+        return chart_width, chart_height
+
+    def on_resize(self, _event) -> None:
+        """Re-render chart when widget resizes."""
+        if self._candles:
+            self._render_chart()
 
     def update_candles(self, candles: list[Candle], current_price: float | None = None) -> None:
-        """
-        Update the chart with new candle data (uses close prices).
-
-        Args:
-            candles: List of Candle objects to display
-            current_price: Optional current price for title display
-        """
+        """Update the chart with new candle data."""
+        self._candles = candles
         self._prices = [c.close for c in candles]
         self._last_price = current_price
+        self._last_timestamp = (
+            candles[-1].timestamp.strftime("%Y-%m-%d %H:%M:%S") if candles else None
+        )
         self._render_chart()
+
+    def mark_ai_analysis(self) -> None:
+        """Mark the current last candle as an AI analysis point."""
+        if self._candles:
+            ts = self._candles[-1].timestamp.isoformat()
+            self._ai_marker_timestamps.add(ts)
+            self._render_chart()
 
     def _render_chart(self) -> None:
         """Render the price chart using Unicode characters."""
@@ -70,48 +102,46 @@ class PriceLineChart(Static):
         num_points = len(self._prices)
         interval_label = _get_interval_label()
 
-        # Show waiting message until we have enough data
         if num_points < MIN_POINTS_TO_DISPLAY:
             remaining = MIN_POINTS_TO_DISPLAY - num_points
             progress = "█" * num_points + "░" * remaining
+            time_str = f"[dim]{self._last_timestamp}[/dim]  " if self._last_timestamp else ""
             self.update(
-                f"[bold cyan]{self.coin}[/bold cyan] {interval_label}  {price_str}\n\n"
+                f"[bold cyan]{self.coin}[/bold cyan] {interval_label}  {time_str}{price_str}\n\n"
                 f"[dim]Collecting data: [{progress}] {num_points}/{MIN_POINTS_TO_DISPLAY}[/dim]"
             )
             return
 
-        # Determine trend color
         if self._prices[-1] > self._prices[0]:
-            color = "#22cc66"  # Green - up
+            color = "#22cc66"
             trend = "▲"
         elif self._prices[-1] < self._prices[0]:
-            color = "#ff5555"  # Red - down
+            color = "#ff5555"
             trend = "▼"
         else:
-            color = "#888888"  # Gray - flat
+            color = "#888888"
             trend = "─"
 
-        # Calculate change
         change = self._prices[-1] - self._prices[0]
         change_pct = (change / self._prices[0]) * 100 if self._prices[0] != 0 else 0
 
-        # Build header
+        time_str = f"[dim]{self._last_timestamp}[/dim]  " if self._last_timestamp else ""
         header = (
-            f"[bold cyan]{self.coin}[/bold cyan] {interval_label}  "
+            f"[bold cyan]{self.coin}[/bold cyan] {interval_label}  {time_str}"
             f"[bold]{price_str}[/bold]  "
             f"[{color}]{trend} {change_pct:+.2f}%[/{color}]"
         )
 
-        # Build the chart
         chart_lines = self._build_chart(color)
-
-        # Combine
         output = header + "\n\n" + "\n".join(chart_lines)
         self.update(output)
 
     def _build_chart(self, color: str) -> list[str]:
         """Build the Unicode block chart."""
-        prices = self._prices[-CHART_WIDTH:]  # Limit to chart width
+        chart_width, chart_height = self._get_chart_dimensions()
+
+        visible_candles = self._candles[-chart_width:]
+        prices = [c.close for c in visible_candles]
 
         if not prices:
             return ["[dim]No data[/dim]"]
@@ -121,29 +151,30 @@ class PriceLineChart(Static):
         price_range = max_price - min_price
 
         if price_range == 0:
-            # Flat line - show middle
             normalized = [0.5] * len(prices)
         else:
             normalized = [(p - min_price) / price_range for p in prices]
 
-        # Build rows from top to bottom
+        visible_marker_positions: set[int] = set()
+        for i, candle in enumerate(visible_candles):
+            if candle.timestamp.isoformat() in self._ai_marker_timestamps:
+                visible_marker_positions.add(i)
+
         lines = []
 
-        for row in range(CHART_HEIGHT - 1, -1, -1):
-            row_threshold = row / (CHART_HEIGHT - 1) if CHART_HEIGHT > 1 else 0
+        for row in range(chart_height - 1, -1, -1):
+            row_threshold = row / (chart_height - 1) if chart_height > 1 else 0
             line_chars = []
 
             for val in normalized:
                 if val >= row_threshold:
-                    # Calculate sub-block level
-                    if row == CHART_HEIGHT - 1:
+                    if row == chart_height - 1:
                         char = "█"
                     else:
-                        next_threshold = (row + 1) / (CHART_HEIGHT - 1) if CHART_HEIGHT > 1 else 1
+                        next_threshold = (row + 1) / (chart_height - 1) if chart_height > 1 else 1
                         if val >= next_threshold:
                             char = "█"
                         else:
-                            # Partial block
                             level = int(
                                 (val - row_threshold) / (next_threshold - row_threshold) * 8
                             )
@@ -154,8 +185,7 @@ class PriceLineChart(Static):
 
             line = "".join(line_chars)
 
-            # Add price label on first and last row
-            if row == CHART_HEIGHT - 1:
+            if row == chart_height - 1:
                 label = f" ${max_price:,.0f}"
             elif row == 0:
                 label = f" ${min_price:,.0f}"
@@ -164,15 +194,20 @@ class PriceLineChart(Static):
 
             lines.append(f"[{color}]{line}[/{color}][dim]{label}[/dim]")
 
+        if visible_marker_positions:
+            marker_line = ""
+            for i in range(len(prices)):
+                if i in visible_marker_positions:
+                    marker_line += "🧠"
+                else:
+                    marker_line += " "
+            lines.append(f"{marker_line}")
+
         return lines
 
 
 class ChartsPanel(Container):
-    """
-    Panel containing a candlestick chart with coin toggle buttons.
-
-    Shows one chart at a time. User can switch between coins using buttons.
-    """
+    """Panel containing a price chart with coin toggle buttons."""
 
     DEFAULT_CSS = """
     ChartsPanel {
@@ -240,7 +275,6 @@ class ChartsPanel(Container):
                     )
                     yield Button(coin, id=f"toggle-{coin.lower()}", classes=btn_class)
 
-        # Single chart for the selected coin
         self._chart = PriceLineChart(self._selected_coin, id="active-chart")
         yield self._chart
 
@@ -259,7 +293,6 @@ class ChartsPanel(Container):
 
         self._selected_coin = coin
 
-        # Update button styles
         for c in self.coins:
             btn = self.query_one(f"#toggle-{c.lower()}", Button)
             if c == coin:
@@ -267,7 +300,6 @@ class ChartsPanel(Container):
             else:
                 btn.remove_class("active")
 
-        # Update chart with cached data for the new coin
         if self._chart and coin in self._candle_data:
             candles, price = self._candle_data[coin]
             self._chart.coin = coin
@@ -282,35 +314,28 @@ class ChartsPanel(Container):
         candles: list[Candle],
         current_price: float | None = None,
     ) -> None:
-        """
-        Update a specific coin's chart data.
-
-        Args:
-            coin: Coin symbol
-            candles: List of Candle objects
-            current_price: Current price for display
-        """
-        # Cache data for all coins
+        """Update a specific coin's chart data."""
         self._candle_data[coin] = (candles, current_price)
 
-        # Only update the visible chart if it's the selected coin
         if coin == self._selected_coin and self._chart:
             self._chart.update_candles(candles, current_price)
 
     def get_chart(self, coin: str) -> PriceLineChart | None:
-        """Get the chart widget (returns the single chart if coin matches)."""
+        """Get the chart widget."""
         if coin == self._selected_coin:
             return self._chart
         return None
 
+    def mark_ai_analysis(self, coin: str, candles: list[Candle] | None = None) -> None:
+        """Mark the current candle as an AI analysis point."""
+        if coin == self._selected_coin and self._chart:
+            if candles and not self._chart._candles:
+                self._chart.update_candles(candles)
+            self._chart.mark_ai_analysis()
+
 
 class MiniChart(Static):
-    """
-    Compact single-line sparkline-style chart for inline display.
-
-    Shows price trend using Unicode block characters.
-    Useful for embedding in table cells or tight spaces.
-    """
+    """Compact single-line sparkline-style chart for inline display."""
 
     def __init__(self, width: int = 20, **kwargs):
         super().__init__(**kwargs)
@@ -328,7 +353,6 @@ class MiniChart(Static):
             self.update("[dim]" + "─" * self.width + "[/dim]")
             return
 
-        # Normalize prices to 0-7 range for block characters
         min_p = min(self._prices)
         max_p = max(self._prices)
         range_p = max_p - min_p if max_p != min_p else 1
@@ -341,10 +365,8 @@ class MiniChart(Static):
             block_idx = min(7, int(normalized * 8))
             sparkline += blocks[block_idx]
 
-        # Pad to width
         sparkline = sparkline.ljust(self.width, "─")
 
-        # Color based on trend
         if self._prices[-1] > self._prices[0]:
             color = "#44ffaa"
         elif self._prices[-1] < self._prices[0]:

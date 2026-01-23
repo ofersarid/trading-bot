@@ -37,16 +37,19 @@ class ScalperDataWindow:
     # Last orderbook update timestamp (for 5s throttling)
     _last_orderbook_time: datetime | None = field(default=None, repr=False)
 
-    def add_price(self, price: float) -> None:
+    def add_price(self, price: float, timestamp: datetime | None = None) -> None:
         """
         Add a price point to history (throttled to 1s intervals).
 
         Args:
             price: Current price of the asset
+            timestamp: Optional timestamp (uses current time if None).
+                       For historical replay, pass simulated time to
+                       ensure proper throttling based on simulated intervals.
         """
-        now = datetime.now()
+        now = timestamp or datetime.now()
 
-        # Throttle to 1 price per second
+        # Throttle to 1 price per second based on provided time
         if self._last_price_time is not None:
             elapsed = (now - self._last_price_time).total_seconds()
             if elapsed < 1.0:
@@ -227,16 +230,17 @@ class CoinDataBufferManager:
             coin: ScalperDataWindow(coin=coin) for coin in coins
         }
 
-    def update_price(self, coin: str, price: float) -> None:
+    def update_price(self, coin: str, price: float, timestamp: datetime | None = None) -> None:
         """
         Update price for a coin.
 
         Args:
             coin: Coin symbol
             price: Current price
+            timestamp: Optional timestamp for historical replay
         """
         if coin in self._windows:
-            self._windows[coin].add_price(price)
+            self._windows[coin].add_price(price, timestamp)
 
     def update_trade(self, coin: str, trade: dict) -> None:
         """

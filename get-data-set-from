@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Fetch historical kline data from Bybit
+#
+# Usage:
+#   ./get-data-set-from --start 12-01-2026:10-15 --end 12-01-2026:11-15
+#
+# Options:
+#   --start, -s    Start time (dd-mm-yyyy:hh-mm)
+#   --end, -e      End time (dd-mm-yyyy:hh-mm)
+#   --symbol, -S   Trading pair (default: BTCUSDT)
+#   --interval, -i Candle interval in minutes (default: 1)
+#   --category, -c Market category: linear, spot, inverse (default: linear)
+#   --output, -o   Output directory (default: data/historical/)
+
+set -e
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Activate virtual environment and run
+cd "$SCRIPT_DIR"
+source venv/bin/activate
+python -m bot.historical.cli "$@"

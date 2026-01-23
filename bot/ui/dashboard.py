@@ -52,6 +52,7 @@ from bot.core.config import DEFAULT_CONFIG, TradingConfig
 from bot.core.data_buffer import CoinDataBufferManager
 from bot.core.models import MarketPressure
 from bot.hyperliquid.websocket_manager import ConnectionState, WebSocketConfig, WebSocketManager
+from bot.simulation.historical_source import HistoricalDataSource
 from bot.simulation.models import HYPERLIQUID_FEES
 from bot.simulation.paper_trader import PaperTrader
 from bot.simulation.state_manager import SessionStateManager
@@ -123,6 +124,8 @@ class TradingDashboard(App):
         config: TradingConfig | None = None,
         resume: bool = False,
         session_name: str | None = None,
+        historical_file: str | None = None,
+        historical_speed: float = 0.5,
     ):
         super().__init__()
         self.config = config or DEFAULT_CONFIG
@@ -130,6 +133,15 @@ class TradingDashboard(App):
         self.coins = coins or ["BTC", "ETH", "SOL"]
         self.resume_mode = resume
         self.session_name = session_name or "default"
+
+        # Historical replay mode
+        self.historical_file = historical_file
+        self.historical_speed = historical_speed
+        self.historical_source: HistoricalDataSource | None = None
+        self.is_historical_mode = historical_file is not None
+        self.historical_complete = False
+        self.historical_candles_processed = 0
+        self.simulated_time: datetime | None = None
 
         # Data stores
         self.prices: dict[str, float] = {}
@@ -333,10 +345,12 @@ class TradingDashboard(App):
 
     def compose(self) -> ComposeResult:
         """Create the dashboard layout using extracted components."""
-        # Custom title bar with session name
-        yield Static(
-            f"PAPER TRADING SIMULATOR  ⟫  {self.session_name}", id="title-bar", classes="title-bar"
-        )
+        # Custom title bar with session name and mode indicator
+        if self.is_historical_mode:
+            title = f"PAPER TRADING SIMULATOR  ⟫  {self.session_name}  [📼 HISTORICAL]"
+        else:
+            title = f"PAPER TRADING SIMULATOR  ⟫  {self.session_name}"
+        yield Static(title, id="title-bar", classes="title-bar")
 
         # Status bar
         yield StatusBar(id="status-row", classes="status-row")
@@ -366,33 +380,64 @@ class TradingDashboard(App):
 
         # Log session status
         strategy_name = self.ai_strategy.value.replace("_", " ").title()
-        if self._restored_from_state:
-            pnl = self.trader.balance - self.starting_balance
-            pnl_color = COLOR_UP if pnl >= 0 else COLOR_DOWN
-            self.log_ai(f"[{COLOR_UP}]✓ Session '{self.session_name}' restored[/{COLOR_UP}]")
-            self.log_ai(
-                f"[dim]  Balance: ${self.trader.balance:,.2f} | P&L: [{pnl_color}]${pnl:+,.2f}[/{pnl_color}][/dim]"
-            )
-            if self.trader.positions:
+
+        if self.is_historical_mode:
+            # Historical replay mode
+            assert self.historical_file is not None  # Guaranteed by is_historical_mode
+            try:
+                self.historical_source = HistoricalDataSource(self.historical_file)
+                # Override coins to match historical data
+                self.coins = [self.historical_source.coin]
+
+                self.log_ai("[cyan]━━━ 📼 HISTORICAL REPLAY MODE ━━━[/cyan]")
+                self.log_ai(f"[dim]  File: {self.historical_source.filepath.name}[/dim]")
+                self.log_ai(f"[dim]  Coin: {self.historical_source.coin}[/dim]")
                 self.log_ai(
-                    f"[dim]  Open positions: {', '.join(self.trader.positions.keys())}[/dim]"
+                    f"[dim]  Period: {self.historical_source.start_time.strftime('%Y-%m-%d %H:%M')} → "
+                    f"{self.historical_source.end_time.strftime('%Y-%m-%d %H:%M')}[/dim]"
                 )
+                self.log_ai(f"[dim]  Candles: {self.historical_source.candle_count}[/dim]")
+                self.log_ai(f"[dim]  Speed: {self.historical_speed}s per candle[/dim]")
+                self.log_ai(f"[dim]🤖 AI Mode: {self.ai_model} | Strategy: {strategy_name}[/dim]")
+                self.log_ai("")
+                self.log_ai("[yellow]▶ Starting replay... Press Q to stop[/yellow]")
+
+                # Start historical replay instead of WebSocket
+                self.run_historical_replay()
+
+            except Exception as e:
+                self.log_ai(f"[{COLOR_DOWN}]❌ Failed to load historical data: {e}[/{COLOR_DOWN}]")
+                return
         else:
-            self.log_ai(f"Dashboard initialized. Session: '{self.session_name}'")
+            # Live mode
+            if self._restored_from_state:
+                pnl = self.trader.balance - self.starting_balance
+                pnl_color = COLOR_UP if pnl >= 0 else COLOR_DOWN
+                self.log_ai(f"[{COLOR_UP}]✓ Session '{self.session_name}' restored[/{COLOR_UP}]")
+                self.log_ai(
+                    f"[dim]  Balance: ${self.trader.balance:,.2f} | P&L: [{pnl_color}]${pnl:+,.2f}[/{pnl_color}][/dim]"
+                )
+                if self.trader.positions:
+                    self.log_ai(
+                        f"[dim]  Open positions: {', '.join(self.trader.positions.keys())}[/dim]"
+                    )
+            else:
+                self.log_ai(f"Dashboard initialized. Session: '{self.session_name}'")
 
-        self.log_ai(f"[dim]🤖 AI Mode: {self.ai_model} | Strategy: {strategy_name}[/dim]")
-        self.log_ai(f"[dim]AI makes decisions every {self.ai_decision_interval}s[/dim]")
+            self.log_ai(f"[dim]🤖 AI Mode: {self.ai_model} | Strategy: {strategy_name}[/dim]")
+            self.log_ai(f"[dim]AI makes decisions every {self.ai_decision_interval}s[/dim]")
 
-        # Check AI availability on startup
-        self.check_ai_availability()
+            # Check AI availability on startup
+            self.check_ai_availability()
 
-        # Set up WebSocket subscriptions
-        self.ws_manager.add_subscription({"type": "allMids"})
-        for coin in self.coins:
-            self.ws_manager.add_subscription({"type": "trades", "coin": coin})
-            self.ws_manager.add_subscription({"type": "l2Book", "coin": coin})
+            # Set up WebSocket subscriptions
+            self.ws_manager.add_subscription({"type": "allMids"})
+            for coin in self.coins:
+                self.ws_manager.add_subscription({"type": "trades", "coin": coin})
+                self.ws_manager.add_subscription({"type": "l2Book", "coin": coin})
 
-        self.run_websocket()
+            self.run_websocket()
+
         # Update status bar every second for uptime counter
         self.set_interval(1, self.update_status_bar)
         # Update positions P&L every second
@@ -409,6 +454,189 @@ class TradingDashboard(App):
         """Connect to WebSocket using robust manager."""
         logger.info("Starting WebSocket manager...")
         await self.ws_manager.start()
+
+    @work(exclusive=True)
+    async def run_historical_replay(self) -> None:
+        """Replay historical data through the price handling system."""
+        import asyncio
+
+        if not self.historical_source:
+            return
+
+        logger.info(f"Starting historical replay: {self.historical_source}")
+        self.ws_connected = True  # Fake connected status for UI
+
+        # Reinitialize data structures for the historical coin
+        historical_coin = self.historical_source.coin
+        self.data_buffer_manager = CoinDataBufferManager([historical_coin])
+        self.price_history = {historical_coin: deque(maxlen=self.config.price_history_maxlen)}
+
+        try:
+            for update in self.historical_source.stream():
+                if self.historical_complete:
+                    break
+
+                # Update simulated time
+                self.simulated_time = update.timestamp
+                self.historical_candles_processed += 1
+
+                # Create a fake "allMids" message structure
+                fake_message = {
+                    "channel": "allMids",
+                    "data": {
+                        "mids": {
+                            update.coin: str(update.price),
+                        }
+                    },
+                }
+
+                # Process through existing handler (updates prices)
+                await self.process_message(fake_message)
+
+                # Synthesize trades from candle volume for AI context
+                # The AI uses tape data to infer buy/sell pressure
+                self._inject_synthetic_trades(update)
+
+                # AI decisions are triggered automatically via analyze_market_conditions
+                # which is called from handle_prices based on ai_decision_interval (10s)
+
+                # Progress log every 50 candles
+                if self.historical_candles_processed % 50 == 0:
+                    progress_pct = (
+                        self.historical_candles_processed / self.historical_source.candle_count
+                    ) * 100
+                    self.log_ai(
+                        f"[dim]📼 Replay: {self.historical_candles_processed}/{self.historical_source.candle_count} "
+                        f"({progress_pct:.0f}%) - {update.timestamp.strftime('%Y-%m-%d %H:%M')}[/dim]"
+                    )
+
+                # Delay between candles for visualization
+                await asyncio.sleep(self.historical_speed)
+
+        except Exception as e:
+            self.log_ai(f"[{COLOR_DOWN}]❌ Replay error: {e}[/{COLOR_DOWN}]")
+            logger.error(f"Historical replay failed: {e}")
+
+        # Replay complete
+        self.historical_complete = True
+        self._on_historical_complete()
+
+    def _inject_synthetic_trades(self, update) -> None:
+        """
+        Synthesize trades from candle data for AI interpretation.
+
+        The AI interprets buy/sell pressure from the trade tape. Since historical
+        data only has OHLCV candles, we synthesize trades to give the AI context:
+        - Volume determines total trade size
+        - Close vs Open determines buy/sell ratio (bullish = more buys)
+        - High-Low range indicates volatility/aggression
+        """
+        from bot.simulation.historical_source import PriceUpdate
+
+        if not isinstance(update, PriceUpdate):
+            return
+
+        coin = update.coin
+        volume = update.volume
+
+        if volume <= 0:
+            return
+
+        # Determine buy/sell ratio from candle direction
+        # Close > Open = bullish candle = more buying
+        # Close < Open = bearish candle = more selling
+        price_move = update.close - update.open
+        candle_range = update.high - update.low
+
+        # How much of the range did price traverse? (0 to 1)
+        move_strength = abs(price_move) / candle_range if candle_range > 0 else 0.5
+
+        # Buy ratio: 0.5 = neutral, > 0.5 = more buying, < 0.5 = more selling
+        if price_move > 0:
+            # Bullish candle: buy_ratio scales from 0.55 to 0.85 based on strength
+            buy_ratio = 0.55 + (move_strength * 0.3)
+        elif price_move < 0:
+            # Bearish candle: buy_ratio scales from 0.45 down to 0.15
+            buy_ratio = 0.45 - (move_strength * 0.3)
+        else:
+            # Doji: neutral
+            buy_ratio = 0.5
+
+        # Split volume into synthetic trades
+        # More trades for higher volume candles (scaled)
+        num_trades = max(3, min(15, int(volume / 0.1)))  # 3-15 trades per candle
+
+        buy_volume = volume * buy_ratio
+        sell_volume = volume * (1 - buy_ratio)
+
+        buy_trades = max(1, int(num_trades * buy_ratio))
+        sell_trades = num_trades - buy_trades
+
+        # Create synthetic buy trades
+        if buy_trades > 0:
+            buy_size = buy_volume / buy_trades
+            for _ in range(buy_trades):
+                synthetic_trade = {
+                    "coin": coin,
+                    "side": "buy",
+                    "sz": buy_size,
+                    "px": update.close,  # Use close price
+                    "time": update.timestamp,
+                }
+                self.data_buffer_manager.update_trade(coin, synthetic_trade)
+
+        # Create synthetic sell trades
+        if sell_trades > 0:
+            sell_size = sell_volume / sell_trades
+            for _ in range(sell_trades):
+                synthetic_trade = {
+                    "coin": coin,
+                    "side": "sell",
+                    "sz": sell_size,
+                    "px": update.close,
+                    "time": update.timestamp,
+                }
+                self.data_buffer_manager.update_trade(coin, synthetic_trade)
+
+    def _on_historical_complete(self) -> None:
+        """Handle completion of historical replay."""
+        self.log_ai("")
+        self.log_ai("[cyan]━━━ 📼 REPLAY COMPLETE ━━━[/cyan]")
+        self.log_ai(f"[dim]  Candles processed: {self.historical_candles_processed}[/dim]")
+
+        # Close any open positions
+        if self.trader.positions:
+            self.log_ai("[yellow]  Closing open positions...[/yellow]")
+            for coin in list(self.trader.positions.keys()):
+                price = self.prices.get(coin)
+                if price:
+                    result = self.trader.close_position(coin, price)
+                    pnl_color = COLOR_UP if result.trade and result.trade.pnl >= 0 else COLOR_DOWN
+                    self.log_ai(f"[{pnl_color}]  → {result.message}[/{pnl_color}]")
+
+        # Show final results
+        state = self.trader.get_state(self.prices)
+        pnl = state.balance - self.starting_balance
+        pnl_pct = (pnl / self.starting_balance) * 100
+        pnl_color = COLOR_UP if pnl >= 0 else COLOR_DOWN
+
+        self.log_ai("")
+        self.log_ai("[bold]📊 FINAL RESULTS[/bold]")
+        self.log_ai(f"  Starting Balance: ${self.starting_balance:,.2f}")
+        self.log_ai(f"  Final Balance:    ${state.balance:,.2f}")
+        self.log_ai(
+            f"  P&L:              [{pnl_color}]${pnl:+,.2f} ({pnl_pct:+.2f}%)[/{pnl_color}]"
+        )
+        self.log_ai(f"  Trades:           {state.total_trades}")
+        self.log_ai(f"  Win Rate:         {state.win_rate:.1f}%")
+        self.log_ai(f"  Fees Paid:        ${state.total_fees:,.2f}")
+        self.log_ai("")
+        self.log_ai("[dim]Press Q to exit[/dim]")
+
+        # Update displays
+        self.update_positions_display()
+        self.update_history_display()
+        self.update_status_bar()
 
     async def _handle_ws_message(self, data: dict) -> None:
         """Handle incoming WebSocket message."""
@@ -549,25 +777,17 @@ class TradingDashboard(App):
                 self.prices[coin] = new_price
 
                 # Store history for momentum calculation (legacy)
-                self.price_history[coin].append({"price": new_price, "time": datetime.now()})
+                # Use simulated_time for historical mode, current time for live
+                history_time = self.simulated_time if self.simulated_time else datetime.now()
+                self.price_history[coin].append({"price": new_price, "time": history_time})
 
                 # Update scalper data buffer (new system)
-                self.data_buffer_manager.update_price(coin, new_price)
+                # Pass simulated time for historical mode so throttling works correctly
+                self.data_buffer_manager.update_price(coin, new_price, self.simulated_time)
 
                 # Feed candle aggregator for charting
-                self.candle_manager.add_tick(coin, new_price)
-
-                # Check if scalper interpretation should be triggered
-                has_position = coin in self.trader.positions
-                should_interpret, reason = self.interpretation_scheduler.should_interpret(
-                    coin=coin,
-                    current_price=new_price,
-                    last_trade_size=0,  # No trade in price update
-                    has_position=has_position,
-                )
-
-                if should_interpret:
-                    self.run_scalper_interpretation(coin, reason)
+                # Use simulated_time for historical mode, None for live (uses current time)
+                self.candle_manager.add_tick(coin, new_price, timestamp=self.simulated_time)
 
         # Log when all coins have prices
         if first_update and len(self.prices) >= len(self.coins):
@@ -609,23 +829,9 @@ class TradingDashboard(App):
                 }
             )
 
-            # Update scalper data buffer with trade
+            # Update scalper data buffer with trade (used by scalper AI for tape reading)
             if coin in self.coins:
                 self.data_buffer_manager.update_trade(coin, trade)
-                self.interpretation_scheduler.record_trade(coin, size)
-
-                # Check for large trade trigger
-                has_position = coin in self.trader.positions
-                current_price = self.prices.get(coin, price)
-                should_interpret, reason = self.interpretation_scheduler.should_interpret(
-                    coin=coin,
-                    current_price=current_price,
-                    last_trade_size=size,
-                    has_position=has_position,
-                )
-
-                if should_interpret and reason == "large_trade":
-                    self.run_scalper_interpretation(coin, reason)
 
     async def handle_orderbook(self, data: dict) -> None:
         """Handle order book updates."""
@@ -817,7 +1023,7 @@ class TradingDashboard(App):
         except Exception as e:
             self.log_ai(f"[{COLOR_DOWN}]AI analysis error: {e}[/{COLOR_DOWN}]")
 
-    @work(exclusive=True, group="scalper")
+    @work(exclusive=False, group="scalper")
     async def run_scalper_interpretation(self, coin: str, reason: str) -> None:
         """
         Run Scalper AI interpretation for a specific coin.
@@ -825,12 +1031,17 @@ class TradingDashboard(App):
         The Scalper persona interprets raw market data and returns
         AI-derived momentum, pressure, and prediction values.
 
+        Note: Using exclusive=False to allow interpretations to complete
+        even if new ones are triggered (important for historical mode where
+        AI calls take longer than candle intervals).
+
         Args:
             coin: Coin symbol to interpret
             reason: Trigger reason (periodic, price_move, large_trade, position_check)
         """
         window = self.data_buffer_manager.get_window(coin)
         if window is None:
+            logger.warning(f"No data window for {coin}, skipping scalper interpretation")
             return
 
         # Get current position for this coin (if any)
@@ -846,6 +1057,15 @@ class TradingDashboard(App):
             # Mark as interpreted in scheduler
             current_price = self.prices.get(coin, 0)
             self.interpretation_scheduler.mark_interpreted(coin, current_price)
+
+            # Mark the chart with AI analysis indicator
+            try:
+                charts_panel = self.query_one(ChartsPanel)
+                # Get current candles to ensure chart has data
+                candles = self.candle_manager.get_candles(coin, include_current=True)
+                charts_panel.mark_ai_analysis(coin, candles)
+            except Exception:
+                pass  # Chart panel might not be ready yet
 
             # Update UI with interpretation
             self._display_scalper_interpretation(coin, interpretation, reason)
@@ -940,21 +1160,200 @@ class TradingDashboard(App):
             age_seconds=interpretation.age_seconds,
         )
 
+    async def _run_scalper_decision(self) -> None:
+        """
+        Run the Scalper AI for trading decisions.
+
+        This is the unified decision system for MOMENTUM_SCALPER strategy.
+        Uses the rich scalper persona to read the tape and make trading decisions.
+        """
+        # Find the best coin to analyze (prioritize coins with positions, then primary)
+        coins_to_check = list(self.trader.positions.keys()) or [self.coins[0]]
+
+        for coin in coins_to_check:
+            window = self.data_buffer_manager.get_window(coin)
+            if window is None:
+                continue
+
+            position = self.trader.positions.get(coin)
+            current_price = self.prices.get(coin)
+
+            if not current_price:
+                continue
+
+            try:
+                # Call the Scalper interpreter
+                interpretation = await self.scalper_interpreter.interpret(window, position)
+
+                # Cache the interpretation
+                self._scalper_interpretations[coin] = interpretation
+
+                # Mark chart with AI analysis
+                try:
+                    charts_panel = self.query_one(ChartsPanel)
+                    candles = self.candle_manager.get_candles(coin, include_current=True)
+                    charts_panel.mark_ai_analysis(coin, candles)
+                except Exception:
+                    pass
+
+                # Update markets panel
+                try:
+                    markets_panel = self.query_one(MarketsPanel)
+                    markets_panel.update_scalper(
+                        coin,
+                        momentum=interpretation.momentum,
+                        pressure=interpretation.pressure,
+                        prediction=interpretation.prediction,
+                        freshness=interpretation.freshness,
+                        age_seconds=interpretation.age_seconds,
+                    )
+                except Exception:
+                    pass
+
+                # Display and execute the scalper's decision
+                await self._execute_scalper_decision(coin, interpretation, current_price)
+
+                # Update AI metrics
+                self.ai_calls += 1
+                self.update_ai_title()
+
+            except Exception as e:
+                self.log_ai(f"[{COLOR_DOWN}]Scalper decision error for {coin}: {e}[/{COLOR_DOWN}]")
+                logger.error(f"Scalper decision failed for {coin}: {e}")
+
+    async def _execute_scalper_decision(
+        self,
+        coin: str,
+        interpretation: ScalperInterpretation,
+        current_price: float,
+    ) -> None:
+        """Execute a trading decision based on the scalper's interpretation."""
+        mom = interpretation.momentum
+        press = interpretation.pressure
+
+        # Color coding
+        mom_color = COLOR_UP if mom >= 60 else COLOR_DOWN if mom <= 40 else "yellow"
+        press_color = COLOR_UP if press >= 60 else COLOR_DOWN if press <= 40 else "yellow"
+
+        action_colors = {
+            "LONG": COLOR_UP,
+            "SHORT": COLOR_DOWN,
+            "EXIT": "orange1",
+            "NONE": "dim",
+        }
+        action_color = action_colors.get(interpretation.action, "white")
+
+        # Build display header
+        self.log_ai_block(
+            [
+                "[cyan]━━━ 🤖 AI DECISION (Momentum Scalper) ━━━[/cyan]",
+                f"[bold]Momentum:[/bold] [{mom_color}]{coin} {mom}/100[/{mom_color}]",
+                f"[bold]Pressure:[/bold] [{press_color}]{press}/100 ({'Buying' if press > 50 else 'Selling' if press < 50 else 'Neutral'})[/{press_color}]",
+                f"Action: [{action_color}]{interpretation.action}[/{action_color}] | Confidence: {interpretation.confidence}/10",
+                f"[dim]{interpretation.reason}[/dim]",
+                f"[dim]⚡ {interpretation.response_time_ms:.0f}ms[/dim]",
+            ]
+        )
+
+        # Execute the action if confidence is high enough
+        if interpretation.action == "NONE" or interpretation.confidence < 6:
+            # No action or low confidence - just wait
+            return
+
+        if interpretation.action == "LONG":
+            if coin in self.trader.positions:
+                return  # Already in position
+
+            # Calculate position size (10% of balance for scalping)
+            size_pct = 0.10
+            position_value = self.trader.balance * size_pct
+            size = position_value / current_price
+
+            self.log_ai(
+                f"[{COLOR_UP}]→ Opening LONG {size:.6f} {coin} @ ${current_price:,.2f}[/{COLOR_UP}]"
+            )
+
+            result = self.trader.open_long(coin, size, current_price)
+            if result.success:
+                self.log_ai(f"[{COLOR_UP}]✓ {result.message}[/{COLOR_UP}]")
+                momentum = self._calculate_momentum(coin)
+                if momentum is not None:
+                    self.entry_momentum[coin] = momentum
+            else:
+                self.log_ai(f"[{COLOR_DOWN}]✗ {result.message}[/{COLOR_DOWN}]")
+
+            with self.batch_update():
+                self.update_positions_display()
+                self.update_status_bar()
+
+        elif interpretation.action == "SHORT":
+            if coin in self.trader.positions:
+                return  # Already in position
+
+            size_pct = 0.10
+            position_value = self.trader.balance * size_pct
+            size = position_value / current_price
+
+            self.log_ai(
+                f"[{COLOR_DOWN}]→ Opening SHORT {size:.6f} {coin} @ ${current_price:,.2f}[/{COLOR_DOWN}]"
+            )
+
+            result = self.trader.open_short(coin, size, current_price)
+            if result.success:
+                self.log_ai(f"[{COLOR_UP}]✓ {result.message}[/{COLOR_UP}]")
+                momentum = self._calculate_momentum(coin)
+                if momentum is not None:
+                    self.entry_momentum[coin] = momentum
+            else:
+                self.log_ai(f"[{COLOR_DOWN}]✗ {result.message}[/{COLOR_DOWN}]")
+
+            with self.batch_update():
+                self.update_positions_display()
+                self.update_status_bar()
+
+        elif interpretation.action == "EXIT":
+            if coin not in self.trader.positions:
+                return  # No position to exit
+
+            position = self.trader.positions[coin]
+            pnl_pct = position.unrealized_pnl_percent(current_price)
+            pnl_color = COLOR_UP if pnl_pct >= 0 else COLOR_DOWN
+
+            self.log_ai(
+                f"[{pnl_color}]→ Closing {coin} position @ ${current_price:,.2f} (P&L: {pnl_pct:+.2f}%)[/{pnl_color}]"
+            )
+
+            result = self.trader.close_position(coin, current_price)
+            if result.success:
+                self.log_ai(f"[{pnl_color}]✓ {result.message}[/{pnl_color}]")
+                self._record_trade_feedback(result.trade, "ai_exit")
+                with self.batch_update():
+                    self.update_positions_display()
+                    self.update_history_display(result.trade)
+                    self.update_status_bar()
+
     @work(exclusive=False)
     async def run_ai_trading_decision(self) -> None:
         """
         AI makes a complete trading decision - full control mode.
-        The AI decides entries, exits, and sizing based on its strategy prompt.
+
+        For MOMENTUM_SCALPER strategy, uses the dedicated ScalperInterpreter
+        which has a richer persona and tape-reading capabilities.
+        For other strategies, uses the general AI trading prompt.
         """
         if not self.prices:
             return
 
-        # Prepare market data including acceleration
+        # For MOMENTUM_SCALPER, use the dedicated scalper interpreter
+        if self.ai_strategy == TradingStrategy.MOMENTUM_SCALPER:
+            await self._run_scalper_decision()
+            return
+
+        # For other strategies, use the general AI prompt
         _prices_data, momentum_data, acceleration_data, orderbook_data, recent_trades, pressure = (
             self._prepare_ai_analysis_data()
         )
 
-        # Get flat prices dict for AI
         prices_flat = {coin: self.prices[coin] for coin in self.coins if coin in self.prices}
 
         try:
@@ -973,7 +1372,6 @@ class TradingDashboard(App):
                 momentum_timeframe=self.momentum_timeframe,
             )
 
-            # Display and execute the decision
             await self._execute_ai_decision(decision, prices_flat, pressure)
 
         except Exception as e:
@@ -1115,6 +1513,18 @@ class TradingDashboard(App):
         # Update AI signals in instrument rows
         self._update_market_ai_from_decision(decision, prices)
         self.update_ai_title()
+
+        # Mark the chart with AI analysis indicator
+        try:
+            charts_panel = self.query_one(ChartsPanel)
+            # Mark all coins that have prices (the AI analyzed all of them)
+            for coin in self.coins:
+                if coin in prices:
+                    # Get current candles to ensure chart has data
+                    candles = self.candle_manager.get_candles(coin, include_current=True)
+                    charts_panel.mark_ai_analysis(coin, candles)
+        except Exception:
+            pass  # Chart panel might not be ready yet
 
     def _get_market_condition(self) -> str:
         """Get current market condition for feedback recording."""

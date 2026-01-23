@@ -1,0 +1,12 @@
+{
+  "session_name": "historical_BTCUSD_1m_20260120_1328_to_20260126_0847",
+  "balance": 10000.255394064,
+  "starting_balance": 10000,
+  "total_fees_paid": 2.000565789389742,
+  "positions": {},
+  "total_trades": 202,
+  "winning_trades": 1,
+  "last_report_timestamp": null,
+  "session_start": "2026-01-21T22:48:55.145747",
+  "last_update": "2026-01-22T08:24:45.214323"
+}

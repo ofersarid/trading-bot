@@ -98,18 +98,21 @@ class CandleAggregator:
         interval_second = (dt.second // CANDLE_INTERVAL_SECONDS) * CANDLE_INTERVAL_SECONDS
         return dt.replace(second=interval_second, microsecond=0)
 
-    def add_tick(self, price: float, volume: float = 0.0) -> Candle | None:
+    def add_tick(
+        self, price: float, volume: float = 0.0, timestamp: datetime | None = None
+    ) -> Candle | None:
         """
         Add a price tick to the aggregator.
 
         Args:
             price: Current price
             volume: Trade volume (optional)
+            timestamp: Optional timestamp for historical data (uses current time if not provided)
 
         Returns:
             Completed Candle if an interval boundary was crossed, else None
         """
-        now = datetime.now()
+        now = timestamp if timestamp is not None else datetime.now()
         interval = self._get_interval_start(now)
 
         completed_candle = None
@@ -248,7 +251,9 @@ class MultiCoinCandleManager:
             coin: CandleAggregator(coin, max_candles) for coin in coins
         }
 
-    def add_tick(self, coin: str, price: float, volume: float = 0.0) -> Candle | None:
+    def add_tick(
+        self, coin: str, price: float, volume: float = 0.0, timestamp: datetime | None = None
+    ) -> Candle | None:
         """
         Add a price tick for a coin.
 
@@ -256,6 +261,7 @@ class MultiCoinCandleManager:
             coin: Coin symbol
             price: Current price
             volume: Trade volume (optional)
+            timestamp: Optional timestamp for historical data (uses current time if not provided)
 
         Returns:
             Completed Candle if minute boundary crossed, else None
@@ -263,7 +269,7 @@ class MultiCoinCandleManager:
         if coin not in self._aggregators:
             return None
 
-        completed = self._aggregators[coin].add_tick(price, volume)
+        completed = self._aggregators[coin].add_tick(price, volume, timestamp)
 
         if completed and self.on_candle_complete:
             self.on_candle_complete(coin, completed)

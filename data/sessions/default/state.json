@@ -1,12 +1,12 @@
 {
   "session_name": "default",
-  "balance": 9994.814362992724,
+  "balance": 9843.494960528986,
   "starting_balance": 10000.0,
-  "total_fees_paid": 6.999370555823094,
+  "total_fees_paid": 31.6173357721925,
   "positions": {},
-  "total_trades": 173,
-  "winning_trades": 2,
+  "total_trades": 195,
+  "winning_trades": 0,
   "last_report_timestamp": null,
   "session_start": "2026-01-19T14:12:18.692666",
-  "last_update": "2026-01-19T14:36:24.512560"
+  "last_update": "2026-01-21T09:09:34.763723"
 }

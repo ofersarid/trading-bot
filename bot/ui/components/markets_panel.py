@@ -95,7 +95,7 @@ class MarketsPanel(Container):
         table.add_column("PRICE", key="price", width=14)
         table.add_column("MOMENTUM", key="momentum", width=10)
         table.add_column("MARKET PRESSURE", key="pressure", width=26)
-        table.add_column("AI PREDICTION", key="ai", width=26)
+        table.add_column("AI PREDICTION", key="ai", width=34)
         table.add_column("POSITION", key="position", width=32)
 
         # Add initial rows for each coin
@@ -268,13 +268,17 @@ class MarketsPanel(Container):
             buy_filled = 0
             sell_filled = 0
 
-        # Build buy side (green, fills from left)
-        buy_bar = "█" * buy_filled + "░" * (PRESSURE_BAR_WIDTH - buy_filled)
+        # Build buy side (green filled, dim empty)
+        buy_filled_str = f"[{COLOR_UP}]{'█' * buy_filled}[/{COLOR_UP}]"
+        buy_empty_str = f"[dim]{'░' * (PRESSURE_BAR_WIDTH - buy_filled)}[/dim]"
+        buy_bar = buy_filled_str + buy_empty_str
 
-        # Build sell side (red, fills from right)
-        sell_bar = "░" * (PRESSURE_BAR_WIDTH - sell_filled) + "█" * sell_filled
+        # Build sell side (dim empty, red filled)
+        sell_empty_str = f"[dim]{'░' * (PRESSURE_BAR_WIDTH - sell_filled)}[/dim]"
+        sell_filled_str = f"[{COLOR_DOWN}]{'█' * sell_filled}[/{COLOR_DOWN}]"
+        sell_bar = sell_empty_str + sell_filled_str
 
-        bar = f"[{COLOR_UP}]{buy_bar}[/{COLOR_UP}]│[{COLOR_DOWN}]{sell_bar}[/{COLOR_DOWN}]"
+        bar = f"{buy_bar}│{sell_bar}"
 
         return Text.from_markup(bar)
 
@@ -282,8 +286,8 @@ class MarketsPanel(Container):
         """
         Format AI signal column with freshness indicator and confidence dots.
 
-        Format: FRE ●●●●●○○○○○
-        - Left: Freshness code (FRE/DEV/EXT/EXH)
+        Format: DEVELOPING ●●●●●○○○○○
+        - Left: Freshness (FRESH/DEVELOPING/EXTENDED/EXHAUSTED)
         - Right: 10 dots, colored count = prediction value / 10
         - Green dots = bullish (>50%), Red dots = bearish (<50%), Yellow = neutral (50%)
         """
@@ -330,7 +334,7 @@ class MarketsPanel(Container):
                 stale = ""
 
             return Text.from_markup(
-                f"[{fresh_color}]{fresh[:3]}[/{fresh_color}] {colored_dots}{separator}{gray_dots}{stale}"
+                f"[{fresh_color}]{fresh}[/{fresh_color}] {colored_dots}{separator}{gray_dots}{stale}"
             )
 
         # No scalper interpretation yet - show all gray dots

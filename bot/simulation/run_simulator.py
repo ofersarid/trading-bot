@@ -3,12 +3,16 @@
 Paper Trading Simulator Runner
 
 Connects everything together:
-1. WebSocket stream for live prices
+1. WebSocket stream for live prices OR historical CSV replay
 2. Opportunity Seeker for detecting trades
 3. Paper Trader for simulating execution
 
 Run with:
+    # Live mode
     python bot/simulation/run_simulator.py --balance 10000
+
+    # Historical replay mode
+    python bot/simulation/run_simulator.py --historical data/historical/BTCUSDT_1m_....csv
 
 Press Ctrl+C to stop and see final results.
 """
@@ -17,6 +21,7 @@ import argparse
 import asyncio
 import json
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -25,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import websockets
 
+from bot.simulation.historical_source import HistoricalDataSource
 from bot.simulation.models import HYPERLIQUID_FEES, Side
 from bot.simulation.opportunity_seeker import Opportunity, OpportunitySeeker, Signal
 from bot.simulation.paper_trader import PaperTrader
@@ -69,7 +75,7 @@ class TradingSimulator:
 
         # Stats
         self.signals_received = 0
-        self.start_time = None
+        self.start_time: datetime | None = None
 
     def _on_opportunity(self, opp: Opportunity):
         """Handle detected opportunity."""
@@ -133,7 +139,7 @@ class TradingSimulator:
         self.start_time = datetime.now()
 
         print("=" * 60)
-        print("🤖 PAPER TRADING SIMULATOR")
+        print("🤖 PAPER TRADING SIMULATOR [LIVE MODE]")
         print("=" * 60)
         print(f"💰 Starting Balance: ${self.trader.starting_balance:,.2f}")
         print(f"📊 Watching: {', '.join(self.coins)}")
@@ -167,6 +173,75 @@ class TradingSimulator:
 
         except KeyboardInterrupt:
             pass
+
+        # Print final results
+        self._print_final_results()
+
+    def run_historical(self, source: HistoricalDataSource, speed: float = 0.0) -> None:
+        """
+        Run simulation using historical data.
+
+        Args:
+            source: HistoricalDataSource with loaded CSV data
+            speed: Delay between candles in seconds (0 = as fast as possible)
+        """
+        self.start_time = source.start_time
+
+        # Override coins to match the historical data
+        self.coins = [source.coin]
+
+        # Reinitialize seeker with correct coin
+        self.seeker = OpportunitySeeker(
+            coins=self.coins,
+            momentum_threshold_pct=0.3,
+            lookback_seconds=60,
+            take_profit_pct=0.5,
+            stop_loss_pct=0.3,
+            cooldown_seconds=30,
+            on_opportunity=self._on_opportunity,
+        )
+
+        print("=" * 60)
+        print("🤖 PAPER TRADING SIMULATOR [HISTORICAL MODE]")
+        print("=" * 60)
+        print(f"💰 Starting Balance: ${self.trader.starting_balance:,.2f}")
+        print(f"📊 Replaying: {source.coin}")
+        print(f"📈 Position Size: {self.position_size_pct * 100:.0f}% of balance")
+        print(f"📁 Data file: {source.filepath.name}")
+        print(
+            f"📅 Period: {source.start_time.strftime('%Y-%m-%d %H:%M')} → {source.end_time.strftime('%Y-%m-%d %H:%M')}"
+        )
+        print(f"🕐 Candles: {source.candle_count}")
+        print("=" * 60)
+        print()
+
+        candles_processed = 0
+
+        try:
+            for update in source.stream():
+                # Update simulated time for opportunity timestamps
+                self.seeker._current_time = update.timestamp
+
+                # Feed price to opportunity seeker
+                self.seeker.update_price(update.coin, update.price)
+
+                candles_processed += 1
+
+                # Progress indicator every 100 candles
+                if self.verbose and candles_processed % 100 == 0:
+                    print(
+                        f"   📊 Processed {candles_processed}/{source.candle_count} candles "
+                        f"({update.timestamp.strftime('%Y-%m-%d %H:%M')})"
+                    )
+
+                # Optional delay for visualization
+                if speed > 0:
+                    time.sleep(speed)
+
+        except KeyboardInterrupt:
+            print("\n\n⚠️ Simulation interrupted by user")
+
+        print(f"\n   ✅ Processed {candles_processed} candles")
 
         # Print final results
         self._print_final_results()
@@ -219,7 +294,21 @@ class TradingSimulator:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Paper Trading Simulator")
+    parser = argparse.ArgumentParser(
+        description="Paper Trading Simulator",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    # Live mode (default)
+    %(prog)s --balance 10000 --coins BTC ETH
+
+    # Historical replay mode
+    %(prog)s --historical data/historical/BTCUSDT_1m_....csv
+
+    # Historical with slower playback (for visualization)
+    %(prog)s --historical data/historical/BTCUSDT_1m_....csv --speed 0.1
+        """,
+    )
     parser.add_argument(
         "--balance",
         "-b",
@@ -232,7 +321,7 @@ def main():
         "-c",
         nargs="+",
         default=["BTC", "ETH", "SOL"],
-        help="Coins to watch (default: BTC ETH SOL)",
+        help="Coins to watch in live mode (default: BTC ETH SOL)",
     )
     parser.add_argument(
         "--size",
@@ -241,7 +330,27 @@ def main():
         default=0.1,
         help="Position size as fraction of balance (default: 0.1 = 10%%)",
     )
-    parser.add_argument("--quiet", "-q", action="store_true", help="Suppress trade-by-trade output")
+    parser.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Suppress trade-by-trade output",
+    )
+
+    # Historical mode options
+    parser.add_argument(
+        "--historical",
+        "-H",
+        type=Path,
+        metavar="CSV_FILE",
+        help="Run in historical mode with specified CSV file",
+    )
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=0.0,
+        help="Delay between candles in seconds for historical mode (default: 0 = max speed)",
+    )
 
     args = parser.parse_args()
 
@@ -252,7 +361,17 @@ def main():
         verbose=not args.quiet,
     )
 
-    asyncio.run(simulator.run())
+    if args.historical:
+        # Historical replay mode
+        try:
+            source = HistoricalDataSource(args.historical)
+            simulator.run_historical(source, speed=args.speed)
+        except FileNotFoundError as e:
+            print(f"❌ Error: {e}")
+            sys.exit(1)
+    else:
+        # Live mode
+        asyncio.run(simulator.run())
 
 
 if __name__ == "__main__":

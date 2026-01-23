@@ -116,6 +116,10 @@ class OpportunitySeeker:
         # Latest prices
         self.current_prices: dict[str, float] = {}
 
+        # Simulated time (for historical replay mode)
+        # If set, this overrides datetime.now()
+        self._current_time: datetime | None = None
+
     def update_price(self, coin: str, price: float) -> Opportunity | None:
         """
         Update price and check for opportunities.
@@ -130,7 +134,8 @@ class OpportunitySeeker:
         if coin not in self.coins:
             return None
 
-        now = datetime.now()
+        # Use simulated time if set (historical mode), otherwise real time
+        now = self._current_time if self._current_time else datetime.now()
 
         # Record price
         self.price_history[coin].append(PricePoint(price=price, timestamp=now))
@@ -164,6 +169,9 @@ class OpportunitySeeker:
         else:
             pnl_pct = (entry_price - price) / entry_price
 
+        # Use simulated time if set (historical mode), otherwise real time
+        now = self._current_time if self._current_time else datetime.now()
+
         # Check take profit
         if pnl_pct >= self.take_profit:
             opp = Opportunity(
@@ -172,6 +180,7 @@ class OpportunitySeeker:
                 price=price,
                 reason=f"Take profit hit ({pnl_pct * 100:.2f}%)",
                 strength=1.0,
+                timestamp=now,
             )
             del self.positions[coin]
             if self.on_opportunity:
@@ -186,6 +195,7 @@ class OpportunitySeeker:
                 price=price,
                 reason=f"Stop loss hit ({pnl_pct * 100:.2f}%)",
                 strength=1.0,
+                timestamp=now,
             )
             del self.positions[coin]
             if self.on_opportunity:
@@ -252,6 +262,7 @@ class OpportunitySeeker:
             price=price,
             reason=reason,
             strength=min(abs(momentum) / self.momentum_threshold, 1.0),
+            timestamp=now,
         )
 
         if self.on_opportunity:
