@@ -551,32 +551,13 @@ git add . && git commit -m "message"
 
 ## Dashboard Keybindings
 
-### General Controls
-
 | Key | Action | Description |
 |-----|--------|-------------|
 | `q` | Quit | Exit the dashboard (saves state, closes positions) |
-| `p` | Pause | Pause/resume trading (market data still streams) |
 | `r` | Reset | Reset session (clear positions, restore balance) |
-| `Ctrl+S` | Save | Manually save session state |
+| `p` | Pause | Pause/resume trading (market data still streams) |
 | `Ctrl+R` | Restart | Restart with fresh code (hot reload) |
-
-### Threshold Adjustments
-
-| Key | Action | Description |
-|-----|--------|-------------|
-| `1` | Track - | Decrease tracking threshold by 0.01% |
-| `2` | Track + | Increase tracking threshold by 0.01% |
-| `3` | Trade - | Decrease trading threshold by 0.01% |
-| `4` | Trade + | Increase trading threshold by 0.01% |
-| `5` | Mom - | Decrease momentum timeframe (5s → 60s) |
-| `6` | Mom + | Increase momentum timeframe (5s → 60s) |
-
-### AI & Analysis
-
-| Key | Action | Description |
-|-----|--------|-------------|
-| `a` | Toggle AI | Switch between Rule-based and AI analysis mode |
+| `s` | Strategy | Cycle through AI trading strategies |
 | `t` | Tuning | Generate performance tuning report |
 
 ---
@@ -587,14 +568,8 @@ git add . && git commit -m "message"
 ┌─────────────────────────────────────────────────────────────┐
 │                    TRADING BOT CONTROLS                      │
 ├─────────────────────────────────────────────────────────────┤
-│  GENERAL           THRESHOLDS          AI & ANALYSIS        │
-│  ─────────         ──────────          ──────────────       │
-│  q = Quit          1 = Track -         a = Toggle AI        │
-│  p = Pause         2 = Track +         t = Tuning Report    │
-│  r = Reset         3 = Trade -                              │
-│  Ctrl+S = Save     4 = Trade +                              │
-│  Ctrl+R = Reload   5 = Momentum -                           │
-│                    6 = Momentum +                           │
+│  q = Quit           r = Reset           p = Pause           │
+│  Ctrl+R = Restart   s = Strategy        t = Tuning Report   │
 ├─────────────────────────────────────────────────────────────┤
 │  LIVE MODE                                                  │
 │  ──────────                                                 │

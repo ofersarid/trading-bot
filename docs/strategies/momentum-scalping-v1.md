@@ -132,15 +132,29 @@ class TradingConfig:
 | **Position** | cooldown_seconds | 10-120s | 30s | Lower = more trades, potential overtrading |
 | **Position** | max_concurrent_positions | 1-5 | 2 | Higher = more diversification |
 
-### Runtime Adjustable Parameters
+---
 
-These can be changed during operation via keyboard shortcuts:
+## Momentum Calculation Approach
 
-| Parameter | Keys | Range | Default |
-|-----------|------|-------|---------|
-| Track Threshold | `[` / `]` | 0.01% - (trade-0.01)% | 0.02% |
-| Trade Threshold | `-` / `=` | (track+0.01)% - 2.00% | 0.04% |
-| Momentum Timeframe | `,` / `.` | 1s, 2s, 3s, 5s, 10s, 15s, 30s | 5s |
+### Selected Method: Hybrid Velocity + Acceleration
+
+After evaluating multiple calculation methods, the strategy uses a hybrid approach combining smoothed ROC for noise reduction with acceleration as a trade quality filter.
+
+**Methods Considered:**
+
+| Method | Noise Reduction | Responsiveness | Selected? |
+|--------|-----------------|----------------|-----------|
+| Single-Point ROC | ⭐ | ⭐⭐⭐⭐⭐ | No - too noisy |
+| Smoothed ROC (Average) | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Partial - base layer |
+| EMA-Based | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | No |
+| Multi-Timeframe | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | No - too complex |
+| Velocity + Acceleration | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | **Yes** - predictive |
+
+**Key Insight:** Entering fading moves is more costly than noise itself. Acceleration indicates if a move is strengthening or weakening, enabling earlier signals.
+
+**Implementation:** `bot/core/analysis/momentum.py`
+
+For full research details, see: [Scalper's Momentum Decision](../Team/Scalper/momentum-decision.md)
 
 ---
 

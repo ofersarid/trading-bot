@@ -10,9 +10,7 @@ This folder contains documentation for trading strategies implemented in the bot
 
 ## Research & RFCs
 
-| Document | Status | Description |
-|----------|--------|-------------|
-| [Momentum Calculation Methods](./momentum-calculation-methods.md) | **Decision Made** | Hybrid velocity + acceleration approach selected |
+Research documents are consolidated into strategy docs once decisions are made. See `docs/Team/Scalper/` for detailed research discussions.
 
 ## Strategy Document Structure
 

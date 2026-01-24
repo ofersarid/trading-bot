@@ -7,17 +7,25 @@ Signal detectors are deterministic and stateful, tracking patterns over time.
 
 from .aggregator import SignalAggregator
 from .base import Signal, SignalDetector, SignalType
-from .macd import MACDSignalDetector
-from .momentum import MomentumSignalDetector
-from .rsi import RSISignalDetector
+from .detectors import (
+    MACDConfig,
+    MACDSignalDetector,
+    MomentumConfig,
+    MomentumSignalDetector,
+    RSIConfig,
+    RSISignalDetector,
+)
 from .validator import SignalValidator, ValidatorConfig
 
 __all__ = [
     "Signal",
     "SignalType",
     "SignalDetector",
+    "MomentumConfig",
     "MomentumSignalDetector",
+    "RSIConfig",
     "RSISignalDetector",
+    "MACDConfig",
     "MACDSignalDetector",
     "SignalAggregator",
     "SignalValidator",

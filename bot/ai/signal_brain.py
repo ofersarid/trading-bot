@@ -97,8 +97,8 @@ class SignalBrain:
             signal_names = [f"{s.signal_type.value}:{s.direction}" for s in valid_signals]
             plan = TradePlan.from_text(response_text, market_context.coin, signal_names)
 
-            # Validate the plan
-            plan = self._validate_plan(plan, market_context)
+            # Validate the plan with dynamic risk management
+            plan = self._validate_plan(plan, market_context, valid_signals)
 
             return plan
 
@@ -206,13 +206,24 @@ class SignalBrain:
             max_position_pct=self.persona.risk_params.max_position_pct,
         )
 
-    def _validate_plan(self, plan: TradePlan, context: MarketContext) -> TradePlan:
+    def _validate_plan(
+        self,
+        plan: TradePlan,
+        context: MarketContext,
+        signals: list["Signal"] | None = None,
+    ) -> TradePlan:
         """
-        Validate and adjust the trade plan.
+        Validate and adjust the trade plan with DYNAMIC risk management.
+
+        Risk is adjusted based on:
+        1. Signal strength (stronger signals → larger positions, tighter stops)
+        2. Volatility (higher volatility → smaller positions, wider stops)
+        3. Confidence (higher confidence → better risk/reward targets)
 
         Args:
             plan: Parsed trade plan
             context: Market context
+            signals: Original signals for strength-based adjustments
 
         Returns:
             Validated (possibly adjusted) plan
@@ -225,28 +236,87 @@ class SignalBrain:
             )
             return TradePlan.wait(plan.coin, f"Confidence too low ({plan.confidence})")
 
-        # Cap position size
-        if plan.size_pct > self.persona.risk_params.max_position_pct:
-            plan.size_pct = self.persona.risk_params.max_position_pct
+        # Calculate dynamic risk parameters
+        avg_signal_strength = self._get_avg_signal_strength(signals)
+        risk_params = self._calculate_dynamic_risk(avg_signal_strength, plan.confidence, context)
 
-        # Ensure stops are set if taking action
-        if plan.is_actionable and plan.stop_loss == 0:
-            # Calculate default stop loss using ATR
-            atr_sl = context.atr * self.persona.risk_params.stop_loss_atr_multiplier
+        # Apply dynamic position sizing
+        plan.size_pct = min(risk_params["position_pct"], self.persona.risk_params.max_position_pct)
+
+        # Apply dynamic stops
+        if plan.is_actionable:
+            atr_sl = context.atr * risk_params["stop_multiplier"]
+            atr_tp = context.atr * risk_params["tp_multiplier"]
+
             if plan.is_long:
                 plan.stop_loss = context.current_price - atr_sl
-            else:
-                plan.stop_loss = context.current_price + atr_sl
-
-        if plan.is_actionable and plan.take_profit == 0:
-            # Calculate default take profit using ATR
-            atr_tp = context.atr * self.persona.risk_params.take_profit_atr_multiplier
-            if plan.is_long:
                 plan.take_profit = context.current_price + atr_tp
             else:
+                plan.stop_loss = context.current_price + atr_sl
                 plan.take_profit = context.current_price - atr_tp
 
+            logger.debug(
+                f"Dynamic risk: strength={avg_signal_strength:.2f}, "
+                f"size={plan.size_pct:.1f}%, SL={risk_params['stop_multiplier']:.1f}x ATR, "
+                f"TP={risk_params['tp_multiplier']:.1f}x ATR"
+            )
+
         return plan
+
+    def _get_avg_signal_strength(self, signals: list["Signal"] | None) -> float:
+        """Calculate average signal strength."""
+        if not signals:
+            return 0.5
+        return sum(s.strength for s in signals) / len(signals)
+
+    def _calculate_dynamic_risk(
+        self,
+        signal_strength: float,
+        confidence: int,
+        context: MarketContext,
+    ) -> dict[str, float]:
+        """
+        Calculate dynamic risk parameters - CUT LOSSES FAST strategy.
+
+        Key insight: At ~50% win rate, need avg_win > avg_loss.
+        Use TIGHT stops to cut losers quickly.
+
+        Returns:
+            Dict with position_pct, stop_multiplier, tp_multiplier
+        """
+        base_position = self.persona.risk_params.max_position_pct
+        base_stop = self.persona.risk_params.stop_loss_atr_multiplier
+        base_tp = self.persona.risk_params.take_profit_atr_multiplier
+
+        # Volatility adjustment
+        vol_factor = {"high": 0.6, "medium": 0.8, "low": 1.0}.get(context.volatility_level, 1.0)
+
+        # Signal strength adjustments - VERY TIGHT STOPS to match signals-only performance
+        if signal_strength >= 0.8:
+            # Strong signal: moderate position, very tight stop
+            position_pct = base_position * 0.7 * vol_factor
+            stop_mult = base_stop * 0.4  # 60% tighter stop
+            tp_mult = base_tp * 1.0
+        elif signal_strength >= 0.5:
+            # Medium signal: smaller position, tight stop
+            position_pct = base_position * 0.5 * vol_factor
+            stop_mult = base_stop * 0.5  # 50% tighter
+            tp_mult = base_tp * 1.0
+        else:
+            # Weak signal: tiny position, tight stop
+            position_pct = base_position * 0.3 * vol_factor
+            stop_mult = base_stop * 0.6
+            tp_mult = base_tp * 0.9
+
+        # Confidence boost
+        conf_factor = max(0, (confidence - 5)) / 5
+        position_pct *= 1 + (conf_factor * 0.2)
+
+        return {
+            "position_pct": position_pct,
+            "stop_multiplier": stop_mult,
+            "tp_multiplier": tp_mult,
+        }
 
     @property
     def call_count(self) -> int:

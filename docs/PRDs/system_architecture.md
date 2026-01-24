@@ -1,7 +1,7 @@
 # System Architecture - Crypto AI Trading Bot
 
-> **Version:** 1.3
-> **Last Updated:** January 18, 2026
+> **Version:** 2.0
+> **Last Updated:** January 24, 2026
 > **Status:** Draft
 
 ---
@@ -9,12 +9,13 @@
 ## 1. Overview
 
 ### 1.1 Purpose
-A locally-run AI-powered trading bot that connects to Hyperliquid exchange for crypto futures scalping, using local AI (Ollama) for market analysis.
+A locally-run AI-powered trading bot that connects to Hyperliquid exchange for crypto futures scalping, using a 3-layer architecture: technical indicators, rule-based signal detectors, and an AI decision layer (Ollama).
 
 ### 1.2 Key Design Principles
 - **Local-first**: Runs entirely on user's machine (AI via Ollama, no cloud dependency)
+- **3-Layer Architecture**: Separates calculations (indicators), pattern detection (signals), and decision-making (AI)
 - **Event-driven**: Reacts to market data streams in real-time
-- **AI-augmented**: Local LLM analyzes market data and generates trading signals
+- **AI-augmented**: Local LLM evaluates signals and decides trade execution
 - **Risk-managed**: Hard limits prevent catastrophic losses
 
 ### 1.3 Target User
@@ -33,11 +34,18 @@ A locally-run AI-powered trading bot that connects to Hyperliquid exchange for c
 flowchart TB
     subgraph LOCAL["LOCAL MACHINE (Cursor IDE)"]
         subgraph BOT["TRADING BOT (Python)"]
-            WS[WebSocket Manager] --> OA[Opportunity Analyzer]
-            OA --> PT[Paper Trader]
+            WS[WebSocket Manager] --> CA[Candle Aggregator]
+
+            subgraph LAYERS["3-LAYER ARCHITECTURE"]
+                CA --> IND[Layer 1: Indicators<br/>RSI, MACD, ATR, EMA]
+                IND --> SIG[Layer 2: Signal Detectors<br/>Pattern Recognition]
+                SIG --> BRAIN[Layer 3: Signal Brain<br/>AI Decision Maker]
+            end
+
+            BRAIN --> PM[Position Manager]
+            PM --> PT[Paper Trader]
 
             WS -->|Market Data| SS[(Session State<br/>JSON)]
-            OA -->|Opportunities| AI[AI Analyzer<br/>Ollama]
             PT -->|Positions| TC[Trading Config]
 
             subgraph UI["TERMINAL UI (Textual)"]
@@ -54,11 +62,12 @@ flowchart TB
     end
 
     HL_WS[("Hyperliquid<br/>WebSocket API<br/>(Market Data)")] -->|WebSocket<br/>Public - No Auth| WS
-    OLLAMA[("Ollama<br/>Local AI<br/>localhost:11434")] <-->|HTTP<br/>Local - No Auth| AI
+    OLLAMA[("Ollama<br/>Local AI<br/>localhost:11434")] <-->|HTTP<br/>Local - No Auth| BRAIN
     HL_REST[("Hyperliquid<br/>REST API<br/>(Testnet/Mainnet)")] <-.->|HTTPS<br/>Auth Required| PT
 
     style LOCAL fill:#1a1a2e,stroke:#16213e,color:#fff
     style BOT fill:#16213e,stroke:#0f3460,color:#fff
+    style LAYERS fill:#0f3460,stroke:#00ff88,color:#fff
     style UI fill:#0f3460,stroke:#e94560,color:#fff
     style HL_WS fill:#0f3460,stroke:#e94560,color:#fff
     style OLLAMA fill:#0f3460,stroke:#00ff88,color:#fff
@@ -83,32 +92,43 @@ TRADING_MODE = "simulation"  # "simulation" | "testnet" | "live"
 
 **Key Insight:** Simulation mode only requires public market data (no API keys needed). This enables unlimited paper trading with full control over starting balance and resets.
 
-### 2.3 Data Flow
+### 2.3 Data Flow (3-Layer Architecture)
 
 ```mermaid
 flowchart TD
     subgraph STEP1["1. MARKET DATA STREAM"]
         HL[Hyperliquid] -->|WebSocket<br/>Public - No Auth| DM[Data Manager]
-        DM --> BUF[(Buffer<br/>last N candles)]
-        BUF --> TC{Trigger Check}
-        TC -->|candle close<br/>price move<br/>volume spike| TRIG[Trigger!]
+        DM --> BUF[(Candle Buffer<br/>last 100 candles)]
     end
 
-    subgraph STEP2["2. AI ANALYSIS"]
-        TRIG --> FP[Format Prompt]
-        FP -->|HTTP| OLLAMA[Ollama<br/>Local AI]
-        OLLAMA --> PARSE[Parse Response]
-        PARSE --> DEC{Decision}
-        DEC --> |LONG / SHORT / HOLD| SIG[Signal]
-        DEC --> |Entry, SL, TP| PARAMS[Parameters]
-        DEC --> |1-10| CONF[Confidence]
+    subgraph STEP2["2. INDICATORS (Layer 1 - Pure Math)"]
+        BUF --> RSI[RSI Calculator]
+        BUF --> MACD[MACD Calculator]
+        BUF --> ATR[ATR Calculator]
+        BUF --> EMA[Moving Averages]
+        RSI --> VALUES[Indicator Values<br/>RSI=28.5, MACD=-0.3]
     end
 
-    subgraph STEP3["3. ORDER EXECUTION"]
-        SIG --> RC{Risk Check}
-        PARAMS --> RC
-        CONF --> RC
-        RC -->|Position sizing<br/>Loss limit check| ER{Execution Router}
+    subgraph STEP3["3. SIGNAL DETECTORS (Layer 2 - Rules)"]
+        VALUES --> DET{Detectors}
+        DET --> RSI_DET[RSI Detector<br/>Oversold/Overbought]
+        DET --> MOM_DET[Momentum Detector<br/>Pressure Analysis]
+        DET --> MACD_DET[MACD Detector<br/>Crossovers]
+        RSI_DET --> AGG[Signal Aggregator]
+        MOM_DET --> AGG
+        MACD_DET --> AGG
+        AGG --> SIG[Signals<br/>LONG strength=0.8]
+    end
+
+    subgraph STEP4["4. SIGNAL BRAIN (Layer 3 - AI)"]
+        SIG --> BRAIN[Signal Brain]
+        BRAIN -->|HTTP| OLLAMA[Ollama<br/>Local AI]
+        OLLAMA --> PLAN[TradePlan<br/>Action + SL + TP + Size]
+    end
+
+    subgraph STEP5["5. EXECUTION"]
+        PLAN --> PM[Position Manager]
+        PM --> ER{Execution Router}
 
         ER -->|Simulation| SIM[Paper Trader]
         SIM --> LOCAL[(Local tracking<br/>P&L calc<br/>JSON history)]
@@ -123,13 +143,106 @@ flowchart TD
     style STEP1 fill:#1a1a2e,stroke:#16213e,color:#fff
     style STEP2 fill:#16213e,stroke:#0f3460,color:#fff
     style STEP3 fill:#0f3460,stroke:#e94560,color:#fff
+    style STEP4 fill:#1a1a2e,stroke:#00ff88,color:#fff
+    style STEP5 fill:#16213e,stroke:#e94560,color:#fff
 ```
+
+### 2.4 Layer Responsibilities
+
+| Layer | Component | Input | Output | Uses AI? |
+|-------|-----------|-------|--------|----------|
+| **Layer 1** | Indicators | Prices (floats) | Calculated values (RSI=28.5) | No |
+| **Layer 2** | Signal Detectors | Candles (OHLCV) | Signal (direction + strength) | No |
+| **Layer 3** | Signal Brain | Signals + Context | TradePlan (action + parameters) | **Yes** |
+
+**Why This Separation?**
+
+1. **Indicators** are pure math - reusable, testable, no side effects
+2. **Signal Detectors** apply trading rules - deterministic, backtestable without AI costs
+3. **Signal Brain** makes final decisions - uses AI for nuanced judgment, considers multiple signals and market context
 
 ---
 
 ## 3. Component Specifications
 
-### 3.1 Data Manager (WebSocket Manager)
+### 3.1 Indicators (Layer 1)
+
+**Responsibility:** Pure mathematical calculations that compute technical analysis values from raw price data.
+
+**Location:** `bot/indicators/`
+
+| Indicator | File | Purpose |
+|-----------|------|---------|
+| RSI | `rsi.py` | Relative Strength Index - overbought/oversold levels |
+| MACD | `macd.py` | Moving Average Convergence Divergence - trend momentum |
+| ATR | `atr.py` | Average True Range - volatility measurement |
+| Moving Averages | `moving_averages.py` | SMA, EMA calculations |
+
+**Key Characteristics:**
+- **Stateless**: No memory between calls
+- **Pure functions**: Same input always produces same output
+- **No trading logic**: Just mathematical formulas
+
+**Example:**
+```python
+# bot/indicators/rsi.py
+def rsi(prices: list[float], period: int = 14) -> float | None:
+    """
+    Calculate RSI = 100 - (100 / (1 + RS))
+    where RS = Average Gain / Average Loss
+    """
+```
+
+---
+
+### 3.2 Signal Detectors (Layer 2)
+
+**Responsibility:** Apply trading rules to indicator values to generate actionable signals.
+
+**Location:** `bot/signals/detectors/`
+
+| Detector | File | Signal Logic |
+|----------|------|--------------|
+| RSI | `detectors/rsi.py` | Oversold (<30) → LONG, Overbought (>70) → SHORT, plus divergence detection |
+| Momentum | `detectors/momentum.py` | Buy/sell pressure analysis from price action |
+| MACD | `detectors/macd.py` | Crossover detection (histogram sign changes) |
+
+**Key Classes:**
+
+```python
+# bot/signals/base.py
+@dataclass
+class Signal:
+    coin: str
+    signal_type: SignalType  # MOMENTUM, RSI, MACD
+    direction: Literal["LONG", "SHORT"]
+    strength: float  # 0.0-1.0
+    timestamp: datetime
+    metadata: dict[str, Any]
+
+class SignalDetector(Protocol):
+    def detect(self, coin: str, candles: list[Candle]) -> Signal | None: ...
+```
+
+**Signal Aggregator:**
+```python
+# bot/signals/aggregator.py
+class SignalAggregator:
+    """Collects signals from multiple detectors."""
+
+    def process_candle(self, coin: str, candles: list[Candle]) -> list[Signal]
+    def get_pending_signals(self, time_window_seconds: int) -> list[Signal]
+    def get_consensus_direction(self, coin: str) -> str | None  # "LONG" | "SHORT" | None
+```
+
+**Key Characteristics:**
+- **Stateful**: Tracks cooldowns, last signals, history for divergence
+- **Deterministic**: Same candles produce same signals (no AI randomness)
+- **Configurable**: Thresholds, periods, cooldowns via config dataclasses
+
+---
+
+### 3.3 Data Manager (WebSocket Manager)
 
 **Responsibility:** Maintain robust WebSocket connection to exchange for real-time market data.
 
@@ -171,39 +284,68 @@ class WebSocketManager:
 - Allows trading system to exit positions before reconnection
 - Detailed logging for debugging connection issues
 
-### 3.2 AI Analyzer
+### 3.4 Signal Brain (Layer 3 - AI)
 
-**Responsibility:** Analyze market data using local AI and generate trading signals.
+**Responsibility:** Evaluate signals from Layer 2 and decide whether to execute trades using AI judgment.
 
-**Location:** `bot/ai/`
+**Location:** `bot/ai/signal_brain.py`
 
 | Capability | Details |
 |------------|---------|
-| Local AI inference | Uses Ollama for local LLM inference (no cloud dependency) |
-| Prompt engineering | Structured prompts for market analysis (`prompts.py`) |
-| Response parsing | Sentiment, confidence, and signal extraction (`models.py`) |
-| Async operation | Non-blocking AI calls via `httpx` |
+| Signal evaluation | Receives signals from detectors, decides action |
+| Persona-based decisions | Trading style defined by persona (scalper, conservative, balanced) |
+| Dynamic risk management | Adjusts position size, stops based on signal strength + volatility |
+| Local AI inference | Uses Ollama for decision-making |
 
 **Interfaces:**
-- Input: Market data (prices, momentum, orderbook, recent trades)
-- Output: `AnalysisResult` with sentiment, confidence (1-10), signal, and reasoning
+- **Input**: List of `Signal` objects + current positions + market context
+- **Output**: `TradePlan` with action, stop-loss, take-profit, position size
 
 **Key Classes:**
 ```python
-# bot/ai/analyzer.py
-class MarketAnalyzer:
-    async def analyze_market(coin, prices, momentum, orderbook, recent_trades) -> AnalysisResult
-    async def quick_sentiment(prices, bid_ratio, buys, sells) -> Sentiment
-    async def should_enter(coin, direction, price, momentum, bid_ratio) -> tuple[bool, int, str]
+# bot/ai/signal_brain.py
+class SignalBrain:
+    def __init__(self, persona: TradingPersona, ollama_client: OllamaClient): ...
+
+    async def evaluate_signals(
+        self,
+        signals: list[Signal],
+        current_positions: dict[str, Position],
+        market_context: MarketContext,
+    ) -> TradePlan | None
 
 # bot/ai/models.py
-class AnalysisResult:
+@dataclass
+class TradePlan:
     coin: str
-    sentiment: Sentiment  # BULLISH, BEARISH, NEUTRAL
-    confidence: int       # 1-10
-    signal: Signal        # LONG, SHORT, HOLD
+    action: Literal["ENTER_LONG", "ENTER_SHORT", "EXIT", "WAIT"]
+    confidence: int  # 1-10
+    stop_loss: float | None
+    take_profit: float | None
+    size_pct: float  # Position size as % of balance
     reason: str
 ```
+
+**Trading Personas:**
+```python
+# bot/ai/personas/base.py
+@dataclass
+class TradingPersona:
+    name: str
+    style: str
+    description: str
+    min_signal_strength: float  # Filter weak signals
+    min_confidence: int         # AI confidence threshold
+    prefer_consensus: bool      # Require multiple signals to agree
+    risk_params: RiskParams
+    prompt_template: str
+```
+
+| Persona | Style | Min Strength | Consensus Required |
+|---------|-------|--------------|-------------------|
+| `scalper` | Aggressive | 0.5 | No |
+| `balanced` | Moderate | 0.6 | Yes |
+| `conservative` | Cautious | 0.7 | Yes |
 
 **AI Backend:**
 | Backend | Use Case | Cost | Latency |
@@ -211,7 +353,13 @@ class AnalysisResult:
 | Ollama (local) | Default, privacy-focused | Free | ~1-3s (depends on hardware) |
 | Claude API | Optional, higher quality | $$ | ~1-2s |
 
-### 3.3 Order Manager
+---
+
+### 3.5 Legacy: Market Analyzer
+
+**Note:** The `MarketAnalyzer` (`bot/ai/analyzer.py`) is the older approach that analyzes raw market data directly. The new 3-layer architecture uses `SignalBrain` instead, which receives pre-processed signals rather than raw data.
+
+### 3.6 Order Manager
 
 **Responsibility:** Execute trades, manage positions, track orders.
 
@@ -226,7 +374,7 @@ class AnalysisResult:
 - Input: TradingDecision from AI Analyzer
 - Output: Order requests to Hyperliquid REST API
 
-### 3.4 Risk Manager
+### 3.7 Risk Manager
 
 **Responsibility:** Enforce risk limits, prevent catastrophic losses.
 
@@ -243,7 +391,7 @@ class AnalysisResult:
 - Drawdown threshold → Reduce position sizes
 - API errors → Pause and alert
 
-### 3.5 Paper Trading Simulator
+### 3.8 Paper Trading Simulator
 
 **Responsibility:** Simulate order execution locally for strategy testing without real funds.
 
@@ -289,7 +437,7 @@ class PaperTrader:
 - Test edge cases (what if I had $500? $50,000?)
 - Session persistence - resume trading after restarts
 
-### 3.6 State Store (Session State Manager)
+### 3.9 State Store (Session State Manager)
 
 **Responsibility:** Persist trading session state to disk for resumption after restarts.
 
@@ -328,7 +476,7 @@ class SessionStateManager:
     def get_reports_dir(self) -> Path
 ```
 
-### 3.7 UI Dashboard
+### 3.10 UI Dashboard
 
 **Responsibility:** Provide a terminal-based UI for monitoring and controlling the trading bot.
 
@@ -338,13 +486,10 @@ class SessionStateManager:
 
 | Panel | Purpose |
 |-------|---------|
-| Prices Panel | Live prices with momentum indicators |
-| Order Book Panel | Bid/ask depth visualization |
-| Trades Panel | Real-time trade feed |
+| Markets Panel | Live prices with momentum indicators |
+| Charts Panel | Candlestick chart visualization |
 | AI Panel | AI reasoning and analysis results |
-| Opportunities Panel | Pending trade opportunities with validation progress |
-| Positions Panel | Open positions with unrealized P&L |
-| History Panel | Closed trades with P&L |
+| History Panel | Trade history with P&L |
 | Status Bar | Connection status, session info, balance |
 
 **Keybindings:**
@@ -353,10 +498,11 @@ class SessionStateManager:
 | `q` | Quit |
 | `r` | Reset session |
 | `p` | Pause/resume trading |
-| `Ctrl+S` | Save session |
-| `1-4` | Adjust thresholds |
+| `Ctrl+R` | Restart with fresh code |
+| `s` | Cycle AI strategy |
+| `t` | Generate tuning report |
 
-### 3.8 Tuning System
+### 3.11 Tuning System
 
 **Responsibility:** Collect trade feedback and analyze performance for parameter optimization.
 
@@ -372,6 +518,55 @@ class SessionStateManager:
 - Track per-trade feedback (entry conditions, exit reason, P&L)
 - Analyze parameter effectiveness
 - Export reports for manual review
+
+---
+
+### 3.12 Backtest Engine
+
+**Responsibility:** Orchestrate backtesting using historical data through the 3-layer architecture.
+
+**Location:** `bot/backtest/engine.py`
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Engine | `engine.py` | Orchestrates the full backtest flow |
+| Position Manager | `position_manager.py` | Manages positions with trailing stops |
+| Models | `models.py` | `BacktestConfig`, `BacktestResult`, `EquityPoint` |
+| Breakout Analyzer | `breakout_analyzer.py` | Post-backtest analysis of breakout patterns |
+
+**Backtest Flow:**
+```
+Historical CSV → Candle Aggregator → Indicators → Signal Detectors
+                                                        ↓
+                    Position Manager ← Signal Brain (optional AI)
+                          ↓
+                   BacktestResult (equity curve, metrics)
+```
+
+**Key Features:**
+```python
+# bot/backtest/engine.py
+class BacktestEngine:
+    def __init__(self, config: BacktestConfig, ollama_client: OllamaClient | None): ...
+
+    async def run(self) -> BacktestResult
+    def run_signals_only(self) -> BacktestResult  # No AI, faster iteration
+
+# bot/backtest/models.py
+@dataclass
+class BacktestConfig:
+    data_file: str
+    initial_balance: float = 10000.0
+    use_ai: bool = True
+    detectors: list[str] = ["momentum", "rsi"]  # Which signal detectors to use
+    position_size_pct: float = 0.1
+```
+
+**Two Modes:**
+| Mode | Method | Speed | Use Case |
+|------|--------|-------|----------|
+| Signals Only | `run_signals_only()` | Fast | Strategy iteration, no AI costs |
+| Full AI | `run()` | Slower | Final validation with AI decisions |
 
 ---
 
@@ -534,22 +729,59 @@ trading-bot/
 ├── bot/                      # Main Python package
 │   ├── __init__.py
 │   │
-│   ├── ai/                   # AI integration (Ollama/Claude)
+│   ├── ai/                   # AI integration (Layer 3)
 │   │   ├── __init__.py
-│   │   ├── analyzer.py       # MarketAnalyzer - main AI interface
+│   │   ├── signal_brain.py   # SignalBrain - AI decision maker (NEW)
+│   │   ├── analyzer.py       # MarketAnalyzer - legacy AI interface
 │   │   ├── ollama_client.py  # Local Ollama API client
 │   │   ├── prompts.py        # Prompt templates
-│   │   └── models.py         # AnalysisResult, Sentiment, Signal
+│   │   ├── models.py         # TradePlan, MarketContext, AnalysisResult
+│   │   └── personas/         # Trading personas (NEW)
+│   │       ├── __init__.py
+│   │       ├── base.py       # TradingPersona, RiskParams
+│   │       └── scalper.py    # Scalper persona config
+│   │
+│   ├── indicators/           # Technical indicators (Layer 1) (NEW)
+│   │   ├── __init__.py
+│   │   ├── rsi.py            # RSI calculation
+│   │   ├── macd.py           # MACD calculation
+│   │   ├── atr.py            # ATR calculation
+│   │   └── moving_averages.py  # SMA, EMA calculations
+│   │
+│   ├── signals/              # Signal detectors (Layer 2) (NEW)
+│   │   ├── __init__.py
+│   │   ├── base.py           # Signal dataclass, SignalDetector protocol
+│   │   ├── aggregator.py     # SignalAggregator - combines detectors
+│   │   ├── validator.py      # SignalValidator - filters bad signals
+│   │   └── detectors/        # Individual detector implementations
+│   │       ├── __init__.py
+│   │       ├── rsi.py        # RSISignalDetector
+│   │       ├── momentum.py   # MomentumSignalDetector
+│   │       └── macd.py       # MACDSignalDetector
+│   │
+│   ├── backtest/             # Backtesting system (NEW)
+│   │   ├── __init__.py
+│   │   ├── engine.py         # BacktestEngine - orchestrates backtest
+│   │   ├── models.py         # BacktestConfig, BacktestResult
+│   │   ├── position_manager.py  # Position management with trailing stops
+│   │   └── breakout_analyzer.py  # Post-backtest breakout analysis
 │   │
 │   ├── core/                 # Core business logic
 │   │   ├── __init__.py
 │   │   ├── config.py         # TradingConfig dataclass
+│   │   ├── candle_aggregator.py  # Candle data structure
 │   │   ├── models.py         # OpportunityCondition, PendingOpportunity
 │   │   └── analysis/         # Market analysis modules
 │   │       ├── __init__.py
 │   │       ├── market.py     # MarketAnalyzer (conditions)
 │   │       ├── momentum.py   # Momentum calculations
 │   │       └── opportunities.py  # OpportunityAnalyzer
+│   │
+│   ├── historical/           # Historical data management (NEW)
+│   │   ├── __init__.py
+│   │   ├── fetcher.py        # Download historical data
+│   │   ├── cli.py            # CLI for fetching data
+│   │   └── models.py         # Historical data models
 │   │
 │   ├── hyperliquid/          # Exchange integration
 │   │   ├── __init__.py
@@ -584,14 +816,11 @@ trading-bot/
 │       ├── cli.py            # CLI argument parsing
 │       ├── components/       # UI panel components
 │       │   ├── __init__.py
-│       │   ├── prices_panel.py
-│       │   ├── orderbook_panel.py
-│       │   ├── trades_panel.py
-│       │   ├── ai_panel.py
-│       │   ├── opportunities_panel.py
-│       │   ├── positions_panel.py
-│       │   ├── history_panel.py
-│       │   └── status_bar.py
+│       │   ├── ai_panel.py       # AI reasoning display
+│       │   ├── charts_panel.py   # Candlestick charts
+│       │   ├── history_panel.py  # Trade history
+│       │   ├── markets_panel.py  # Prices and market data
+│       │   └── status_bar.py     # Connection status, balance
 │       └── styles/
 │           └── theme.css     # Retro dark theme
 │
@@ -713,13 +942,29 @@ Every time a 1-minute candle closes:
 - [x] Decision data models (`AnalysisResult`, `Sentiment`, `Signal`)
 - [x] MarketAnalyzer with async analysis (`bot/ai/analyzer.py`)
 
-### Phase 3: Trading Logic 🔄 Partial
-- [ ] Order placement (real orders - testnet/live)
-- [x] Position tracking (`bot/simulation/paper_trader.py`)
-- [x] Risk management (position size limits, cooldowns in `config.py`)
-- [x] Stop loss / take profit (`take_profit_pct`, `stop_loss_pct` in config)
+### Phase 3: 3-Layer Architecture ✅ Complete
+- [x] **Layer 1: Indicators** (`bot/indicators/`)
+  - RSI, MACD, ATR, Moving Averages
+  - Pure mathematical functions
+- [x] **Layer 2: Signal Detectors** (`bot/signals/`)
+  - RSI, Momentum, MACD detectors
+  - SignalAggregator for combining signals
+  - SignalValidator for filtering
+- [x] **Layer 3: Signal Brain** (`bot/ai/signal_brain.py`)
+  - AI-powered decision making
+  - Trading personas (scalper, balanced, conservative)
+  - Dynamic risk management
 
-### Phase 4: Paper Trading Simulation ✅ Complete
+### Phase 4: Backtesting System ✅ Complete
+- [x] Backtest Engine (`bot/backtest/engine.py`)
+- [x] Historical data fetcher (`bot/historical/`)
+- [x] Position Manager with trailing stops
+- [x] Signals-only mode (fast iteration without AI)
+- [x] Full AI mode for validation
+- [x] Equity curve tracking
+- [x] Breakout analysis
+
+### Phase 5: Paper Trading Simulation ✅ Complete
 - [x] Paper Trading Simulator implementation (`PaperTrader` class)
 - [x] Local position tracking and P&L calculation
 - [x] Simulated order fills with fee calculation (Hyperliquid fees)
@@ -728,14 +973,14 @@ Every time a 1-minute candle closes:
 - [x] Session persistence (`SessionStateManager`)
 - [x] Performance metrics via tuning system
 
-### Phase 5: Testnet Validation
+### Phase 6: Testnet Validation
 - [ ] Hyperliquid testnet API integration
 - [ ] Real order placement on testnet
 - [ ] Order lifecycle testing (create, fill, cancel)
 - [ ] API rate limit handling
 - [ ] Error recovery testing
 
-### Phase 6: Live Trading 🔄 Partial
+### Phase 7: Live Trading 🔄 Partial
 - [ ] Small position testing
 - [x] Monitoring dashboard (`bot/ui/dashboard.py` - Textual TUI)
 - [ ] Alerting system
@@ -750,13 +995,16 @@ Every time a 1-minute candle closes:
 - Multiple symbol support (BTC, ETH, SOL, etc.)
 - Session persistence and resume
 - Performance tuning system
+- 3-layer architecture (Indicators → Signals → AI Brain)
+- Backtesting framework with historical data
+- Trading personas for different risk profiles
 
 ### 11.2 Potential Enhancements
 - Web dashboard for remote monitoring
 - Telegram/Discord alerts
-- Backtesting framework with historical data
 - Multi-exchange support (Bybit, OKX)
 - Strategy hot-swapping
+- Additional signal detectors (volume profile, order flow)
 
 ### 11.3 Scalability
 - Current design: Multiple symbols, single strategy
@@ -789,4 +1037,4 @@ Every time a 1-minute candle closes:
 ---
 
 *Document maintained by: Trading Bot Development Team*
-*Last synced with codebase: January 18, 2026*
+*Last synced with codebase: January 24, 2026*

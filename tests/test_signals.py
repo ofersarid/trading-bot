@@ -19,14 +19,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from bot.core.candle_aggregator import Candle
 from bot.signals import (
     MACDSignalDetector,
+    MomentumConfig,
     MomentumSignalDetector,
+    RSIConfig,
     RSISignalDetector,
     Signal,
     SignalAggregator,
     SignalType,
 )
-from bot.signals.momentum import MomentumConfig
-from bot.signals.rsi import RSIConfig
 
 
 def make_candles(prices: list[float], start_time: datetime | None = None) -> list[Candle]:

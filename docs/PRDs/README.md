@@ -7,6 +7,7 @@ This folder contains all product and technical documentation for the Crypto AI T
 | Document | Description | Status |
 |----------|-------------|--------|
 | [System Architecture](./system_architecture.md) | Overall system design, components, data flow | Draft |
+| [Local AI Integration](./local_ai_integration.md) | Ollama integration for local LLM inference | Draft |
 
 ## Document Status Legend
 

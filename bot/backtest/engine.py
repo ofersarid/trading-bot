@@ -434,14 +434,17 @@ class BacktestEngine:
         current_price: float,
     ) -> TradePlan | None:
         """
-        Convert signals directly to a trade plan (no AI).
+        Convert signals directly to a trade plan with DYNAMIC risk management.
 
-        Uses simple consensus from the provided signals and persona's risk params.
+        Risk is adjusted based on signal strength and volatility:
+        - Strong signals (0.8+) → Larger position, tighter stop
+        - Medium signals (0.5-0.8) → Normal position, wider TP
+        - Weak signals (<0.5) → Smaller position, wide stop, much wider TP
         """
         if not signals:
             return None
 
-        # Calculate consensus directly from provided signals (not time-based query)
+        # Calculate consensus directly from provided signals
         long_strength = sum(s.strength for s in signals if s.direction == "LONG")
         short_strength = sum(s.strength for s in signals if s.direction == "SHORT")
 
@@ -452,41 +455,84 @@ class BacktestEngine:
         else:
             return TradePlan.wait(coin, "No signal consensus")
 
-        # Get persona for risk params
+        # Get persona and context
         persona = get_persona(self.config.persona_name)
-
-        # Calculate stops using persona's risk params
         context = self._calculate_market_context(coin, current_price)
         atr_value = context.atr
-
-        if direction == "LONG":
-            stop_loss = current_price - (atr_value * persona.risk_params.stop_loss_atr_multiplier)
-            take_profit = current_price + (
-                atr_value * persona.risk_params.take_profit_atr_multiplier
-            )
-            trail_activation = current_price * (1 + persona.risk_params.trail_activation_pct / 100)
-        else:
-            stop_loss = current_price + (atr_value * persona.risk_params.stop_loss_atr_multiplier)
-            take_profit = current_price - (
-                atr_value * persona.risk_params.take_profit_atr_multiplier
-            )
-            trail_activation = current_price * (1 - persona.risk_params.trail_activation_pct / 100)
 
         # Calculate average signal strength
         avg_strength = sum(s.strength for s in signals) / len(signals)
 
+        # DYNAMIC RISK MANAGEMENT
+        risk_params = self._calculate_dynamic_risk(avg_strength, context.volatility_level, persona)
+
+        # Apply dynamic stops
+        if direction == "LONG":
+            stop_loss = current_price - (atr_value * risk_params["stop_mult"])
+            take_profit = current_price + (atr_value * risk_params["tp_mult"])
+            trail_activation = current_price * (1 + persona.risk_params.trail_activation_pct / 100)
+        else:
+            stop_loss = current_price + (atr_value * risk_params["stop_mult"])
+            take_profit = current_price - (atr_value * risk_params["tp_mult"])
+            trail_activation = current_price * (1 - persona.risk_params.trail_activation_pct / 100)
+
         return TradePlan(
             action=direction,  # type: ignore[arg-type]
             coin=coin,
-            size_pct=persona.risk_params.max_position_pct * avg_strength,
+            size_pct=risk_params["position_pct"],
             stop_loss=stop_loss,
             take_profit=take_profit,
             trail_activation=trail_activation,
             trail_distance_pct=persona.risk_params.trail_distance_pct,
             confidence=int(avg_strength * 10),
-            reason=f"Signal consensus: {direction}",
+            reason=f"Signal consensus: {direction} (strength: {avg_strength:.2f})",
             signals_considered=[f"{s.signal_type.value}:{s.direction}" for s in signals],
         )
+
+    def _calculate_dynamic_risk(
+        self,
+        signal_strength: float,
+        volatility_level: str,
+        persona,
+    ) -> dict[str, float]:
+        """
+        Calculate dynamic risk parameters based on signal quality and volatility.
+
+        Strategy for 48% win rate profitability:
+        - Need avg_win > avg_loss * 1.08
+        - Strong signals: bet bigger, tighter stops (confident)
+        - Weak signals: bet smaller, wider TPs (need bigger wins to compensate)
+        """
+        base_position = persona.risk_params.max_position_pct
+        base_stop = persona.risk_params.stop_loss_atr_multiplier
+        base_tp = persona.risk_params.take_profit_atr_multiplier
+
+        # Volatility adjustment
+        vol_factor = {"high": 0.6, "medium": 0.8, "low": 1.0}.get(volatility_level, 1.0)
+
+        # Signal strength adjustments - balanced approach
+        # Key: reasonable TPs for win rate + tighter stops to cut losses
+        if signal_strength >= 0.8:
+            # Strong signal: bet bigger, tight stop, moderate TP
+            position_pct = base_position * 1.3 * vol_factor
+            stop_mult = base_stop * 0.6  # 40% tighter stop (cut losers fast)
+            tp_mult = base_tp * 1.2  # 20% wider TP
+        elif signal_strength >= 0.5:
+            # Medium signal: normal position, reasonable stops
+            position_pct = base_position * 0.9 * vol_factor
+            stop_mult = base_stop * 0.7  # 30% tighter
+            tp_mult = base_tp * 1.1  # 10% wider TP
+        else:
+            # Weak signal: smaller position, normal stops
+            position_pct = base_position * 0.5 * vol_factor
+            stop_mult = base_stop * 0.8
+            tp_mult = base_tp * 1.0
+
+        return {
+            "position_pct": position_pct,
+            "stop_mult": stop_mult,
+            "tp_mult": tp_mult,
+        }
 
     def _record_signal_outcomes(self, analysis: BreakoutAnalysis | None) -> None:
         """

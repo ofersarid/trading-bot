@@ -1,349 +1,370 @@
 ---
 name: Sync Documentation
-description: Updates a documentation file to match the current state of the codebase
-tags: [documentation, sync, maintenance]
+description: Audits the entire docs folder against the codebase and proposes updates, deletions, or consolidations
+tags: [documentation, sync, maintenance, audit]
 ---
 
 # Sync Documentation Command
 
 ## Purpose
 
-This command analyzes the current state of the codebase and updates a specified documentation file to reflect the actual implementation. The codebase is the source of truth.
+This command performs a comprehensive audit of the `docs/` folder against the current state of the codebase. It identifies documentation that is outdated, no longer relevant, or could be consolidated, then executes approved changes.
+
+**The codebase is the source of truth.**
 
 ---
 
-## Prerequisites Check
+## Excluded Folders
 
-**Required Input:** A markdown file from the `docs/` folder.
+The following folders are **excluded from this audit**:
 
-**If no file is provided, STOP immediately and prompt:**
-> ⚠️ **No documentation file specified.**
->
-> Please provide a markdown file from the `docs/` folder to update.
->
-> **Available documentation files:**
-> ```
-> docs/
-> ├── PRDs/
-> │   ├── local_ai_integration.md
-> │   ├── README.md
-> │   └── system_architecture.md
-> ├── setup-guide.md
-> └── strategies/
->     ├── momentum-scalping-v1.md
->     └── README.md
-> ```
->
-> **Usage:** Run this command with a specific file, e.g., `@docs/PRDs/system_architecture.md`
+| Folder | Reason |
+|--------|--------|
+| `docs/Team/` | CT-level discussion protocol - not subject to code sync |
 
 ---
 
-## Sync Process
+## Step 1: Scan Documentation Structure
 
-### Step 1: Identify Document Type
+**Action:** List all documentation files in `docs/` (excluding `docs/Team/`).
 
-Based on the file path and content, determine what kind of documentation it is:
+For each file, record:
+- File path
+- File size
+- Last modified date (from git)
+- Document type (PRD, strategy, guide, README, etc.)
 
-| Path Pattern | Document Type | Primary Sources |
-|--------------|--------------|-----------------|
-| `docs/PRDs/*.md` | Architecture/PRD | Entire codebase structure, actual implementations |
-| `docs/setup-guide.md` | Setup Guide | `requirements.txt`, `.env.example`, startup scripts |
-| `docs/strategies/*.md` | Strategy Docs | Strategy implementation files, config |
+**Present the inventory:**
 
----
+```
+📁 Documentation Inventory
+==========================
 
-### Step 2: Analyze Codebase
+docs/
+├── commands.md (626 lines)
+├── setup-guide.md
+├── PRDs/
+│   ├── README.md
+│   ├── local_ai_integration.md
+│   └── system_architecture.md (1044 lines)
+└── strategies/
+    ├── README.md
+    ├── momentum-calculation-methods.md
+    └── momentum-scalping-v1.md
 
-Gather current state information based on document type:
-
-#### For Architecture/PRD Documents:
-
-1. **Directory Structure**
-   - Scan `bot/` for actual modules and packages
-   - Compare against documented structure
-   - Note new directories, removed directories, renamed items
-
-2. **Component Status**
-   - Check which components exist and are implemented
-   - Identify stub vs. complete implementations
-   - Note dependencies between components
-
-3. **Development Phase Progress**
-   - Check completion status of documented phases
-   - Mark completed items based on actual code presence
-   - Identify work-in-progress items
-
-4. **Configuration Files**
-   - Scan for actual config patterns vs. documented
-   - Check environment variable usage
-   - Verify file paths mentioned exist
-
-5. **External Integrations**
-   - Verify API endpoints documented match code
-   - Check authentication patterns
-   - Validate WebSocket/REST usage
-
-#### For Setup Guides:
-
-1. **Dependencies**
-   - Compare `requirements.txt` against documented dependencies
-   - Check version numbers
-   - Note new/removed dependencies
-
-2. **Environment Variables**
-   - Scan codebase for `os.environ`, `os.getenv` calls
-   - Compare against documented env vars
-   - Check `.env.example` if exists
-
-3. **Startup Process**
-   - Analyze `start.sh`, `dev.sh`, main entry points
-   - Document actual startup commands
-   - Check for script changes
-
-#### For Strategy Documents:
-
-1. **Implementation Files**
-   - Check if strategy code exists
-   - Compare parameters/settings with docs
-   - Verify formulas and logic descriptions
+Total: X files (excluding docs/Team/)
+```
 
 ---
 
-### Step 3: Generate Discrepancy Report
+## Step 2: Analyze Codebase Architecture
 
-Present findings before making changes:
+**Action:** Build a comprehensive map of the current codebase.
+
+### 2.1 Directory Structure
+Scan and document (focus on `bot/` as the primary source):
+- All packages/modules in `bot/`
+- Entry points (`start.sh`, `dev.sh`, main scripts)
+- Configuration files (`pyproject.toml`, `requirements.txt`, etc.)
+- Test structure (`tests/`)
+
+**Present the architecture map before proceeding:**
+
+```
+📁 Codebase Architecture
+========================
+
+bot/
+├── ai/           # AI integration, signal brain, interpreters
+├── backtest/     # Backtesting engine and models
+├── core/         # Core models, config, analysis
+├── historical/   # Historical data fetching
+├── hyperliquid/  # Exchange integration
+├── indicators/   # Technical indicators (ATR, MACD, RSI, etc.)
+├── signals/      # Signal detection and aggregation
+├── simulation/   # Paper trading, simulation
+├── tuning/       # Parameter tuning
+└── ui/           # Terminal UI dashboard
+
+Entry Points: start.sh, dev.sh, run_backtest.py
+Config: pyproject.toml, requirements.txt
+Tests: tests/
+```
+
+### 2.2 Component Inventory
+For each module, identify:
+- Public classes and their purposes
+- Key functions and interfaces
+- Integration points (APIs, WebSockets, external services)
+- Configuration patterns
+
+### 2.3 Feature Status
+Determine what's implemented vs. planned:
+- Working features (have tests, are imported/used)
+- Partial implementations (stub code, TODOs)
+- Deprecated code (unused, commented out)
+
+---
+
+## Step 3: Cross-Reference Analysis
+
+**Action:** For each documentation file, analyze relevance against codebase.
+
+### Analysis Criteria
+
+| Criterion | Check |
+|-----------|-------|
+| **References Valid Code** | Do file paths, class names, function names exist? |
+| **Describes Current Behavior** | Does documented behavior match implementation? |
+| **Complete Coverage** | Are there undocumented features/modules? |
+| **No Orphaned Content** | Does doc reference removed/deprecated code? |
+| **Structural Accuracy** | Do directory trees match actual structure? |
+
+### For Each Document, Determine:
+
+1. **KEEP** - Content is accurate and relevant
+2. **UPDATE** - Content exists but is outdated
+3. **DELETE** - Content references things that no longer exist
+4. **CONSOLIDATE** - Content overlaps with another document
+
+---
+
+## Step 4: Generate Audit Report
+
+Present findings in a structured report:
 
 ```markdown
-## 📋 Documentation Sync Report
+# 📋 Documentation Audit Report
 
-**File:** [path/to/doc.md]
-**Analyzed:** [timestamp]
-
-### Summary
-- **Sections Matching:** X
-- **Sections Outdated:** Y
-- **Sections Missing Info:** Z
+**Generated:** [timestamp]
+**Scope:** docs/ (excluding docs/Team/)
+**Files Analyzed:** X
 
 ---
 
-### ❌ Discrepancies Found
+## Summary
 
-#### Directory Structure
-**Documented:**
-\`\`\`
-bot/
-├── ai/
-├── trading/  ← Does not exist
-└── utils/
-\`\`\`
-
-**Actual:**
-\`\`\`
-bot/
-├── ai/
-├── simulation/  ← New, not documented
-├── ui/          ← New, not documented
-└── core/        ← New, not documented
-\`\`\`
-
-#### Development Phases
-- **Phase 1:** Documented as partial → Actually complete
-- **Phase 4:** Documented as pending → Work in progress
-
-#### Configuration
-- Missing documented file: `config/settings.py`
-- Actual config location: `bot/core/config.py`
+| Status | Count | Files |
+|--------|-------|-------|
+| ✅ Current | X | file1.md, file2.md |
+| ⚠️ Needs Update | X | file3.md, file4.md |
+| 🗑️ Delete Candidate | X | file5.md |
+| 🔀 Consolidate | X | file6.md → file7.md |
 
 ---
 
-### ✅ Sections Verified (No Changes Needed)
-- External API endpoints
-- Security considerations
-- Cost estimation
+## ⚠️ Documents Needing Updates
+
+### docs/PRDs/system_architecture.md
+
+**Issues Found:**
+
+| Line(s) | Issue | Current | Actual |
+|---------|-------|---------|--------|
+| 45-60 | Directory structure outdated | Shows `bot/trading/` | Actually `bot/simulation/` |
+| 120 | Missing module | - | `bot/signals/detectors/` exists |
+| 340 | Dead reference | `bot/core/utils.py` | File doesn't exist |
+
+**Recommended Actions:**
+1. Update directory structure tree
+2. Add documentation for new `signals/detectors/` module
+3. Remove references to deleted files
+
+---
+
+### docs/strategies/momentum-scalping-v1.md
+
+**Issues Found:**
+
+| Line(s) | Issue | Current | Actual |
+|---------|-------|---------|--------|
+| 78 | Parameter changed | `threshold: 0.3` | Code uses `0.25` |
+| 150-180 | Missing indicator | - | RSI detector added |
+
+**Recommended Actions:**
+1. Update parameter values
+2. Document new RSI integration
+
+---
+
+## 🗑️ Deletion Candidates
+
+### docs/old-feature.md (if exists)
+
+**Reason:** References `bot/legacy/` module which was removed in commit abc123.
+
+**Verification:** No imports or references to this feature exist in codebase.
+
+---
+
+## 🔀 Consolidation Candidates
+
+### Merge: momentum-calculation-methods.md → momentum-scalping-v1.md
+
+**Reason:**
+- `momentum-calculation-methods.md` contains reference material used only by `momentum-scalping-v1.md`
+- Content would be better as a section within the strategy doc
+
+**Proposed Structure:**
+```
+momentum-scalping-v1.md
+├── Overview
+├── Strategy Logic
+├── Calculation Methods (← merged from momentum-calculation-methods.md)
+└── Configuration
 ```
 
 ---
 
-### Step 4: Propose Updates
+## ✅ Current Documents (No Changes Needed)
 
-For each discrepancy, show the proposed change:
+- `docs/setup-guide.md` - All instructions verified
+- `docs/commands.md` - Matches available commands
 
-```markdown
-### Proposed Changes
+---
 
-#### 1. Update Directory Structure
-**Current (lines 356-420):**
-[Show current documented structure]
+## 📝 Missing Documentation
 
-**Proposed:**
-[Show corrected structure matching codebase]
-
-#### 2. Update Development Phase Checklist
-**Current:**
-- [ ] Basic WebSocket connection
-
-**Proposed:**
-- [x] Basic WebSocket connection (implemented in `bot/hyperliquid/websocket_manager.py`)
-
-#### 3. Add Missing Component
-**Add new section for UI Dashboard:**
-[Proposed content based on actual implementation]
+| Component | Location | Suggested Doc |
+|-----------|----------|---------------|
+| Signal detectors | `bot/signals/detectors/` | Add to system_architecture.md |
+| Backtest engine | `bot/backtest/engine.py` | New: docs/backtesting.md or section in PRD |
 ```
 
 ---
 
-### Step 5: Request Confirmation
+## Step 5: Request Approval
 
-Before making changes, ask:
+Before making changes, present options:
 
-> **Ready to update the documentation.**
+> **Documentation Audit Complete**
 >
-> Changes will affect:
-> - X sections updated
-> - Y new sections added
-> - Z lines modified
+> **Proposed Changes:**
+> - 📝 Update: X documents
+> - 🗑️ Delete: X documents
+> - 🔀 Consolidate: X documents
 >
-> **Options:**
-> 1. **Apply all changes** - Update the entire document
-> 2. **Review changes one-by-one** - Approve each section individually
-> 3. **Apply specific sections** - Choose which sections to update
-> 4. **Export diff only** - Show changes without applying
+> **How would you like to proceed?**
 >
-> Which would you like?
+> | Option | Description |
+> |--------|-------------|
+> | **1. Apply all** | Execute all proposed changes |
+> | **2. Review each** | Step through each change for individual approval |
+> | **3. Updates only** | Only apply updates, skip deletions/consolidations |
+> | **4. Specific files** | Choose which files to process |
+> | **5. Export report** | Save report to `.cursor/plans/docs-audit-[date].md` |
+> | **6. Cancel** | No changes |
+
+**Wait for explicit user confirmation before proceeding.**
 
 ---
 
-### Step 6: Apply Updates
+## Step 6: Execute Approved Changes
 
-When updating the documentation:
+### For Updates:
 
-1. **Preserve Style**
-   - Match existing formatting (headers, tables, code blocks)
-   - Keep consistent voice and tone
-   - Maintain document structure
+1. **Show the specific changes** before applying:
+   - Display current text vs. proposed text
+   - Include line numbers for context
 
-2. **Update Metadata**
-   - Update "Last Updated" date if present
-   - Bump version number if applicable
-   - Update "Status" if relevant
+2. **Apply edits** to fix each identified issue:
+   - Update directory structure trees to match actual `bot/` layout
+   - Fix file path references (e.g., `bot/trading/` → `bot/simulation/`)
+   - Update parameter values to match code defaults
+   - Add new sections for undocumented features
+   - Remove references to deleted/renamed code
 
-3. **Add Context**
-   - Include file paths where implementations live
-   - Add code snippets from actual implementation when helpful
-   - Link related documentation
+3. **Preserve document style:**
+   - Match existing header levels and formatting
+   - Keep consistent tone and voice
+   - Maintain table formats where used
 
-4. **Track Changes**
-   - Note what was updated at the bottom (if document has changelog)
-   - Use clear commit messages
+### For Deletions:
 
----
+1. **Confirm deletion** one more time for each file
+2. **Check for references** - warn if other docs link to this file
+3. **Delete the file**
+4. **Update any READMEs** that listed the deleted file
 
-## Document-Specific Update Rules
+### For Consolidations:
 
-### For `system_architecture.md`:
-
-1. **Directory Structure Section**
-   - Must exactly match actual `bot/` structure
-   - Include "(coming soon)" for planned directories
-   - Remove directories that no longer exist
-
-2. **Development Phases**
-   - Check off items that have implementations
-   - Mark partial implementations with notes
-   - Keep unchecked items that are truly pending
-
-3. **Component Specifications**
-   - Add new components that exist in code
-   - Update interfaces based on actual method signatures
-   - Remove components that were never built
-
-4. **Code Examples**
-   - Ensure class/function signatures match actual code
-   - Update configuration examples from real config files
-
-### For `setup-guide.md`:
-
-1. **Installation Steps**
-   - Verify each command works
-   - Update package versions
-   - Fix file paths
-
-2. **Configuration**
-   - Match actual env var names
-   - Update default values
-   - Add new required variables
-
-### For `local_ai_integration.md`:
-
-1. **AI Components**
-   - Check actual prompt files exist
-   - Verify model names and versions
-   - Update API usage patterns
+1. **Show the merge plan** - what goes where
+2. **Merge content** into target document
+3. **Delete source document**
+4. **Update cross-references** in other docs
 
 ---
 
-## Output Format
+## Step 7: Final Report
 
-After syncing, provide:
+After executing changes:
 
-### Confirmation
 ```
-✅ Documentation updated successfully!
+✅ Documentation Sync Complete
 
-Updated: docs/PRDs/system_architecture.md
-Version: 1.2 → 1.3
-Last Updated: January 18, 2026
-```
+📊 Changes Applied:
+  ✏️  Updated: docs/PRDs/system_architecture.md
+      - Fixed directory structure (lines 45-60)
+      - Added signals/detectors documentation
+      - Removed dead references
 
-### Change Summary
-```
-📝 Changes Applied:
-  ✏️  Updated directory structure (added simulation/, ui/, core/)
-  ✏️  Marked Phase 1 as complete
-  ✏️  Updated Phase 4 progress
-  ➕  Added UI Dashboard component specification
-  ➕  Added session state management section
-  🗑️  Removed outdated trading/ directory reference
-```
+  ✏️  Updated: docs/strategies/momentum-scalping-v1.md
+      - Updated threshold parameter
+      - Added RSI detector section
 
-### Recommendations
-```
+  🗑️  Deleted: (none)
+
+  🔀  Consolidated: (none)
+
+📁 Documentation Status:
+  - Total docs: X
+  - Up to date: X (100%)
+
 💡 Recommendations:
-  - Consider adding API examples for new endpoints
-  - The simulation section could use more detail
-  - Phase 5 (Testnet) is now unblocked
+  - Consider adding dedicated backtesting documentation
+  - Strategy docs could include more code examples
 ```
 
 ---
 
 ## Edge Cases
 
-### Large Structural Changes
-If >30% of the document needs rewriting:
-- Warn the user about scope of changes
-- Suggest creating a new version instead of updating
-- Offer to backup original first
+### Large-Scale Outdated Documentation
+If >50% of docs need significant updates:
+- Warn user about scope
+- Suggest prioritizing critical docs (PRDs, setup guide)
+- Offer to create a phased plan
 
-### Missing Implementations
-If documentation describes components that don't exist:
-- Mark them clearly as "Planned" or "Coming Soon"
-- Or suggest removing them if abandoned
+### Ambiguous Deletions
+If unsure whether content is still relevant:
+- Mark as "Review Recommended" instead of "Delete"
+- Ask user for clarification
+- Never auto-delete without explicit confirmation
 
-### Conflicting Information
-If code contradicts documentation in significant ways:
-- Ask user which is correct (docs or code)
-- Don't assume code is always right for design decisions
+### Circular References
+If consolidation would create circular references:
+- Flag the issue
+- Suggest alternative organization
+- Let user decide structure
+
+### New Features Without Docs
+If code exists without documentation:
+- List in "Missing Documentation" section
+- Offer to generate stub documentation
+- Prioritize by feature importance
 
 ---
 
-## Example Usage
+## Usage
 
-**Sync architecture documentation:**
+**Run full audit:**
 ```
-@sync-docs @docs/PRDs/system_architecture.md
+@sync-docs
 ```
 
-**Sync setup guide:**
-```
-@sync-docs @docs/setup-guide.md
-```
+**The command will:**
+1. Scan all docs (excluding Team/)
+2. Analyze current codebase
+3. Generate comparison report
+4. Propose changes
+5. Execute approved changes

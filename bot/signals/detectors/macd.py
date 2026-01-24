@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from bot.indicators.macd import macd_series
 
-from .base import Signal, SignalType
+from ..base import Signal, SignalType
 
 if TYPE_CHECKING:
     from bot.core.candle_aggregator import Candle
