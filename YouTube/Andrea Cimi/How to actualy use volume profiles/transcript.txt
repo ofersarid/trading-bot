@@ -1,0 +1,1378 @@
+0:00
+In this video, I will show you probably
+0:01
+the best trading indicator out there.
+0:03
+And it's not one of those technical
+0:05
+indicator like RSI, MACD, blah blah
+0:07
+blah. It's literally the money
+0:09
+indicator. And this indicator is called
+0:10
+the volume profile. And it's actually
+0:12
+showing you where most money in the
+0:15
+market was traded. A lot most retail
+0:17
+traders use normal candlestick and price
+0:19
+action concepts like higher highs,
+0:20
+higher lows, support and resistance, and
+0:22
+the classic stuff you find on the online
+0:24
+retail trading space. But in the
+0:25
+professional worlds, in hedge funds, in
+0:27
+the floor of world champions, they use
+0:29
+these type of indicators. And for good
+0:31
+reason, because if you use this
+0:32
+indicator correctly, and we're going to
+0:34
+learn how in this video, it can allow
+0:35
+you to truly follow the smart money on
+0:38
+the charts. And what are the actual
+0:39
+areas where they pour in a lot of money
+0:42
+that eventually moves price action. So
+0:44
+for all of those who are kind of not
+0:46
+into indicators, price action is more of
+0:48
+an indicator than volume. Volume is what
+0:51
+drives price. So you could consider it
+0:53
+some sort of leading indicators towards
+0:55
+price. In this video, I'm going to teach
+0:56
+you all the basics on what the volume
+0:58
+profile is and how to use it in a very
+1:00
+simple way to apply it right away in
+1:02
+your trading and see some radical
+1:04
+improvement in the way you open your
+1:06
+trades, you find areas and your overall
+1:08
+trading performance. So let's get
+1:10
+started. So this is how a volume profile
+1:12
+looks like. It basically show you at
+1:14
+every level of price how much volume of
+1:17
+transactions happened in the
+1:19
+marketplace. And we define a transaction
+1:21
+simply as a buyer being matched with a
+1:23
+seller. Okay. So volume profile shows
+1:25
+you the distribution of trading activity
+1:28
+inside of a session. For example, this
+1:31
+is a daily volume profile. You could use
+1:33
+a weekly volume profile. You can use a
+1:35
+one minute volume profile. So you can
+1:37
+see the distribution of trades inside of
+1:39
+any time frame you want. And what you
+1:41
+will notice is there's going to be a lot
+1:43
+of areas with big volume and a lot of
+1:46
+volume and areas with lower volume. And
+1:48
+this is the main thing we want to take a
+1:50
+look at high volume areas and low volume
+1:52
+areas. So you you have areas with high
+1:54
+distributions of volume and areas with
+1:57
+small distributions of volume which
+1:59
+means that a lot of trading happened in
+2:01
+these areas and less trading happened in
+2:03
+these areas. Then these levels where
+2:05
+there's a lot of volume specifically in
+2:08
+a few levels of price we call these high
+2:12
+volume nodes or HVN. the areas where
+2:15
+there's a little less volume and you
+2:17
+have these valleys compared to these
+2:19
+peaks in volume. These valleys we call
+2:21
+them low volume nodes. High volume node,
+2:24
+a high volume node, a low volume node.
+2:26
+This is another low volume node. This is
+2:28
+a high volume node. This is a low volume
+2:29
+node. Another low volume node. This is a
+2:31
+big high volume node. High volume node.
+2:33
+This is clearly a valley because you see
+2:36
+volume decreasing. So this is a low
+2:37
+volume node. This is a high volume node
+2:39
+again. Another one over here. Another
+2:40
+one over here. And then you have
+2:42
+ultimately the lower in the lower area
+2:44
+another low volume node. So this simply
+2:47
+means there was a lot of trading over
+2:48
+here. There was a lot of trades taken
+2:50
+also by big institutions and there was a
+2:53
+lot of exchange of contracts a lot of
+2:56
+trading activity from both sides of the
+2:59
+market from the buying side and from the
+3:01
+selling side. When you see low volume
+3:03
+nodes instead, this basically means that
+3:05
+there was few trades happening there,
+3:07
+right? You didn't have a lot of buying
+3:09
+pressure and a lot of selling pressure.
+3:11
+Typically, what you have in the low
+3:12
+volume nodes is one side of the market
+3:15
+is exerting a much harder pressure on
+3:18
+the overall auction on the overall price
+3:20
+compared to the other one. So low volume
+3:22
+node are let's say the more directional
+3:25
+sprints of the markets. So if you have
+3:27
+to kind of visualize it on a price
+3:29
+action level, this type of volume
+3:31
+distribution where you have low volume
+3:33
+here and then a lot of volume here, a
+3:34
+lot of volume here will probably
+3:36
+something like this. Price going down
+3:38
+really fast, especially here, right? Not
+3:40
+a lot of retracements going on. And then
+3:42
+when we start having this big volume
+3:44
+areas, you'll see price spending a lot
+3:46
+of time there, right? Cuz when a lot of
+3:48
+time is spent, a lot of time is being
+3:50
+spent there trading, exchanging a lot of
+3:52
+contracts and stocks and cryptos,
+3:54
+whatever it is. Then you have a slightly
+3:55
+lower volume here. So you're probably
+3:57
+going to have a phase of expansion
+3:58
+typically and then a lot of volume in
+4:00
+this area. So a lot of time spent here
+4:02
+as well. So all throughout this area,
+4:04
+you'll typically have a lot of price
+4:06
+action. And instead, you're not going to
+4:08
+have a lot of price action having gone
+4:10
+on on the lower area where there's lower
+4:12
+volume. So typically you're going to see
+4:14
+both. You're going to see when there's a
+4:16
+lot of volume, there's typically a lot
+4:17
+of price action. When there's low
+4:19
+volume, there's less price action. So
+4:22
+how much time is spent on a specific
+4:25
+range typically determines also how much
+4:27
+volume is traded at that specific uh
+4:29
+range of price. And as you can see we
+4:31
+have this different coloring between
+4:33
+this gray area and this yellow area.
+4:36
+Well, this differentiation is based on a
+4:38
+statistical concept called the normal
+4:40
+distribution or the Gaussian
+4:42
+distribution which is something of you
+4:44
+guys might have learned at school, some
+4:45
+of you might have not. But put it in
+4:46
+very simple terms when you analyze a
+4:48
+sample of data typically throughout
+4:51
+several observable phenomenons and let's
+4:52
+say these are some numbers that you can
+4:54
+quantify somehow they will tend to fall
+4:56
+under this type of shape this type of
+4:58
+bell. The classic example I make is with
+5:01
+the length of penises. So the
+5:02
+distribution of a population's penile
+5:05
+length will also fall under a very
+5:07
+similar curve where on this axis you
+5:10
+have penises of the length of 6 cm 7 8 9
+5:13
+10 blah blah blah up to 18. So for
+5:16
+example, you're going to have very a
+5:17
+very low amount of people with a penis
+5:19
+shorter than 10 cm. Very few people with
+5:22
+a penis above 15 cm and most of the
+5:25
+people being in the average range
+5:27
+between 11 and 14 or in the distribution
+5:30
+of height of males in a population. You
+5:33
+can see there's a lot you can see most
+5:35
+of the people are going to fall under a
+5:37
+height between 160 cm to 175
+5:41
+approximately. very few people are going
+5:43
+to be in the lower percentiles. So in
+5:46
+the very short people and very few
+5:49
+people will be in the highest
+5:50
+percentiles where people are really
+5:52
+really tall and going to the 6'4
+5:54
+heights. So the same concept can be
+5:56
+applied with volume where you have a lot
+5:59
+of volume traded at these prices less
+6:02
+and less volume traded at upper prices
+6:05
+less and less volume traded at lower
+6:07
+prices. So the normal distribution of
+6:10
+volume in this specific sample falls
+6:13
+under this range of price. So
+6:15
+statistically speaking everything that
+6:17
+falls under this range is considered
+6:19
+normal. Anything that happens outside in
+6:22
+the outer percentiles of our statistical
+6:24
+distribution is to be considered
+6:26
+somewhat an anomaly. Just like a super
+6:28
+tall guy or a super short guy are
+6:31
+anomalies. trading activity happen at
+6:33
+upper prices and or at lower prices
+6:36
+compared to this distribution is to be
+6:38
+considered some form of a statistical
+6:40
+anomaly inside of that session. And so
+6:41
+what we'll typically see is 68%
+6:45
+of the samples that we take into
+6:47
+considerations 68% will fall under one
+6:50
+standard deviation. Okay, this is a
+6:53
+negative and a positive standard
+6:55
+deviation. 95% of the samples will fall
+6:58
+under the second standard deviation.
+7:00
+negative standard deviation and positive
+7:02
+standard deviation and 99.7%
+7:05
+of samples will fall under the third
+7:07
+standard deviation either negative or
+7:09
+positive. So what we typically plot
+7:11
+inside of a volume profile distribution
+7:13
+is the first standard deviation only. So
+7:16
+where 68%
+7:18
+more or less we typically round it up to
+7:20
+70%. This is where 70% of the volume was
+7:24
+traded throughout that session. So let's
+7:25
+imagine a profile where this is the
+7:27
+current distribution and this is the
+7:29
+standard deviation. Well, it means that
+7:31
+most of the money was traded inside of
+7:34
+this area. So, anything that happens
+7:35
+outside is to be considered an anomaly
+7:38
+that could revert back to the mean. So,
+7:40
+whenever, for example, we are inside of
+7:43
+a volume range. One of the very common
+7:45
+type of trading that we can look for is
+7:47
+reversal trading and rangebound trading
+7:50
+setups where we basically sell the tops
+7:52
+and buy the bottoms whenever we go
+7:54
+outside of the first volume standard
+7:56
+deviation because we both have the
+7:58
+statistical reference of anything that
+8:01
+happens out is an anomaly statistically
+8:03
+speaking. But aside from statistics
+8:05
+alone, we also know that compared to the
+8:08
+distribution, these are cheap prices
+8:11
+where smart money could buy. And these
+8:13
+are premium prices where smart money
+8:15
+would prefer to sell, where it's more
+8:16
+likely to see aggressive sell activity
+8:19
+or aggressive buy activity pushing the
+8:21
+auction back in a situation of balance
+8:24
+and maybe target the highest volume
+8:27
+areas as a very probable target or the
+8:30
+other side of the distribution. So, for
+8:32
+example, when we see a breakout that
+8:34
+fails, we call this a failed auction. We
+8:37
+might, for example, want to buy here
+8:38
+with a stop-loss below here, targeting
+8:40
+either the other side as a take-profit,
+8:43
+or if you want to be more conservative,
+8:45
+targeting the point of control or the
+8:47
+highest volume node inside of the
+8:49
+distribution as a take-profit. And these
+8:51
+are all trading setups that can have a
+8:53
+very decent win rate with typically a
+8:55
+high risk-to-reward ratio. Another way
+8:57
+you can trade these is trend following.
+8:59
+So let's say before there was a
+9:01
+distribution of price here that created
+9:03
+a lot of volume. Okay. Whenever you see
+9:05
+a new distribution of price happening
+9:08
+above the previous one and a big chunk
+9:11
+of volume being traded at higher prices
+9:14
+than the previous biggest chunk of
+9:15
+volume. That's when you can qualify that
+9:17
+we're in an actual trend. Not just using
+9:19
+price action like this, okay? With highs
+9:21
+and lows that can be momentarily
+9:23
+breaking out but then breaking back in
+9:25
+and then creating, you know, all of
+9:27
+these fake outs. Well, just take a look
+9:28
+at where the total distribution is.
+9:31
+these anomalies and let's trade it when
+9:33
+we have a serious breakout, right? And
+9:35
+we see volume breaking out, not just the
+9:38
+high, but the whole range moving up
+9:40
+because that's where the money is.
+9:42
+That's where most of the money is being
+9:43
+traded. So, we want to follow the money.
+9:45
+So whenever this happens, you can either
+9:47
+buy over here to have even a higher
+9:49
+risk-to-reward or wait for a very strong
+9:52
+breakout that spends some time outside,
+9:55
+enter on the test, stop-loss under the
+9:57
+main high volume node, and that's also a
+9:59
+very high win rate, high risk-to-reward
+10:01
+type of setup. So this is all the basics
+10:02
+on what it is and already a little hints
+10:05
+on how to use it. But of course, you're
+10:07
+going to ask yourself, where how do I
+10:09
+get this type of indicator? Where can I
+10:10
+find it? And the truth is, you can find
+10:12
+some free versions of this online. So,
+10:14
+one option you have is to go for Trading
+10:16
+View's volume profile indicator. So, you
+10:18
+look for volume profile and you have the
+10:19
+session volume profile, which is
+10:21
+something you need to pay for, by the
+10:23
+way. It's not included in the free
+10:25
+version of it. And you're going to get a
+10:26
+first level of volume profile. Let's go
+10:28
+on the future contract. And yes, as you
+10:31
+can see, we have a daily version of the
+10:33
+volume profile. But the problem with
+10:35
+these volume profiles is they're a
+10:37
+little bit weird. They're not based on
+10:39
+actual trading data. They're based on
+10:41
+something called tick volume, which is a
+10:42
+very rough approximation of actual
+10:45
+trading volume. Plus, they are grouped
+10:47
+in a weird way that personally I don't
+10:49
+really like. You can kind of customize
+10:51
+it, I think, with the row size and stuff
+10:53
+like that. But the problem with these
+10:55
+type of volume profile is they're a
+10:57
+proxy of real volume. You could use
+10:59
+them. I personally don't because for my
+11:01
+trading, I want to access real data. And
+11:03
+if I have to pay for it, I might as well
+11:05
+just go for the real deal, which is for
+11:07
+example what we have on deep charts. And
+11:08
+on deep charts, if you open a new price
+11:11
+chart and select, for example, the S&P
+11:13
+500 or anything else here, you not only
+11:15
+get a normal price action chart, but you
+11:17
+also get real volume from the CME
+11:20
+exchange, which requires more powerful
+11:22
+computational data this platform
+11:24
+provides, which is also why it's a
+11:26
+desktop type of platform because this
+11:27
+data is processed mostly by your GPU or
+11:30
+CPU. So, I can right click on my chart,
+11:32
+go on indicators, and search for deep
+11:35
+profile. And I have a lot of them. I
+11:37
+will just add the deep profile and you
+11:39
+can start seeing it now on the screens
+11:41
+and this is going to be based on the
+11:43
+actual volume from the exchange. So
+11:45
+let's kind of compare it to the normal
+11:48
+type of volume profile and see if there
+11:50
+is any difference. Let's put this one
+11:51
+here and let's put this other one over
+11:52
+here. We have to connect to the data
+11:54
+feed. So it loads the rest of the last
+11:56
+few days of data. Now let's compare this
+11:58
+session as an example in this type of
+12:00
+tick database volume chart where a
+12:02
+volume is considered such where you had
+12:05
+at least one tick up or one tick down
+12:07
+and that constitutes one volume but for
+12:10
+every tick up or every tick down there
+12:12
+could be countless contracts being
+12:14
+traded. So it's a proxy again. So it's
+12:16
+not going to be as precise as this. And
+12:18
+as you can see if the point of control
+12:20
+of this distribution is now here around
+12:23
+the prices of $69.99
+12:26
+here the point of control is at 69.87 so
+12:29
+several points below. So you don't have
+12:31
+the same level of reliability and the
+12:34
+the level of details that allow you to
+12:36
+take truly informed trading decision
+12:38
+because again this is a proxy which
+12:40
+approximately gives you the same value
+12:43
+area. Okay, like this is pretty decently
+12:45
+similar. Uh even though even here you
+12:47
+can see that this volume area ends here,
+12:49
+but the actual value area here ends up
+12:52
+below all of these lows. So slightly
+12:54
+below. As you can see, there's some
+12:56
+considerable differences here that makes
+12:58
+me if I want to pay even around the same
+13:00
+price, I'm going to go with the real
+13:02
+deal. I'm going to go with the actual
+13:03
+volume profile. And so on these
+13:04
+situations, for example, we can see that
+13:06
+the last distribution of volume was
+13:08
+here. So this is the previous session
+13:10
+volume profile, right? And so this is
+13:13
+what we can consider the first standard
+13:15
+deviation, right? And what volume
+13:16
+traders typically will do is they will
+13:18
+consider the area around the 70% the
+13:22
+upper limit of the first standard
+13:24
+deviation and the area around the lower
+13:26
+standard deviation as an overall area of
+13:29
+support and resistance as we discussed
+13:31
+before. And around all of this area is
+13:33
+where you had a lot of trades trying to
+13:35
+break out and revert back to the mean.
+13:37
+Bounce from the downside, bounce from
+13:38
+the upside all the way to the mean. And
+13:40
+this is the first time where instead we
+13:42
+had some volume over here which is
+13:44
+probably going to lead to a breakout at
+13:46
+this point. But let's see. We don't
+13:47
+know. It's still the London session. And
+13:49
+another reason why I would use for
+13:50
+example a deep charts volume profile is
+13:52
+that you can go down here in the daily
+13:53
+volume profile. Go to the settings and
+13:55
+set it not only with volume but with
+13:57
+volume and delta which is a very
+14:00
+interesting type of data. So instead of
+14:02
+just having a normal profile, this
+14:03
+profile shows you the delta of volume at
+14:07
+each level. So you have to know that the
+14:09
+way volume is calculated is the normal
+14:11
+volume is total buying pressure and
+14:15
+total selling pressure. Delta tells you
+14:17
+the total buying pressure minus the
+14:20
+total selling pressure. So you have the
+14:22
+net level of pressure at each level of
+14:25
+price. This is what we call a delta
+14:28
+profile. So it's not just a volume
+14:29
+profile. That's why it's called the deep
+14:32
+profile, right? It's in the name. It's
+14:34
+the deep profile. It's the deeper level
+14:36
+of information than just volume. And you
+14:38
+can see that here there was a a big sell
+14:40
+order at the very top right over here
+14:43
+that brought price back into a situation
+14:45
+of balance, right? And then you clearly
+14:48
+saw a very big cluster of aggressive
+14:51
+buying happening all the way at this
+14:54
+level of prices. And that's exactly
+14:55
+where buyers step in again in the rest
+14:58
+of the session and pump all this way up.
+15:00
+This is something that you probably have
+15:01
+seen. Fabio Valentini, one of the best
+15:03
+scalpers uh out there, use a lot this
+15:06
+delta profile where you can also clearly
+15:09
+see from the previous session where was
+15:11
+the area with most selling. Well, it's
+15:13
+clearly this one. There's no doubt about
+15:15
+it. It's numbers, right? So, all of this
+15:17
+area we can extend it. Let me put a
+15:18
+little bit of a background. And this is
+15:20
+where the battle happens a lot of time.
+15:22
+This is where sellers take control of
+15:24
+the auction over and over and over again
+15:26
+multiple times and again here a lot a
+15:29
+lot a lot of times. And another
+15:30
+information that the deep profile gives
+15:32
+us is this yellow line here which is the
+15:35
+volume weighted average price which is
+15:37
+also known as the VWAP. And the VWAP is
+15:40
+simply the average price of the entire
+15:43
+session weighted by volume which is this
+15:45
+one over here. We can set it up and we
+15:46
+can also have the developing VWAP which
+15:48
+a lot a lot a lot of traders love to use
+15:51
+especially institutional traders because
+15:52
+it's the most common reference points to
+15:55
+you know it's one of the most common
+15:57
+levels or mathematical formulas used in
+16:00
+the institutional space for best feeling
+16:02
+algorithms best execution algorithms and
+16:05
+stuff like that and another very
+16:06
+interesting thing that we can do is we
+16:08
+can go down all the way to filter split
+16:11
+time and have it split it RTH which
+16:13
+basically mean it's going to split the
+16:15
+profile in two different profiles. One
+16:17
+being the cash session or the regular
+16:20
+trading hours, the stock market session
+16:22
+and the other one being the Asian
+16:23
+session and the London session. So for
+16:26
+example, I can also have between the
+16:28
+indicators I can search for volume which
+16:30
+is the classic volume indicators that
+16:32
+you know shows you volume by time
+16:34
+instead of volume by price. And you can
+16:36
+clearly see you know the regular trading
+16:38
+hours are the hours where most volume is
+16:40
+traded. So you might want to have only
+16:43
+the volume profile for the so-called
+16:45
+cash session, the regular trading hours,
+16:47
+because that's where most money is
+16:48
+traded anyways. And consider these
+16:50
+areas, so the areas, the value areas of
+16:53
+the volume profile of the cash session
+16:55
+instead of the entirety of the session.
+16:58
+And you'll see that those are the areas
+17:00
+that responds best for price action
+17:02
+ideas, for breakout ideas. So this is
+17:04
+how I personally like to keep my volume
+17:06
+profile looking. So to summarize a way
+17:08
+we can use this for example is the first
+17:11
+use case would be to see approximately
+17:14
+roughly where these volume profiles are
+17:16
+going right and whenever we see a shift
+17:19
+in volume it's not just a shift in
+17:21
+market structure it's a shift in where
+17:23
+the real flow of money is going which is
+17:26
+a much more statistically significant
+17:28
+indication than simply highs or lows
+17:31
+that can be widely random at times. So
+17:34
+as we like to see bulks of price action,
+17:36
+we want to see bulks of volume because
+17:39
+that's where the money is going. So
+17:40
+instead of just using the classic market
+17:43
+structure, we can use volume market
+17:45
+structure, also known as the auction
+17:46
+market theory model. So the first way is
+17:48
+to determine a bias. So we know the
+17:51
+trend is up if we see volume going up,
+17:53
+if we see the money going up. The second
+17:55
+way we can use this is to qualify
+17:57
+support and resistance quote unquote or
+17:59
+supply and demand areas where if we
+18:01
+already know that we're in an uptrend,
+18:04
+this is the previous session value area,
+18:05
+the point of control. We know that for
+18:07
+example, if we want to look for buy
+18:08
+opportunities, we might wait for around
+18:11
+this area, the lower part of our
+18:13
+distribution. We want to see price
+18:14
+failing below and then entering our
+18:17
+trade together with a trend and maybe
+18:18
+target the other side of the value area.
+18:21
+Or if we spend some more time inside
+18:22
+here, but then we break out and spend
+18:24
+some times inside, then opt for a
+18:27
+breakout type of trade. So the first is
+18:29
+bias. The second use case is as a
+18:32
+support and resistance area. And lastly,
+18:34
+we could also use it as a trigger, which
+18:37
+is the final use case that I will show
+18:38
+you today. And I'm just going to go on
+18:40
+templates in the full version. I'm going
+18:42
+to select Andrachimi ES 5 minutes. And
+18:45
+this is a template that you can find
+18:47
+inside of deep charts where you can
+18:49
+simply already have the split volume
+18:50
+profile for each session, the cash
+18:52
+session and the London plus Asian
+18:54
+session, the extended trading hour
+18:56
+session or electronic trading hour
+18:57
+session. A composite volume profile that
+18:59
+tells you the entirety of the volume
+19:02
+distribution of the chart you have that
+19:04
+I typically like to go on up over here
+19:07
+price settings and maybe I want to load
+19:09
+for example I don't know 90 days of
+19:12
+price. I'm going to apply it save. It's
+19:14
+going to build a chart because there's a
+19:15
+lot of data that needs to be processed.
+19:16
+There you go. And now I have 90 days
+19:19
+worth of market data and I have a very
+19:21
+beautiful overall profile distribution
+19:24
+of the current volume. So I can use this
+19:26
+as a long-term bias. Then I can use
+19:28
+sessions, the daily sessions as my
+19:30
+intraday bias. Plus, and finally, I can
+19:33
+use the volume profile of each and every
+19:37
+single one of the candles. As you can
+19:39
+see, the more I zoom in, the more I can
+19:40
+see there's a volume profile in each
+19:42
+candle. And I can see through order
+19:44
+flows, so through shortterm volume
+19:46
+trading activity, if there's absorptions
+19:49
+or if there's initiative phases. For
+19:51
+example, I can see from the volume
+19:53
+profile distribution of this candle,
+19:54
+there was a lot of buying happening over
+19:58
+here. Let's zoom in and see it with our
+20:00
+own eyes. Make the text a little bigger.
+20:02
+Yep. And as you can see, a sell candle
+20:04
+happened here, which means sellers took
+20:06
+control of the auction. And here I can
+20:08
+see that there is something happening
+20:10
+over here that most price action traders
+20:13
+won't be able to see which is there is a
+20:15
+buyer here which was trying to buy this
+20:18
+market but a huge seller blocked his way
+20:20
+up. So there was a huge chunk of volume
+20:23
+over here that shifted from being up
+20:25
+here. So the first distribution was over
+20:28
+here. This is where this was the main
+20:30
+let's say value area and now the value
+20:32
+is shifted and we have a lot of volume
+20:34
+traded over here. So, we not only have
+20:36
+an engulfing type of pattern where you
+20:38
+have one candle being bigger than the
+20:40
+previous one, but we can also have an
+20:41
+extra confirmation with volume that
+20:43
+allows us to have a even deeper edge to
+20:45
+understand who's really in control. And
+20:47
+after that candle, you see price melting
+20:49
+down right after we've failed to break
+20:52
+out the main value area of the daily
+20:54
+distribution. And so when you see a
+20:56
+pattern like this and when you see such
+20:58
+a shift in volume in the shortterm time
+21:00
+frames as a confirmation of your main
+21:03
+idea in the higher time frames which is
+21:05
+the one we talked about before where we
+21:06
+have a statistical anomalies in this
+21:08
+session and we might as well fade it
+21:10
+back to the mean. That's our trigger
+21:12
+with a stop above here and trading all
+21:15
+the way until here. Or another example
+21:16
+here of the opposite type of setup where
+21:18
+we have yes a distribution of volume
+21:21
+around this area. So this is our current
+21:23
+value area and in the following session
+21:25
+what happens is and of course we only
+21:27
+take a look at this cash session forget
+21:29
+about the London session for a second
+21:30
+and consider this cash session instead
+21:33
+even though as you can see these areas
+21:34
+are pretty much working all the way also
+21:36
+in the London session multiple times.
+21:38
+What happens here is we start the
+21:40
+session on the lower side. We go we
+21:43
+shoot all the way up to the other side
+21:45
+of the range. We fail to auction above.
+21:47
+We drop back inside reverse back to the
+21:49
+mean. But then we break out again. And
+21:51
+when we break out again, it means we're
+21:53
+starting to spend a long time there. And
+21:55
+for example, this is the opening range.
+21:56
+And when we break out of the opening
+21:58
+range, we can buy this market with a
+22:00
+very conservative stop-loss right below
+22:02
+here and basically take this entire
+22:04
+session for a 1:3 risk-to-reward ratio
+22:07
+with a really, really high win rate.
+22:08
+when we have a qualified breakout
+22:10
+outside. So you can either again fade
+22:13
+the bottoms and the tops of the volume
+22:15
+profiles of the first standard deviation
+22:17
+of volume or trade the breakouts when
+22:19
+you have serious confirmation that we're
+22:22
+actually moving out of the current area
+22:24
+of fair value. And these my friends are
+22:26
+some very easy examples on how to use
+22:27
+the volume profile. And by the way a lot
+22:29
+of people ask me how about the point of
+22:31
+control? How should we use the point of
+22:32
+control? Should we enter on the point of
+22:34
+control? I would not look at the point
+22:36
+of control as a singular level because
+22:38
+that can be random at times. I prefer to
+22:40
+look at distribution of volume. That has
+22:42
+much more meaning than how much volume
+22:44
+was traded in a single level. Cuz look
+22:46
+at this. Yeah, this is the point of
+22:47
+control. This is the level where most
+22:48
+money was traded. But look at the
+22:49
+following one. It's basically the same
+22:51
+amount of volume. This one is basically
+22:52
+the same amount of volume. This one is
+22:54
+the same amount of volume. There's not a
+22:55
+huge difference. It's just maybe also
+22:57
+randomly. This is the main point of
+22:59
+control, but who cares? Like this is the
+23:01
+high volume node. It's more important to
+23:03
+find a high volume node than the actual
+23:05
+precise point of control because again
+23:07
+as we said that can be due to
+23:09
+algorithmic activity that was not meant
+23:11
+to be at that specific level but more in
+23:13
+an area of price. Okay. And as of now
+23:15
+you've just seen me you know show you
+23:17
+past stuff. Okay. So another thing that
+23:19
+people might say is yes in hindsight
+23:21
+everyone's good to cherry pick a couple
+23:23
+example and I totally get that. I need
+23:26
+to do that to show some examples. If you
+23:28
+want to see some live examples, we're
+23:30
+going to trade with the volume profile
+23:32
+every week inside of this channel. So,
+23:33
+if you haven't subscribed yet, do it now
+23:35
+and click the notification bell so you
+23:37
+don't miss out on the practical
+23:38
+implementation of the stuff, which is of
+23:40
+course the most important part. If you
+23:41
+want a specific in-depth full tutorial
+23:44
+on how to set up your volume profiles,
+23:47
+all the little nitty-gritty details and
+23:49
+the nerdy stuff on how to properly set
+23:51
+up your volume profile, all the
+23:52
+different types of volume profile like
+23:55
+the deep swing profile like the fixed
+23:57
+range profile like this one, the comp,
+23:59
+how to set up the composite volume
+24:01
+profile, and all of these beautiful
+24:02
+tutorials. I'm going to make an in-depth
+24:04
+tutorial on the Deep Charts YouTube
+24:06
+channel. I'm going to leave the link
+24:07
+down below and in the next few days
+24:08
+you're going to see a tutorial there
+24:09
+that I might link all the way over here.
+24:11
+That's all for today folks and I will
+24:13
+see you in the next one.
