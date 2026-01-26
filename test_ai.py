@@ -20,37 +20,24 @@ import asyncio
 import sys
 from pathlib import Path
 
+# Add project root to path before local imports
+sys.path.insert(0, str(Path(__file__).parent))
+
 import questionary
 from questionary import Style
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
-
 from bot.ai.ollama_client import OllamaClient
-from bot.ai.strategies import (
-    STRATEGY_DESCRIPTIONS,
-    TradingStrategy,
-    get_strategy_prompt,
-)
+from bot.ai.prompts import get_strategy_prompt
 from bot.core.models import MarketPressure
+from bot.strategies import StrategyType, list_strategies
 
-# Custom style for questionary prompts
-MENU_STYLE = Style(
-    [
-        ("qmark", "fg:cyan bold"),
-        ("question", "fg:white bold"),
-        ("answer", "fg:green bold"),
-        ("pointer", "fg:cyan bold"),
-        ("highlighted", "fg:cyan bold"),
-        ("selected", "fg:green"),
-    ]
-)
+# Backwards compatibility alias
+TradingStrategy = StrategyType
 
+# Historical data folder path
+HISTORICAL_DATA_DIR = Path(__file__).parent / "data" / "historical"
 
-# =============================================================================
-# TEST SCENARIOS - Different market conditions to test
-# =============================================================================
-
+# Scenario definitions - folder name -> (description, sample market data for AI testing)
 SCENARIOS = {
     "bullish_momentum": {
         "name": "🟢 Bullish Momentum",
@@ -86,7 +73,7 @@ SCENARIOS = {
         "recent_trades": [{"side": "buy"}] * 5 + [{"side": "sell"}] * 5,
     },
     "extreme_buying": {
-        "name": "🟡 Extreme Buying (Contrarian Setup)",
+        "name": "🟡 Extreme Buying",
         "description": "Overextended buying - potential reversal",
         "prices": {
             "BTC": {"price": 96500, "change_1m": 0.65},
@@ -97,7 +84,7 @@ SCENARIOS = {
         "recent_trades": [{"side": "buy"}] * 9 + [{"side": "sell"}] * 1,
     },
     "extreme_selling": {
-        "name": "🟡 Extreme Selling (Contrarian Setup)",
+        "name": "🟡 Extreme Selling",
         "description": "Panic selling - potential bounce",
         "prices": {
             "BTC": {"price": 91000, "change_1m": -0.75},
@@ -107,7 +94,33 @@ SCENARIOS = {
         "orderbook": {"BTC": {"bid_ratio": 25}},
         "recent_trades": [{"side": "sell"}] * 9 + [{"side": "buy"}] * 1,
     },
+    "uncategorized": {
+        "name": "📁 Uncategorized",
+        "description": "Unclassified historical data",
+        "prices": {
+            "BTC": {"price": 94000, "change_1m": 0.1},
+            "ETH": {"price": 3200, "change_1m": 0.05},
+        },
+        "momentum": {"BTC": 0.1, "ETH": 0.05},
+        "orderbook": {"BTC": {"bid_ratio": 50}},
+        "recent_trades": [{"side": "buy"}] * 5 + [{"side": "sell"}] * 5,
+    },
 }
+
+# Build strategy descriptions dict from list_strategies()
+STRATEGY_DESCRIPTIONS = {StrategyType(name): desc for name, desc in list_strategies()}
+
+# Custom style for questionary prompts
+MENU_STYLE = Style(
+    [
+        ("qmark", "fg:cyan bold"),
+        ("question", "fg:white bold"),
+        ("answer", "fg:green bold"),
+        ("pointer", "fg:cyan bold"),
+        ("highlighted", "fg:cyan bold"),
+        ("selected", "fg:green"),
+    ]
+)
 
 
 def format_prompt_with_data(
@@ -214,7 +227,6 @@ async def run_analysis(
     show_prompt: bool = True,
 ) -> None:
     """Run AI analysis with a specific strategy and scenario."""
-
     strategy_prompt = get_strategy_prompt(strategy)
     prompt = format_prompt_with_data(
         strategy_prompt,
@@ -346,12 +358,47 @@ def show_strategies() -> None:
         print(f"  └─ {STRATEGY_DESCRIPTIONS[strategy]}")
 
 
+def get_historical_data_by_scenario() -> dict[str, list[Path]]:
+    """
+    Scan historical data folder and return files organized by scenario.
+
+    Returns:
+        Dict mapping scenario name to list of CSV file paths
+    """
+    result = {}
+
+    if not HISTORICAL_DATA_DIR.exists():
+        return result
+
+    for folder_name in SCENARIOS:
+        folder_path = HISTORICAL_DATA_DIR / folder_name
+        if folder_path.exists() and folder_path.is_dir():
+            csv_files = sorted(folder_path.glob("*.csv"))
+            if csv_files:
+                result[folder_name] = csv_files
+
+    return result
+
+
 def show_scenarios() -> None:
-    """Display all available scenarios."""
+    """Display available scenarios with their historical data files."""
     print("\nAvailable scenarios:")
-    for i, scenario in enumerate(SCENARIOS.values(), 1):
-        print(f"  {i}. {scenario['name']}")
-        print(f"     {scenario['description']}")
+
+    data_by_scenario = get_historical_data_by_scenario()
+
+    for name, scenario in SCENARIOS.items():
+        files = data_by_scenario.get(name, [])
+        file_count = len(files)
+
+        print(f"\n  {scenario['name']}")
+        print(f"  └─ {scenario['description']}")
+        print(f"     Folder: {name}/")
+        if files:
+            print(f"     Historical data: {file_count} file(s)")
+            for f in files:
+                print(f"       • {f.name}")
+        else:
+            print("     Historical data: (empty - add CSV files here)")
 
 
 async def select_strategy() -> TradingStrategy | None:
@@ -373,15 +420,20 @@ async def select_strategy() -> TradingStrategy | None:
     ).ask_async()
 
 
-async def select_scenario() -> dict | None:
-    """Let user select a scenario using arrow keys."""
-    choices = [
-        questionary.Choice(
-            title=f"{scenario['name']} - {scenario['description']}",
-            value=scenario,
+async def select_scenario() -> tuple[str, dict] | None:
+    """Let user select a scenario using arrow keys. Returns (name, scenario_data)."""
+    data_by_scenario = get_historical_data_by_scenario()
+
+    choices = []
+    for name, scenario in SCENARIOS.items():
+        files = data_by_scenario.get(name, [])
+        file_info = f" [{len(files)} files]" if files else ""
+        choices.append(
+            questionary.Choice(
+                title=f"{scenario['name']} - {scenario['description']}{file_info}",
+                value=(name, scenario),
+            )
         )
-        for scenario in SCENARIOS.values()
-    ]
 
     return await questionary.select(
         "Select a market scenario:",
@@ -397,9 +449,10 @@ async def test_single(client: OllamaClient) -> None:
     if strategy is None:
         return
 
-    scenario = await select_scenario()
-    if scenario is None:
+    result = await select_scenario()
+    if result is None:
         return
+    scenario_name, scenario = result
 
     print_header(f"Testing: {strategy.value.upper()} on {scenario['name']}")
     await run_analysis(client, strategy, scenario)
@@ -407,9 +460,10 @@ async def test_single(client: OllamaClient) -> None:
 
 async def compare_strategies(client: OllamaClient) -> None:
     """Compare all strategies on the same scenario."""
-    scenario = await select_scenario()
-    if scenario is None:
+    result = await select_scenario()
+    if result is None:
         return
+    scenario_name, scenario = result
 
     print_header(f"Comparing ALL strategies on: {scenario['name']}")
 

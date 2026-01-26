@@ -5,8 +5,8 @@ Run a backtest with the 3-layer architecture.
 Usage:
     python run_backtest.py                           # Signals-only mode (fast)
     python run_backtest.py --ai                      # With AI decisions (slower)
-    python run_backtest.py --persona scalper         # Use scalper persona
-    python run_backtest.py --data path/to/data.csv   # Custom data file
+    python run_backtest.py --strategy momentum_scalper  # Use specific strategy
+    python run_backtest.py --data path/to/data.csv  # Custom data file
 """
 
 import argparse
@@ -15,15 +15,17 @@ import sys
 from pathlib import Path
 
 from bot.backtest import BacktestConfig, BacktestEngine
+from bot.strategies import list_strategies
 
 
 def find_latest_data_file() -> str | None:
-    """Find the most recent historical data file."""
+    """Find the most recent historical data file from scenario folders."""
     data_dir = Path("data/historical")
     if not data_dir.exists():
         return None
 
-    csv_files = list(data_dir.glob("*.csv"))
+    # Search in all subfolders (scenario folders)
+    csv_files = list(data_dir.glob("**/*.csv"))
     if not csv_files:
         return None
 
@@ -45,11 +47,11 @@ async def main():
         help="Enable AI decisions (requires Ollama running)",
     )
     parser.add_argument(
-        "--persona",
+        "--strategy",
         "-p",
-        default="balanced",
-        choices=["scalper", "conservative", "balanced"],
-        help="Trading persona to use (default: balanced)",
+        default="momentum_scalper",
+        choices=[name for name, _ in list_strategies()],
+        help="Trading strategy to use (default: momentum_scalper)",
     )
     parser.add_argument(
         "--balance",
@@ -82,7 +84,7 @@ async def main():
     print("🚀 BACKTEST CONFIGURATION")
     print("=" * 60)
     print(f"  Data:      {data_file}")
-    print(f"  Persona:   {args.persona}")
+    print(f"  Strategy:  {args.strategy}")
     print(f"  Balance:   ${args.balance:,.2f}")
     print(f"  Signals:   {', '.join(args.signals)}")
     print(f"  AI Mode:   {'Enabled' if args.ai else 'Disabled (signals-only)'}")
@@ -98,7 +100,7 @@ async def main():
         data_source=data_file,
         coins=[],  # Will be derived from data
         initial_balance=args.balance,
-        persona_name=args.persona,
+        strategy_name=args.strategy,
         signal_detectors=args.signals,
         ai_enabled=args.ai,
     )

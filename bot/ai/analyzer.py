@@ -6,12 +6,13 @@ from dataclasses import dataclass
 from bot.ai.models import AIMetrics, AnalysisResult, Sentiment
 from bot.ai.ollama_client import OllamaClient
 from bot.ai.prompts import (
+    format_ai_trading_prompt,
     format_entry_analysis,
     format_exit_analysis,
     format_market_analysis,
     format_quick_sentiment,
 )
-from bot.ai.strategies import TradingStrategy, format_ai_trading_prompt
+from bot.strategies import TradingStrategy
 
 
 @dataclass

@@ -29,11 +29,25 @@ After receiving the description, **extract and present the requirements:**
 > | 1 | [First requirement] |
 > | 2 | [Second requirement] |
 > | 3 | ... |
->
-> **Did I capture everything correctly?**
-> - Reply **"yes"** to continue
-> - Reply **"add: [missing requirement]"** to add more
-> - Reply **"change #X: [correction]"** to fix something
+
+**Use the AskQuestion tool to confirm requirements:**
+
+```
+AskQuestion:
+  title: "Requirements Confirmation"
+  questions:
+    - id: "confirm_requirements"
+      prompt: "Did I capture all your requirements correctly?"
+      options:
+        - id: "yes"
+          label: "Yes, all correct"
+        - id: "add"
+          label: "I need to add more requirements"
+        - id: "change"
+          label: "I need to change something"
+```
+
+**If user selects "add" or "change":** Ask them to describe what to add/change in chat, then re-present the updated requirements table and ask again.
 
 **Keep iterating until user confirms "yes".**
 
@@ -41,19 +55,29 @@ After receiving the description, **extract and present the requirements:**
 
 ## Step 2: Define Command Name
 
-**Ask the user:**
+**Ask the user in chat:**
 
 > **What should this command be called?**
 >
 > The command name will be used as `@command-name` to invoke it.
 > Use lowercase with hyphens (e.g., `qa-test-plan`, `pr-review`, `debug-issue`).
 
-**Wait for response, then confirm:**
+**Wait for response, then use AskQuestion to confirm:**
 
-> **Command will be created at:**
-> `.cursor/commands/Testing/Ofer/[command-name].md`
->
-> Reply **"yes"** to confirm or provide a different name.
+```
+AskQuestion:
+  title: "Confirm Command Name"
+  questions:
+    - id: "confirm_name"
+      prompt: "Command will be created at: .cursor/commands/Testing/Ofer/[command-name].md"
+      options:
+        - id: "confirm"
+          label: "Looks good, proceed"
+        - id: "change"
+          label: "I want a different name"
+```
+
+**If user selects "change":** Ask for new name in chat and confirm again.
 
 ---
 
@@ -74,7 +98,7 @@ After receiving the description, **extract and present the requirements:**
 
 **Write the command file to `.cursor/commands/Testing/Ofer/[command-name].md`**
 
-**Then present it:**
+**Then present summary and use AskQuestion:**
 
 > **Draft Complete**
 >
@@ -84,8 +108,19 @@ After receiving the description, **extract and present the requirements:**
 > - Step 1: [brief description]
 > - Step 2: [brief description]
 > - ...
->
-> Reply **"show"** to see the full command, or **"continue"** to proceed to verification.
+
+```
+AskQuestion:
+  title: "Draft Review"
+  questions:
+    - id: "draft_action"
+      prompt: "What would you like to do next?"
+      options:
+        - id: "show"
+          label: "Show me the full command"
+        - id: "continue"
+          label: "Continue to verification"
+```
 
 ---
 
@@ -99,13 +134,13 @@ After receiving the description, **extract and present the requirements:**
 >
 > | # | Requirement | Addressed? | Where |
 > |---|-------------|------------|-------|
-> | 1 | [requirement] | ✅/❌ | Step X |
-> | 2 | [requirement] | ✅/❌ | Step Y |
+> | 1 | [requirement] | Yes/No | Step X |
+> | 2 | [requirement] | Yes/No | Step Y |
 > | ... |
 >
 > **Status:** [X of Y requirements addressed]
 
-**If any gaps (❌):**
+**If any gaps:**
 
 > **I found gaps in the following requirements:**
 > - #X: [requirement] - [what's missing]
@@ -114,11 +149,22 @@ After receiving the description, **extract and present the requirements:**
 
 **Fix the gaps and update the command file.**
 
-**Then ask:**
+**Then use AskQuestion:**
 
 > **All requirements now addressed.**
->
-> Reply **"verify"** to re-check, or **"continue"** to proceed to clarity review.
+
+```
+AskQuestion:
+  title: "Completeness Verification"
+  questions:
+    - id: "completeness_action"
+      prompt: "How would you like to proceed?"
+      options:
+        - id: "verify"
+          label: "Re-check completeness"
+        - id: "continue"
+          label: "Continue to clarity review"
+```
 
 ---
 
@@ -136,7 +182,7 @@ After receiving the description, **extract and present the requirements:**
 > | ... |
 >
 > **Changes made:**
-> - [Before → After summary]
+> - [Before -> After summary]
 
 **If no issues found:**
 
@@ -145,9 +191,20 @@ After receiving the description, **extract and present the requirements:**
 
 **Update the command file with clarity improvements.**
 
-**Then ask:**
+**Then use AskQuestion:**
 
-> Reply **"show"** to see the updated command, or **"continue"** to finalize.
+```
+AskQuestion:
+  title: "Clarity Review Complete"
+  questions:
+    - id: "clarity_action"
+      prompt: "What would you like to do?"
+      options:
+        - id: "show"
+          label: "Show me the updated command"
+        - id: "continue"
+          label: "Continue to final verification"
+```
 
 ---
 
@@ -170,8 +227,8 @@ After receiving the description, **extract and present the requirements:**
 
 > **Final Verification Results**
 >
-> ✅ Passed: X checks
-> ❌ Failed: X checks (fixing now...)
+> Passed: X checks
+> Failed: X checks (fixing now...)
 
 **Fix any remaining issues.**
 
@@ -191,5 +248,18 @@ After receiving the description, **extract and present the requirements:**
 >
 > **To use it:**
 > Type `@[command-name]` in any Cursor chat.
->
-> **Want to test it now?** Open a new chat and try `@[command-name]`
+
+```
+AskQuestion:
+  title: "Command Complete"
+  questions:
+    - id: "next_action"
+      prompt: "What would you like to do next?"
+      options:
+        - id: "test"
+          label: "Test the command now"
+        - id: "edit"
+          label: "Make additional edits"
+        - id: "done"
+          label: "I'm done"
+```

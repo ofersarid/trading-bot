@@ -1,7 +1,7 @@
 # System Architecture - Crypto AI Trading Bot
 
 > **Version:** 2.0
-> **Last Updated:** January 24, 2026
+> **Last Updated:** January 25, 2026
 > **Status:** Draft
 
 ---
@@ -293,7 +293,7 @@ class WebSocketManager:
 | Capability | Details |
 |------------|---------|
 | Signal evaluation | Receives signals from detectors, decides action |
-| Persona-based decisions | Trading style defined by persona (scalper, conservative, balanced) |
+| Strategy-based decisions | Trading style defined by strategy (scalper, conservative, trend follower, etc.) |
 | Dynamic risk management | Adjusts position size, stops based on signal strength + volatility |
 | Local AI inference | Uses Ollama for decision-making |
 
@@ -305,7 +305,7 @@ class WebSocketManager:
 ```python
 # bot/ai/signal_brain.py
 class SignalBrain:
-    def __init__(self, persona: TradingPersona, ollama_client: OllamaClient): ...
+    def __init__(self, strategy: Strategy, ollama_client: OllamaClient): ...
 
     async def evaluate_signals(
         self,
@@ -326,26 +326,26 @@ class TradePlan:
     reason: str
 ```
 
-**Trading Personas:**
+**Trading Strategies:**
 ```python
-# bot/ai/personas/base.py
+# bot/strategies/base.py
 @dataclass
-class TradingPersona:
+class Strategy:
     name: str
-    style: str
-    description: str
-    min_signal_strength: float  # Filter weak signals
-    min_confidence: int         # AI confidence threshold
-    prefer_consensus: bool      # Require multiple signals to agree
-    risk_params: RiskParams
-    prompt_template: str
+    strategy_type: StrategyType
+    prompt: str                  # The AI's trading mindset/style
+    risk: RiskConfig             # Risk management parameters
+    min_signal_strength: float   # Filter weak signals
+    min_confidence: int          # AI confidence threshold
+    prefer_consensus: bool       # Require multiple signals to agree
 ```
 
-| Persona | Style | Min Strength | Consensus Required |
-|---------|-------|--------------|-------------------|
-| `scalper` | Aggressive | 0.5 | No |
-| `balanced` | Moderate | 0.6 | Yes |
-| `conservative` | Cautious | 0.7 | Yes |
+| Strategy | Style | Min Strength | Consensus Required |
+|----------|-------|--------------|-------------------|
+| `momentum_scalper` | Aggressive | 0.7 | No |
+| `trend_follower` | Patient | 0.5 | Yes |
+| `mean_reversion` | Contrarian | 0.6 | No |
+| `conservative` | Cautious | 0.25 | Yes |
 
 **AI Backend:**
 | Backend | Use Case | Cost | Latency |
@@ -731,17 +731,23 @@ trading-bot/
 │   │
 │   ├── ai/                   # AI integration (Layer 3)
 │   │   ├── __init__.py
-│   │   ├── signal_brain.py   # SignalBrain - AI decision maker (NEW)
+│   │   ├── signal_brain.py   # SignalBrain - AI decision maker
 │   │   ├── analyzer.py       # MarketAnalyzer - legacy AI interface
 │   │   ├── ollama_client.py  # Local Ollama API client
-│   │   ├── prompts.py        # Prompt templates
+│   │   ├── prompts.py        # Prompt templates (incl. AI_TRADING_PROMPT)
 │   │   ├── models.py         # TradePlan, MarketContext, AnalysisResult
-│   │   └── personas/         # Trading personas (NEW)
-│   │       ├── __init__.py
-│   │       ├── base.py       # TradingPersona, RiskParams
-│   │       └── scalper.py    # Scalper persona config
+│   │   └── scalper_interpreter.py  # Scalper-specific interpretation
 │   │
-│   ├── indicators/           # Technical indicators (Layer 1) (NEW)
+│   ├── strategies/           # Trading strategies
+│   │   ├── __init__.py       # Registry: get_strategy(), list_strategies()
+│   │   ├── base.py           # Strategy, RiskConfig, StrategyType classes
+│   │   ├── momentum_scalper.py  # Momentum scalper strategy + prompt
+│   │   ├── trend_follower.py # Trend follower strategy + prompt
+│   │   ├── mean_reversion.py # Mean reversion strategy + prompt
+│   │   ├── conservative.py   # Conservative strategy + prompt
+│   │   └── README.md         # How to add custom strategies
+│   │
+│   ├── indicators/           # Technical indicators (Layer 1)
 │   │   ├── __init__.py
 │   │   ├── rsi.py            # RSI calculation
 │   │   ├── macd.py           # MACD calculation
@@ -952,7 +958,7 @@ Every time a 1-minute candle closes:
   - SignalValidator for filtering
 - [x] **Layer 3: Signal Brain** (`bot/ai/signal_brain.py`)
   - AI-powered decision making
-  - Trading personas (scalper, balanced, conservative)
+  - Trading strategies (momentum_scalper, trend_follower, mean_reversion, conservative)
   - Dynamic risk management
 
 ### Phase 4: Backtesting System ✅ Complete
@@ -997,7 +1003,7 @@ Every time a 1-minute candle closes:
 - Performance tuning system
 - 3-layer architecture (Indicators → Signals → AI Brain)
 - Backtesting framework with historical data
-- Trading personas for different risk profiles
+- Trading strategies for different risk profiles
 
 ### 11.2 Potential Enhancements
 - Web dashboard for remote monitoring
@@ -1037,4 +1043,4 @@ Every time a 1-minute candle closes:
 ---
 
 *Document maintained by: Trading Bot Development Team*
-*Last synced with codebase: January 24, 2026*
+*Last synced with codebase: January 25, 2026*

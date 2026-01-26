@@ -15,7 +15,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from bot.ai.models import MarketContext, TradePlan
-from bot.ai.personas.base import get_persona
 from bot.ai.signal_brain import SignalBrain
 from bot.backtest.breakout_analyzer import BreakoutAnalysis, BreakoutAnalyzer
 from bot.backtest.models import BacktestConfig, BacktestResult, EquityPoint
@@ -32,9 +31,11 @@ from bot.signals import (
 )
 from bot.simulation.historical_source import HistoricalDataSource, PriceUpdate
 from bot.simulation.paper_trader import PaperTrader
+from bot.strategies import get_strategy
 
 if TYPE_CHECKING:
     from bot.ai.ollama_client import OllamaClient
+    from bot.strategies import Strategy
 
 logger = logging.getLogger(__name__)
 
@@ -118,8 +119,8 @@ class BacktestEngine:
             if self._ollama is None:
                 self._ollama = OllamaClient()
 
-            persona = get_persona(self.config.persona_name)
-            self._brain = SignalBrain(persona=persona, ollama_client=self._ollama)
+            strategy = get_strategy(self.config.strategy_name)
+            self._brain = SignalBrain(strategy=strategy, ollama_client=self._ollama)
 
         return self._brain
 
@@ -455,8 +456,8 @@ class BacktestEngine:
         else:
             return TradePlan.wait(coin, "No signal consensus")
 
-        # Get persona and context
-        persona = get_persona(self.config.persona_name)
+        # Get strategy and context
+        strategy = get_strategy(self.config.strategy_name)
         context = self._calculate_market_context(coin, current_price)
         atr_value = context.atr
 
@@ -464,17 +465,17 @@ class BacktestEngine:
         avg_strength = sum(s.strength for s in signals) / len(signals)
 
         # DYNAMIC RISK MANAGEMENT
-        risk_params = self._calculate_dynamic_risk(avg_strength, context.volatility_level, persona)
+        risk_params = self._calculate_dynamic_risk(avg_strength, context.volatility_level, strategy)
 
         # Apply dynamic stops
         if direction == "LONG":
             stop_loss = current_price - (atr_value * risk_params["stop_mult"])
             take_profit = current_price + (atr_value * risk_params["tp_mult"])
-            trail_activation = current_price * (1 + persona.risk_params.trail_activation_pct / 100)
+            trail_activation = current_price * (1 + strategy.risk.trail_activation_pct / 100)
         else:
             stop_loss = current_price + (atr_value * risk_params["stop_mult"])
             take_profit = current_price - (atr_value * risk_params["tp_mult"])
-            trail_activation = current_price * (1 - persona.risk_params.trail_activation_pct / 100)
+            trail_activation = current_price * (1 - strategy.risk.trail_activation_pct / 100)
 
         return TradePlan(
             action=direction,  # type: ignore[arg-type]
@@ -483,7 +484,7 @@ class BacktestEngine:
             stop_loss=stop_loss,
             take_profit=take_profit,
             trail_activation=trail_activation,
-            trail_distance_pct=persona.risk_params.trail_distance_pct,
+            trail_distance_pct=strategy.risk.trail_distance_pct,
             confidence=int(avg_strength * 10),
             reason=f"Signal consensus: {direction} (strength: {avg_strength:.2f})",
             signals_considered=[f"{s.signal_type.value}:{s.direction}" for s in signals],
@@ -493,7 +494,7 @@ class BacktestEngine:
         self,
         signal_strength: float,
         volatility_level: str,
-        persona,
+        strategy: "Strategy",
     ) -> dict[str, float]:
         """
         Calculate dynamic risk parameters based on signal quality and volatility.
@@ -503,9 +504,9 @@ class BacktestEngine:
         - Strong signals: bet bigger, tighter stops (confident)
         - Weak signals: bet smaller, wider TPs (need bigger wins to compensate)
         """
-        base_position = persona.risk_params.max_position_pct
-        base_stop = persona.risk_params.stop_loss_atr_multiplier
-        base_tp = persona.risk_params.take_profit_atr_multiplier
+        base_position = strategy.risk.max_position_pct
+        base_stop = strategy.risk.stop_loss_atr_multiplier
+        base_tp = strategy.risk.take_profit_atr_multiplier
 
         # Volatility adjustment
         vol_factor = {"high": 0.6, "medium": 0.8, "low": 1.0}.get(volatility_level, 1.0)
@@ -574,7 +575,7 @@ class BacktestEngine:
 async def run_backtest(
     data_source: str,
     ai_enabled: bool = True,
-    persona_name: str = "balanced",
+    strategy_name: str = "momentum_scalper",
     initial_balance: float = 10000.0,
 ) -> BacktestResult:
     """
@@ -583,7 +584,7 @@ async def run_backtest(
     Args:
         data_source: Path to CSV file
         ai_enabled: Whether to use AI for decisions
-        persona_name: Name of persona to use
+        strategy_name: Name of strategy to use
         initial_balance: Starting balance
 
     Returns:
@@ -593,7 +594,7 @@ async def run_backtest(
         data_source=data_source,
         coins=[],  # Will be derived from data
         initial_balance=initial_balance,
-        persona_name=persona_name,
+        strategy_name=strategy_name,
         ai_enabled=ai_enabled,
     )
 

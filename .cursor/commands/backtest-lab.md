@@ -8,12 +8,12 @@ Interactive lab for running backtests, comparing signal vs AI performance, and m
 
 ## Step 1: Select Historical Data File
 
-List available data files and ask the user to select one.
+List available data files from scenario folders and ask the user to select one.
 
 **Action:** Run this command to find available data files:
 
 ```bash
-ls -la data/historical/*.csv
+find data/historical -name "*.csv" -type f
 ```
 
 **Then use the AskQuestion tool to present options:**
@@ -22,30 +22,31 @@ Use `AskQuestion` with:
 - title: "Backtest Lab - Select Data File"
 - question id: "data_file"
 - prompt: "Select a historical data file to analyze:"
-- options: One option per CSV file found, with id as the filename and label showing "filename (size, date range)"
+- options: One option per CSV file found, with id as the relative path and label showing "scenario/filename"
 
 **Wait for user response. Store the selected file path.**
 
 ---
 
-## Step 2: Select Personas to Test
+## Step 2: Select Strategies to Test
 
 **Use the AskQuestion tool with multi-select enabled:**
 
 Use `AskQuestion` with:
-- title: "Backtest Lab - Select Personas"
-- question id: "personas"
-- prompt: "Select persona(s) to test with AI mode:"
+- title: "Backtest Lab - Select Strategies"
+- question id: "strategies"
+- prompt: "Select strategy(s) to test with AI mode:"
 - allow_multiple: true
 - options:
-  - id: "scalper", label: "Scalper - Aggressive, quick trades, tight stops"
-  - id: "balanced", label: "Balanced - Moderate risk, waits for consensus"
-  - id: "conservative", label: "Conservative - Capital preservation, wide stops"
-  - id: "all", label: "ALL - Run all three personas for comparison"
+  - id: "momentum_scalper", label: "Momentum Scalper - Aggressive momentum scalping, quick entries/exits"
+  - id: "trend_follower", label: "Trend Follower - Patient trend following, ride the wave"
+  - id: "mean_reversion", label: "Mean Reversion - Fade overextended moves, contrarian"
+  - id: "conservative", label: "Conservative - High-confidence only, preserve capital"
+  - id: "all", label: "ALL - Run all four strategies for comparison"
 
-**Wait for user response. Build list of personas to test.**
-- If user selects "all", use ["scalper", "balanced", "conservative"]
-- Otherwise, use the specific personas selected
+**Wait for user response. Build list of strategies to test.**
+- If user selects "all", use ["momentum_scalper", "trend_follower", "mean_reversion", "conservative"]
+- Otherwise, use the specific strategies selected
 
 ---
 
@@ -57,7 +58,7 @@ Use `AskQuestion` with:
 >
 > This will run:
 > - 1x Signals-only mode (baseline)
-> - [N]x AI mode with selected persona(s)
+> - [N]x AI mode with selected strategy(s)
 >
 > AI mode requires Ollama running. Starting tests...
 
@@ -71,15 +72,15 @@ cd /Users/ofers/Documents/private/trading-bot && source venv/bin/activate && pyt
 
 **Store results as `signals_only_results`.**
 
-### 3.2 AI Mode for Each Selected Persona
+### 3.2 AI Mode for Each Selected Strategy
 
-For each persona in the selected list, run:
+For each strategy in the selected list, run:
 
 ```bash
-cd /Users/ofers/Documents/private/trading-bot && source venv/bin/activate && python3 run_backtest.py --data [SELECTED_FILE] --ai --persona [PERSONA_NAME] 2>&1
+cd /Users/ofers/Documents/private/trading-bot && source venv/bin/activate && python3 run_backtest.py --data [SELECTED_FILE] --ai --strategy [STRATEGY_NAME] 2>&1
 ```
 
-**Store results as `ai_[persona]_results`.**
+**Store results as `ai_[strategy]_results`.**
 
 ---
 
@@ -98,8 +99,9 @@ cd /Users/ofers/Documents/private/trading-bot && source venv/bin/activate && pyt
 > | Mode | Trades | Win Rate | P&L | P&L % | Sharpe | Profit Factor |
 > |------|--------|----------|-----|-------|--------|---------------|
 > | Signals-Only | X | X% | $X | X% | X | X |
-> | AI (scalper) | X | X% | $X | X% | X | X |
-> | AI (balanced) | X | X% | $X | X% | X | X |
+> | AI (momentum_scalper) | X | X% | $X | X% | X | X |
+> | AI (trend_follower) | X | X% | $X | X% | X | X |
+> | AI (mean_reversion) | X | X% | $X | X% | X | X |
 > | AI (conservative) | X | X% | $X | X% | X | X |
 >
 > ### Breakout Analysis (from Signals-Only run)
@@ -159,16 +161,16 @@ cd /Users/ofers/Documents/private/trading-bot && source venv/bin/activate && pyt
 >
 > | Metric | Signals-Only | Best AI | Improvement |
 > |--------|--------------|---------|-------------|
-> | Trades | X | X ([persona]) | X fewer/more |
-> | Win Rate | X% | X% ([persona]) | +X% |
-> | P&L | $X | $X ([persona]) | +$X |
-> | Profit Factor | X | X ([persona]) | +X |
+> | Trades | X | X ([strategy]) | X fewer/more |
+> | Win Rate | X% | X% ([strategy]) | +X% |
+> | P&L | $X | $X ([strategy]) | +$X |
+> | Profit Factor | X | X ([strategy]) | +X |
 >
 > ### AI Value Assessment
 >
 > **If AI P&L > Signals-Only P&L:**
 > - AI is adding value by filtering bad signals
-> - Best persona: [name] - [why it performed best]
+> - Best strategy: [name] - [why it performed best]
 >
 > **If AI P&L < Signals-Only P&L:**
 > - AI is not adding value, may be filtering good signals
@@ -179,7 +181,7 @@ cd /Users/ofers/Documents/private/trading-bot && source venv/bin/activate && pyt
 > - AI is more selective but not more accurate
 > - May need prompt improvements to make better decisions, not just fewer
 >
-> ### Recommended AI/Persona Tweaks
+> ### Recommended Strategy Tweaks
 >
 > | Issue | Current Setting | Suggested Change | Rationale |
 > |-------|-----------------|------------------|-----------|
@@ -228,7 +230,7 @@ Use `AskQuestion` with:
   - id: "implement_quick", label: "Implement Priority 1 recommendations (quick wins)"
   - id: "implement_specific", label: "Implement a specific recommendation"
   - id: "rerun_data", label: "Re-run with different data file"
-  - id: "rerun_personas", label: "Re-run with different personas"
+  - id: "rerun_strategies", label: "Re-run with different strategies"
   - id: "export", label: "Export full report to markdown file"
   - id: "done", label: "Done - end lab session"
 
@@ -237,7 +239,7 @@ Use `AskQuestion` with:
 - **implement_quick**: Implement the quick win changes, then offer to re-run backtests
 - **implement_specific**: Ask which recommendation (use AskQuestion), then implement it
 - **rerun_data**: Loop back to Step 1
-- **rerun_personas**: Loop back to Step 2
+- **rerun_strategies**: Loop back to Step 2
 - **export**: Write report to `data/reports/backtest-lab-[timestamp].md`
 - **done**: End session with summary
 
@@ -247,5 +249,5 @@ Use `AskQuestion` with:
 
 - AI mode requires Ollama running (`ollama serve`)
 - Each AI backtest takes ~45-60 seconds due to LLM calls
-- Running all 3 personas = ~3-4 minutes total
+- Running all 4 strategies = ~4-5 minutes total
 - Results are compared against the same data file for consistency

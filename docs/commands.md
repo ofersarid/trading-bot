@@ -230,13 +230,22 @@ Fetch historical kline (candlestick) data from Bybit for backtesting and case st
 
 ### Output
 
-Data is saved as CSV to `data/historical/`:
+Data is saved as CSV to `data/historical/`. Files are organized by scenario type:
 
 ```
 data/historical/
-├── BTCUSDT_1m_20260112_1015_to_20260112_1115.csv
-└── ETHUSDT_5m_20260112_1000_to_20260112_1400.csv
+├── bullish_momentum/      # Strong upward movement
+├── bearish_momentum/      # Strong downward movement
+├── choppy_neutral/        # No clear direction
+├── extreme_buying/        # Overextended - reversal setup
+├── extreme_selling/       # Panic selling - bounce setup
+├── uncategorized/         # New data before classification
+│   ├── BTCUSDT_1m_20260112_1015_to_20260112_1115.csv
+│   └── ETHUSDT_5m_20260112_1000_to_20260112_1400.csv
+└── README.md
 ```
+
+After fetching data, move it to the appropriate scenario folder based on market conditions.
 
 CSV format:
 ```csv
@@ -530,8 +539,8 @@ git add . && git commit -m "message"
 | File | Purpose |
 |------|---------|
 | `bot/core/config.py` | Trading parameters (thresholds, position size) |
-| `bot/ai/strategies.py` | AI strategy prompts |
-| `bot/ai/prompts.py` | Default AI prompts |
+| `bot/strategies/` | Trading strategy definitions (one file per strategy) |
+| `bot/ai/prompts.py` | AI prompt templates |
 | `bot/ui/styles/theme.css` | Dashboard visual theme |
 | `.env` | API keys (git-ignored) |
 
@@ -544,7 +553,7 @@ git add . && git commit -m "message"
 | `data/sessions/<name>/state.json` | Saved session state |
 | `data/sessions/<name>/reports/` | Tuning reports |
 | `data/feedback/trades.json` | Trade feedback log |
-| `data/historical/*.csv` | Historical kline data from Bybit |
+| `data/historical/<scenario>/*.csv` | Historical data organized by scenario |
 | `trading_bot.log` | Application logs |
 
 ---

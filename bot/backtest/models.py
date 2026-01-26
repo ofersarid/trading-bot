@@ -23,7 +23,7 @@ class BacktestConfig:
     data_source: str  # Path to CSV file
     coins: list[str]  # Coins to trade (derived from data if not specified)
     initial_balance: float = 10000.0
-    persona_name: str = "balanced"  # Name of persona to use
+    strategy_name: str = "momentum_scalper"  # Name of strategy to use
     signal_detectors: list[str] = field(default_factory=lambda: ["momentum", "rsi", "macd"])
     ai_enabled: bool = True  # False = signals-only mode, True = AI decisions
 
@@ -49,7 +49,7 @@ class BacktestConfig:
             data_source=data["data_source"],
             coins=data.get("coins", []),
             initial_balance=data.get("initial_balance", 10000.0),
-            persona_name=data.get("persona_name", "balanced"),
+            strategy_name=data.get("strategy_name", "momentum_scalper"),
             signal_detectors=data.get("signal_detectors", ["momentum", "rsi", "macd"]),
             ai_enabled=data.get("ai_enabled", True),
             start_date=datetime.fromisoformat(data["start_date"])
@@ -140,7 +140,7 @@ class BacktestResult:
                 "data_source": self.config.data_source,
                 "coins": self.config.coins,
                 "initial_balance": self.config.initial_balance,
-                "persona_name": self.config.persona_name,
+                "strategy_name": self.config.strategy_name,
                 "signal_detectors": self.config.signal_detectors,
                 "ai_enabled": self.config.ai_enabled,
             },

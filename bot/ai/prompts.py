@@ -1,5 +1,11 @@
 """Prompt templates for trading analysis."""
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from bot.strategies import StrategyType
+
+
 MARKET_ANALYSIS_PROMPT = """You are a crypto trading analyst. Analyze this market data and provide a structured assessment.
 
 CURRENT PRICES:
@@ -225,4 +231,177 @@ def format_exit_analysis(
         pressure_label=pressure_label,
         take_profit_pct=take_profit_pct,
         stop_loss_pct=stop_loss_pct,
+    )
+
+
+# =============================================================================
+# AI Trading Prompt (Strategy-aware)
+# =============================================================================
+
+AI_TRADING_PROMPT = """You are an AI trading agent with COMPLETE CONTROL over trading decisions.
+
+{strategy_prompt}
+
+=== CURRENT MARKET STATE ===
+PRICES:
+{prices}
+
+MOMENTUM ({momentum_timeframe}s):
+{momentum}
+
+MOMENTUM INTERPRETATION:
+- Velocity: How fast price is moving (% change from average over window)
+- Acceleration: Is momentum BUILDING (positive) or FADING (negative)?
+- BUILDING momentum suggests move will continue - good for entries
+- FADING momentum suggests move is exhausting - avoid chasing, consider exits
+
+ORDER BOOK PRESSURE:
+{orderbook}
+
+MARKET PRESSURE: {pressure_score}/100 ({pressure_label})
+
+RECENT TRADES FLOW:
+{recent_trades}
+
+=== YOUR CURRENT POSITIONS ===
+{positions}
+
+=== ACCOUNT STATUS ===
+Balance: ${balance:,.2f}
+Equity: ${equity:,.2f}
+Open Positions: {num_positions}
+
+=== YOUR DECISION ===
+Analyze the market and decide your action.
+
+Respond in this EXACT format (no extra text):
+ACTION: [NONE/LONG/SHORT/EXIT_<COIN>]
+COIN: [BTC/ETH/SOL or N/A]
+SIZE_PCT: [5-20 or N/A]
+CONFIDENCE: [1-10]
+REASON: [One sentence explaining your decision]
+
+ACTION meanings:
+- NONE: No action, wait for better setup
+- LONG: Open a long position on COIN
+- SHORT: Open a short position on COIN
+- EXIT_BTC: Close your BTC position (use EXIT_<COIN> format)
+
+Only output ONE action per response."""
+
+
+def get_strategy_prompt(strategy: "StrategyType") -> str:
+    """
+    Get the full trading prompt for a strategy type.
+
+    Args:
+        strategy: The strategy type enum value
+
+    Returns:
+        The strategy's prompt string
+    """
+    from bot.strategies import MOMENTUM_SCALPER
+    from bot.strategies import get_strategy as get_strategy_instance
+
+    try:
+        strategy_obj = get_strategy_instance(strategy.value)
+        return strategy_obj.prompt
+    except (ValueError, AttributeError):
+        # Fallback to momentum scalper if strategy not found
+        return MOMENTUM_SCALPER.prompt
+
+
+def format_ai_trading_prompt(
+    strategy: "StrategyType",
+    prices: dict[str, float],
+    momentum: dict[str, float],
+    acceleration: dict[str, float],
+    orderbook: dict[str, dict],
+    pressure_score: int,
+    pressure_label: str,
+    recent_trades: list[dict],
+    positions: dict,
+    balance: float,
+    equity: float,
+    momentum_timeframe: int,
+) -> str:
+    """Format the complete AI trading prompt with current market state."""
+
+    strategy_prompt = get_strategy_prompt(strategy)
+
+    # Format prices
+    price_lines = []
+    for coin, price in prices.items():
+        mom = momentum.get(coin, 0)
+        mom_str = f"+{mom:.3f}%" if mom >= 0 else f"{mom:.3f}%"
+        price_lines.append(f"  {coin}: ${price:,.2f} (momentum: {mom_str})")
+    prices_str = "\n".join(price_lines) if price_lines else "  No data"
+
+    # Format momentum WITH acceleration
+    momentum_lines = []
+    for coin, mom in momentum.items():
+        accel = acceleration.get(coin, 0)
+        direction = "UP" if mom > 0.05 else "DOWN" if mom < -0.05 else "FLAT"
+
+        # Show if momentum is building or fading
+        if accel > 0.01:
+            trend = "BUILDING"
+        elif accel < -0.01:
+            trend = "FADING"
+        else:
+            trend = "STEADY"
+
+        momentum_lines.append(f"  {coin}: {mom:+.3f}% {direction} | Accel: {accel:+.3f}% ({trend})")
+    momentum_str = "\n".join(momentum_lines) if momentum_lines else "  No data"
+
+    # Format orderbook
+    orderbook_lines = []
+    for coin, book in orderbook.items():
+        bid_ratio = book.get("bid_ratio", 50)
+        if bid_ratio > 60:
+            pressure = "BUYERS dominating"
+        elif bid_ratio < 40:
+            pressure = "SELLERS dominating"
+        else:
+            pressure = "Balanced"
+        orderbook_lines.append(f"  {coin}: {bid_ratio:.0f}% bids - {pressure}")
+    orderbook_str = "\n".join(orderbook_lines) if orderbook_lines else "  No data"
+
+    # Format recent trades
+    if recent_trades:
+        buys = sum(1 for t in recent_trades if t.get("side") == "buy")
+        sells = len(recent_trades) - buys
+        trades_str = f"  Last {len(recent_trades)} trades: {buys} buys, {sells} sells"
+    else:
+        trades_str = "  No recent trades"
+
+    # Format positions
+    if positions:
+        pos_lines = []
+        for coin, pos in positions.items():
+            direction = "LONG" if pos.side.value == "long" else "SHORT"
+            current_price = prices.get(coin, pos.entry_price)
+            pnl_pct = pos.unrealized_pnl_percent(current_price)
+            pnl_color = "profit" if pnl_pct >= 0 else "loss"
+            pos_lines.append(
+                f"  {direction} {coin}: entry ${pos.entry_price:,.2f}, "
+                f"current ${current_price:,.2f}, P&L: {pnl_pct:+.2f}% ({pnl_color})"
+            )
+        positions_str = "\n".join(pos_lines)
+    else:
+        positions_str = "  No open positions"
+
+    return AI_TRADING_PROMPT.format(
+        strategy_prompt=strategy_prompt,
+        prices=prices_str,
+        momentum=momentum_str,
+        momentum_timeframe=momentum_timeframe,
+        orderbook=orderbook_str,
+        pressure_score=pressure_score,
+        pressure_label=pressure_label,
+        recent_trades=trades_str,
+        positions=positions_str,
+        balance=balance,
+        equity=equity,
+        num_positions=len(positions),
     )

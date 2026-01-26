@@ -51,9 +51,16 @@ class OllamaClient:
         prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 200,
+        system_prompt: str | None = None,
     ) -> tuple[str, int, float]:
         """
         Send prompt to local Ollama and get response.
+
+        Args:
+            prompt: The user prompt to send
+            temperature: Sampling temperature (lower = more deterministic)
+            max_tokens: Maximum tokens to generate
+            system_prompt: Optional system prompt to enforce role/format
 
         Returns:
             Tuple of (response_text, token_count, response_time_ms)
@@ -62,23 +69,46 @@ class OllamaClient:
 
         try:
             client = await self._get_client()
-            response = await client.post(
-                f"{self.base_url}/api/generate",
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": temperature,
-                        "num_predict": max_tokens,
+
+            # Use chat API with system prompt for better role enforcement
+            if system_prompt:
+                response = await client.post(
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "stream": False,
+                        "options": {
+                            "temperature": temperature,
+                            "num_predict": max_tokens,
+                        },
                     },
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+                )
+                response.raise_for_status()
+                data = response.json()
+                response_text = data.get("message", {}).get("content", "")
+            else:
+                # Fallback to generate API for simple prompts
+                response = await client.post(
+                    f"{self.base_url}/api/generate",
+                    json={
+                        "model": self.model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": temperature,
+                            "num_predict": max_tokens,
+                        },
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                response_text = data.get("response", "")
 
             response_time_ms = (time.time() - start_time) * 1000
-            response_text = data.get("response", "")
 
             # Ollama returns token counts in the response
             prompt_tokens = data.get("prompt_eval_count", 0)

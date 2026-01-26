@@ -2,7 +2,7 @@
 Signal Brain - AI decision maker for the 3-layer backtesting architecture.
 
 Receives signals from Layer 2 (Signal Detectors) and outputs TradePlans
-based on the configured persona's trading style and risk parameters.
+based on the configured strategy's trading style and risk parameters.
 """
 
 import logging
@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from bot.ai.models import MarketContext, TradePlan
 from bot.ai.ollama_client import OllamaClient
-from bot.ai.personas.base import TradingPersona
+from bot.strategies import Strategy, get_strategy
 
 if TYPE_CHECKING:
     from bot.signals.base import Signal
@@ -19,28 +19,83 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# System prompt to enforce trading role - prevents "I'm an assistant" responses
+TRADING_SYSTEM_PROMPT = """You are a TRADING DECISION SYSTEM, not a chatbot or assistant.
+
+CRITICAL RULES:
+1. You MUST output ONLY the exact format requested - no explanations, no preamble
+2. You ARE the decision maker - make definitive choices, never say "I can't" or "I don't"
+3. Every response MUST start with "ACTION:" followed by LONG, SHORT, or WAIT
+4. Never refuse to trade or explain what you would do - actually decide
+5. If uncertain, output "ACTION: WAIT" with a reason - but always use the format
+
+You will receive market signals and must output a trading decision in the specified format."""
+
+# Prompt template for signal-based evaluation
+SIGNAL_EVALUATION_PROMPT = """Strategy: "{strategy_name}"
+
+{strategy_prompt}
+
+## SIGNALS DETECTED
+{signals}
+
+## CURRENT POSITIONS
+{positions}
+
+## MARKET CONTEXT
+- ATR (14-period): ${atr_value:.2f} ({atr_pct:.2f}% of price)
+- Current volatility: {volatility_level}
+
+## YOUR TASK
+Based on these signals and your strategy, decide:
+
+1. ACTION: Should we LONG, SHORT, or WAIT?
+2. SIZE: Position size as % of balance (max {max_position_pct}%)
+3. STOP_LOSS: Price level for stop loss
+4. TAKE_PROFIT: Price level for take profit
+5. TRAIL_ACTIVATION: Price level to activate trailing stop
+6. TRAIL_DISTANCE: Trailing stop distance as % of price
+7. CONFIDENCE: Your confidence in this trade (1-10)
+8. REASON: One sentence explaining your decision
+
+OUTPUT FORMAT (start your response with ACTION:):
+ACTION: [LONG/SHORT/WAIT]
+SIZE: [0-{max_position_pct}]
+STOP_LOSS: [price]
+TAKE_PROFIT: [price]
+TRAIL_ACTIVATION: [price]
+TRAIL_DISTANCE: [0.1-2.0]
+CONFIDENCE: [1-10]
+REASON: [your reasoning]
+
+RULES:
+- Only act if signals align with strategy
+- Consider volatility for stop placement
+- If uncertain, output ACTION: WAIT"""
+
+
 class SignalBrain:
     """
     AI decision maker that evaluates signals and produces trade plans.
 
     The brain receives signals from multiple detectors, considers the
     current market context and positions, and decides whether to trade
-    based on the persona's trading style.
+    based on the strategy's trading style.
     """
 
     def __init__(
         self,
-        persona: TradingPersona,
+        strategy: Strategy,
         ollama_client: OllamaClient,
     ) -> None:
         """
         Initialize the signal brain.
 
         Args:
-            persona: Trading persona that defines decision-making style
+            strategy: Trading strategy that defines decision-making style
             ollama_client: Client for AI inference
         """
-        self.persona = persona
+        self.strategy = strategy
         self.ollama = ollama_client
         self._call_count = 0
 
@@ -61,15 +116,15 @@ class SignalBrain:
         Returns:
             TradePlan if AI decides to act, None if no valid response
         """
-        # Pre-filter signals based on persona preferences
+        # Pre-filter signals based on strategy preferences
         valid_signals = self._filter_signals(signals, market_context.coin)
 
         if not valid_signals:
             logger.debug(f"No valid signals for {market_context.coin}")
             return TradePlan.wait(market_context.coin, "No signals meet criteria")
 
-        # Check for consensus if persona requires it
-        if self.persona.prefer_consensus and not self._has_consensus(valid_signals):
+        # Check for consensus if strategy requires it
+        if self.strategy.prefer_consensus and not self._has_consensus(valid_signals):
             logger.debug("No signal consensus, waiting")
             return TradePlan.wait(market_context.coin, "Waiting for signal consensus")
 
@@ -80,12 +135,13 @@ class SignalBrain:
             context=market_context,
         )
 
-        # Query the AI
+        # Query the AI with system prompt for role enforcement
         try:
             response_text, tokens, response_time = await self.ollama.analyze(
                 prompt=prompt,
-                temperature=0.3,
+                temperature=0.1,  # Lower temperature for more deterministic output
                 max_tokens=300,
+                system_prompt=TRADING_SYSTEM_PROMPT,
             )
             self._call_count += 1
 
@@ -108,14 +164,14 @@ class SignalBrain:
 
     def _filter_signals(self, signals: list["Signal"], coin: str) -> list["Signal"]:
         """
-        Filter signals based on persona preferences.
+        Filter signals based on strategy preferences.
 
         Args:
             signals: All detected signals
             coin: Coin to filter for
 
         Returns:
-            Signals that meet persona criteria
+            Signals that meet strategy criteria
         """
         filtered = []
         for signal in signals:
@@ -124,7 +180,7 @@ class SignalBrain:
                 continue
 
             # Check signal strength
-            if signal.strength < self.persona.min_signal_strength:
+            if signal.strength < self.strategy.min_signal_strength:
                 continue
 
             filtered.append(signal)
@@ -194,16 +250,16 @@ class SignalBrain:
                 )
         positions_str = "\n".join(position_lines) if position_lines else "  No open positions"
 
-        # Fill in the template
-        return self.persona.prompt_template.format(
-            style=self.persona.style,
-            description=self.persona.description,
+        # Build the prompt using strategy's trading style
+        return SIGNAL_EVALUATION_PROMPT.format(
+            strategy_prompt=self.strategy.prompt,
+            strategy_name=self.strategy.name,
             signals=signals_str,
             positions=positions_str,
             atr_value=context.atr,
             atr_pct=context.atr_percent,
             volatility_level=context.volatility_level,
-            max_position_pct=self.persona.risk_params.max_position_pct,
+            max_position_pct=self.strategy.risk.max_position_pct,
         )
 
     def _validate_plan(
@@ -229,10 +285,10 @@ class SignalBrain:
             Validated (possibly adjusted) plan
         """
         # Check confidence threshold
-        if plan.is_actionable and plan.confidence < self.persona.min_confidence:
+        if plan.is_actionable and plan.confidence < self.strategy.min_confidence:
             logger.debug(
                 f"Plan confidence {plan.confidence} below threshold "
-                f"{self.persona.min_confidence}, converting to WAIT"
+                f"{self.strategy.min_confidence}, converting to WAIT"
             )
             return TradePlan.wait(plan.coin, f"Confidence too low ({plan.confidence})")
 
@@ -241,7 +297,7 @@ class SignalBrain:
         risk_params = self._calculate_dynamic_risk(avg_signal_strength, plan.confidence, context)
 
         # Apply dynamic position sizing
-        plan.size_pct = min(risk_params["position_pct"], self.persona.risk_params.max_position_pct)
+        plan.size_pct = min(risk_params["position_pct"], self.strategy.risk.max_position_pct)
 
         # Apply dynamic stops
         if plan.is_actionable:
@@ -284,9 +340,9 @@ class SignalBrain:
         Returns:
             Dict with position_pct, stop_multiplier, tp_multiplier
         """
-        base_position = self.persona.risk_params.max_position_pct
-        base_stop = self.persona.risk_params.stop_loss_atr_multiplier
-        base_tp = self.persona.risk_params.take_profit_atr_multiplier
+        base_position = self.strategy.risk.max_position_pct
+        base_stop = self.strategy.risk.stop_loss_atr_multiplier
+        base_tp = self.strategy.risk.take_profit_atr_multiplier
 
         # Volatility adjustment
         vol_factor = {"high": 0.6, "medium": 0.8, "low": 1.0}.get(context.volatility_level, 1.0)
@@ -330,24 +386,27 @@ class SignalBrain:
 
 
 def create_signal_brain(
-    persona_name: str = "balanced",
+    strategy_name: str = "momentum_scalper",
     ollama_model: str = "mistral",
     ollama_url: str = "http://localhost:11434",
 ) -> SignalBrain:
     """
-    Factory function to create a SignalBrain with common defaults.
+    Factory function to create a SignalBrain with a strategy.
 
     Args:
-        persona_name: Name of pre-defined persona (scalper, conservative, balanced)
+        strategy_name: Name of strategy (momentum_scalper, trend_follower,
+                       mean_reversion, conservative)
         ollama_model: Ollama model to use
         ollama_url: Ollama server URL
 
     Returns:
         Configured SignalBrain instance
-    """
-    from bot.ai.personas.base import get_persona
 
-    persona = get_persona(persona_name)
+    Example:
+        brain = create_signal_brain("momentum_scalper")
+        brain = create_signal_brain("conservative", ollama_model="llama2")
+    """
+    strategy = get_strategy(strategy_name)
     ollama = OllamaClient(base_url=ollama_url, model=ollama_model)
 
-    return SignalBrain(persona=persona, ollama_client=ollama)
+    return SignalBrain(strategy=strategy, ollama_client=ollama)
