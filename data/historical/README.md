@@ -1,67 +1,98 @@
 # Historical Data - Organized by Scenario
 
-This folder contains historical market data organized by scenario type for backtesting and AI strategy testing.
+This folder contains historical market data organized by specific trading scenarios for backtesting.
 
 ## Folder Structure
 
+Each scenario is a self-contained folder with both OHLCV and trade data:
+
 ```
 data/historical/
-├── bullish_momentum/     # Strong upward movement with buyer dominance
-├── bearish_momentum/     # Strong downward movement with seller dominance
-├── choppy_neutral/       # No clear direction, sideways action
-├── extreme_buying/       # Overextended buying - potential reversal setups
-├── extreme_selling/      # Panic selling - potential bounce setups
-├── uncategorized/        # New data files before classification
+├── BTC_20260120_1645_to_1721_bullish_breakout/
+│   ├── BTCUSD_1m_20260120_1645_to_20260120_1721.csv   # OHLCV candles
+│   └── BTC_trades_20260120.parquet                     # Tick data for Volume Profile
+├── BTC_20260121_0830_to_0915_bearish_rejection/
+│   ├── BTCUSD_1m_...csv
+│   └── BTC_trades_...parquet
+├── uncategorized/              # New data lands here before classification
+│   ├── BTCUSD_1m_...csv
+│   └── BTC_trades_...parquet
 └── README.md
 ```
 
-## File Naming Convention
+## Folder Naming Convention
 
-Files should follow this pattern:
 ```
-{SYMBOL}_{TIMEFRAME}_{START_DATE}_{START_TIME}_to_{END_DATE}_{END_TIME}.csv
+{COIN}_{DATE}_{START_TIME}_to_{END_TIME}_{scenario_description}
 ```
 
-Example: `BTCUSD_1m_20260120_1328_to_20260120_1428.csv`
+Examples:
+- `BTC_20260120_1645_to_1721_bullish_breakout`
+- `BTC_20260121_0830_to_0915_bearish_rejection`
+- `ETH_20260122_1400_to_1530_choppy_consolidation`
 
-## Adding New Data
+## Scenario Descriptions
 
-1. **Fetch data** using the CLI tool:
-   ```bash
-   ./get-data-set-from --start 20-01-2026:13-28 --end 20-01-2026:14-28
-   ```
+Use descriptive names that capture the market behavior:
 
-2. **Review the data** to identify the market condition
+| Pattern | Description |
+|---------|-------------|
+| `bullish_breakout` | Strong move up through resistance |
+| `bearish_breakdown` | Strong move down through support |
+| `bullish_rejection` | Failed breakdown, reversal up |
+| `bearish_rejection` | Failed breakout, reversal down |
+| `choppy_consolidation` | Sideways, no clear direction |
+| `extreme_buying` | Overextended rally, potential reversal |
+| `extreme_selling` | Panic drop, potential bounce |
+| `range_bound` | Clear support/resistance, mean reversion |
 
-3. **Move to appropriate folder**:
-   ```bash
-   mv data/historical/uncategorized/FILE.csv data/historical/bullish_momentum/
-   ```
+## Data Types
 
-## Scenario Guidelines
+| File Type | Format | Used For |
+|-----------|--------|----------|
+| `*.csv` | OHLCV | Candlestick charts, price indicators (RSI, MACD, momentum) |
+| `*.parquet` | Trades | Volume Profile analysis (POC, Value Area, delta) |
 
-| Scenario | Characteristics |
-|----------|-----------------|
-| **bullish_momentum** | Price trending up, higher highs/lows, strong buy volume |
-| **bearish_momentum** | Price trending down, lower highs/lows, strong sell volume |
-| **choppy_neutral** | No clear trend, mixed signals, low conviction moves |
-| **extreme_buying** | Extended rally, overbought RSI, potential exhaustion |
-| **extreme_selling** | Panic drop, oversold RSI, potential capitulation |
+## Workflow
+
+### Step 1: Fetch OHLCV Data
+```bash
+./get-data-set-from --start 20-01-2026:16-45 --end 20-01-2026:17-21
+# Output: data/historical/uncategorized/BTCUSD_1m_20260120_1645_to_20260120_1721.csv
+```
+
+### Step 2: Fetch Matching Trade Data
+```bash
+./get-trades-from fetch --start 20-01-2026 --coin BTC
+# Output: data/historical/uncategorized/BTC_trades_20260120.parquet
+```
+
+### Step 3: Review and Classify
+Analyze the data to identify the market scenario, then create a named folder:
+```bash
+mkdir -p "data/historical/BTC_20260120_1645_to_1721_bullish_breakout"
+mv data/historical/uncategorized/BTCUSD_1m_20260120_1645*.csv \
+   "data/historical/BTC_20260120_1645_to_1721_bullish_breakout/"
+mv data/historical/uncategorized/BTC_trades_20260120.parquet \
+   "data/historical/BTC_20260120_1645_to_1721_bullish_breakout/"
+```
 
 ## Usage
 
-### With test_ai.py
+### Run Backtest with Volume Profile
 ```bash
-python test_ai.py --list  # Shows available scenarios from folders
-python test_ai.py -c bullish_momentum  # Test with data from that scenario
+# Auto-detect matching trade data in the same folder
+python run_backtest.py \
+    --data "data/historical/BTC_20260120_1645_to_1721_bullish_breakout/BTCUSD_1m_*.csv" \
+    --vp
+
+# Or explicitly specify both files
+python run_backtest.py \
+    --data "data/historical/BTC_20260120_1645_to_1721_bullish_breakout/BTCUSD_1m_*.csv" \
+    --trade-data "data/historical/BTC_20260120_1645_to_1721_bullish_breakout/BTC_trades_*.parquet"
 ```
 
-### With run_backtest.py
+### Dashboard Replay
 ```bash
-python3 run_backtest.py --data data/historical/bullish_momentum/FILE.csv
-```
-
-### With dashboard replay
-```bash
-./dev.sh --historical data/historical/bullish_momentum/FILE.csv
+./dev.sh --historical "data/historical/BTC_20260120_1645_to_1721_bullish_breakout/BTCUSD_1m_*.csv"
 ```

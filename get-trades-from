@@ -3,7 +3,7 @@
 #
 # Usage:
 #   ./get-trades-from fetch --start 20-01-2026 --end 21-01-2026 --coin BTC
-#   ./get-trades-from info data/historical/trades/BTC_trades_20260120.parquet
+#   ./get-trades-from info data/historical/uncategorized/BTC_trades_20260120.parquet
 #   ./get-trades-from list
 #
 # Commands:
@@ -15,7 +15,7 @@
 #   --start, -s    Start date (dd-mm-yyyy, yyyy-mm-dd, or yyyymmdd) [required]
 #   --end, -e      End date (optional, defaults to start date)
 #   --coin, -c     Coin symbol (default: BTC)
-#   --output, -o   Output directory (default: data/historical/trades)
+#   --output, -o   Output directory (default: data/historical/uncategorized)
 #
 # Requirements:
 #   - AWS CLI (brew install awscli)

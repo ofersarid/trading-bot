@@ -6,7 +6,9 @@ Usage:
     python run_backtest.py                           # Signals-only mode (fast)
     python run_backtest.py --ai                      # With AI decisions (slower)
     python run_backtest.py --strategy momentum_scalper  # Use specific strategy
-    python run_backtest.py --data path/to/data.csv  # Custom data file
+    python run_backtest.py --data path/to/ohlcv.csv  # Custom OHLCV data file
+    python run_backtest.py --vp                      # Auto-detect trade data for Volume Profile
+    python run_backtest.py --trade-data path/to/trades.parquet  # Explicit trade data
 """
 
 import argparse
@@ -19,19 +21,34 @@ from bot.strategies import list_strategies
 
 
 def find_latest_data_file() -> str | None:
-    """Find the most recent historical data file from scenario folders."""
+    """Find the most recent historical OHLCV data file from scenario folders."""
     data_dir = Path("data/historical")
     if not data_dir.exists():
         return None
 
-    # Search in all subfolders (scenario folders)
-    csv_files = list(data_dir.glob("**/*.csv"))
+    # Search in scenario folders (any subfolder containing CSV files)
+    csv_files = list(data_dir.glob("*/*.csv"))
     if not csv_files:
         return None
 
     # Sort by modification time, newest first
     csv_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
     return str(csv_files[0])
+
+
+def find_matching_trade_data(ohlcv_path: str) -> str | None:
+    """Find trade data in the same scenario folder as the OHLCV file."""
+    ohlcv_file = Path(ohlcv_path)
+    scenario_dir = ohlcv_file.parent
+
+    # Find parquet files in the same folder
+    parquet_files = list(scenario_dir.glob("*.parquet"))
+    if not parquet_files:
+        return None
+
+    # Return the most recent one (or could match by date in filename)
+    parquet_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+    return str(parquet_files[0])
 
 
 async def main():
@@ -67,6 +84,16 @@ async def main():
         default=["momentum", "rsi", "macd"],
         help="Signal detectors to use (default: momentum rsi macd)",
     )
+    parser.add_argument(
+        "--trade-data",
+        "-t",
+        help="Path to trade data (Parquet) for Volume Profile analysis",
+    )
+    parser.add_argument(
+        "--vp",
+        action="store_true",
+        help="Auto-detect matching trade data for Volume Profile",
+    )
 
     args = parser.parse_args()
 
@@ -80,13 +107,26 @@ async def main():
         print(f"❌ Data file not found: {data_file}")
         sys.exit(1)
 
+    # Find trade data for Volume Profile
+    trade_data = args.trade_data
+    if not trade_data and args.vp:
+        trade_data = find_matching_trade_data(data_file)
+        if trade_data:
+            print(f"✅ Found matching trade data: {trade_data}")
+        else:
+            print("⚠️  No matching trade data found for Volume Profile")
+
     print(f"\n{'='*60}")
     print("🚀 BACKTEST CONFIGURATION")
     print("=" * 60)
     print(f"  Data:      {data_file}")
+    if trade_data:
+        print(f"  Trades:    {trade_data}")
     print(f"  Strategy:  {args.strategy}")
     print(f"  Balance:   ${args.balance:,.2f}")
     print(f"  Signals:   {', '.join(args.signals)}")
+    if trade_data:
+        print("  Vol Prof:  Enabled")
     print(f"  AI Mode:   {'Enabled' if args.ai else 'Disabled (signals-only)'}")
     print("=" * 60)
 
@@ -103,6 +143,8 @@ async def main():
         strategy_name=args.strategy,
         signal_detectors=args.signals,
         ai_enabled=args.ai,
+        trade_data_source=trade_data,
+        vp_enabled=bool(trade_data),
     )
 
     # Run backtest

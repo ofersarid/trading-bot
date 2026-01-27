@@ -6,7 +6,7 @@ in Parquet format for efficient Volume Profile analysis.
 
 Usage:
     python -m bot.historical.trades_cli fetch --start 20-01-2026 --end 21-01-2026 --coin BTC
-    python -m bot.historical.trades_cli info data/historical/trades/BTC_trades_20260120.parquet
+    python -m bot.historical.trades_cli info data/historical/uncategorized/BTC_trades_20260120.parquet
 """
 
 import argparse
@@ -230,8 +230,8 @@ def main() -> int:
     fetch_parser.add_argument(
         "--output",
         "-o",
-        default="data/historical/trades",
-        help="Output directory (default: data/historical/trades)",
+        default="data/historical/uncategorized",
+        help="Output directory (default: data/historical/uncategorized)",
     )
     fetch_parser.add_argument(
         "--skip-download",

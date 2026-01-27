@@ -12,7 +12,7 @@ Usage:
     files = fetcher.fetch_range(
         start_date=datetime(2026, 1, 20),
         end_date=datetime(2026, 1, 21),
-        output_dir=Path("data/historical/trades/raw"),
+        output_dir=Path("data/historical/uncategorized/raw"),
     )
 """
 
