@@ -28,3 +28,7 @@ questionary>=2.0.0
 
 # Development tools
 watchfiles>=0.21.0  # File watcher for hot reload
+
+# Volume Profile - Historical Trade Data
+pyarrow>=14.0.0  # Parquet file support for trade data storage
+lz4>=4.3.0  # LZ4 decompression for Hyperliquid S3 data

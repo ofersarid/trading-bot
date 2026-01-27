@@ -87,5 +87,6 @@ module = [
     "eth_account.*",
     "dotenv.*",
     "rich.*",
+    "pyarrow.*",
 ]
 ignore_missing_imports = true

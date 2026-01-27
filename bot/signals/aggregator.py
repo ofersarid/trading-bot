@@ -30,6 +30,13 @@ class SignalAggregator:
 
     Maintains a history of signals and provides methods to retrieve
     signals within specific time windows or by type.
+
+    Note on Volume Profile Detector:
+        The VolumeProfileSignalDetector can be added to the detectors list,
+        but requires external profile updates before detection. In the
+        BacktestEngine, this is handled by calling vp_detector.update_profile()
+        before process_candle(). The aggregator itself treats VP detector
+        like any other detector - it just calls detect() on each candle.
     """
 
     def __init__(
@@ -41,7 +48,7 @@ class SignalAggregator:
         Initialize the signal aggregator.
 
         Args:
-            detectors: List of signal detectors to use
+            detectors: List of signal detectors to use (can include VolumeProfileSignalDetector)
             config: Configuration for aggregation (uses defaults if None)
         """
         self.detectors = detectors

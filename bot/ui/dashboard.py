@@ -52,6 +52,8 @@ from bot.core.config import DEFAULT_CONFIG, TradingConfig
 from bot.core.data_buffer import CoinDataBufferManager
 from bot.core.models import MarketPressure
 from bot.hyperliquid.websocket_manager import ConnectionState, WebSocketConfig, WebSocketManager
+from bot.indicators.volume_profile import Trade as VPTrade
+from bot.indicators.volume_profile import VolumeProfileBuilder
 from bot.simulation.historical_source import HistoricalDataSource
 from bot.simulation.models import HYPERLIQUID_FEES
 from bot.simulation.paper_trader import PaperTrader
@@ -206,6 +208,16 @@ class TradingDashboard(App):
             max_candles=60,  # Keep 1 hour of candles
             on_candle_complete=self._on_candle_complete,
         )
+
+        # Volume Profile builders per coin (for live VP analysis)
+        self.vp_builders: dict[str, VolumeProfileBuilder] = {
+            coin: VolumeProfileBuilder(
+                tick_size=10.0,  # $10 buckets for BTC-like assets
+                session_type="daily",
+                coin=coin,
+            )
+            for coin in self.coins
+        }
 
         # Session state manager for persistence (supports multiple named sessions)
         self.state_manager = SessionStateManager(session_name=self.session_name)
@@ -832,6 +844,17 @@ class TradingDashboard(App):
             # Update scalper data buffer with trade (used by scalper AI for tape reading)
             if coin in self.coins:
                 self.data_buffer_manager.update_trade(coin, trade)
+
+                # Feed trade to Volume Profile builder
+                if coin in self.vp_builders:
+                    vp_trade = VPTrade(
+                        timestamp=datetime.now(),
+                        price=price,
+                        size=size,
+                        side=side if side in ("B", "A") else "B",
+                        coin=coin,
+                    )
+                    self.vp_builders[coin].add_trade(vp_trade)
 
     async def handle_orderbook(self, data: dict) -> None:
         """Handle order book updates."""

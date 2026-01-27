@@ -35,12 +35,21 @@ class BacktestConfig:
     min_candles_for_signals: int = 50  # Warm-up period before generating signals
     max_ai_calls_per_hour: int = 100  # Rate limit for AI
 
+    # Volume Profile settings
+    trade_data_source: str | None = None  # Path to trade data (Parquet) for VP
+    vp_enabled: bool = False  # Enable Volume Profile signals
+    vp_tick_size: float = 10.0  # Price bucket size for VP
+    vp_session_type: str = "daily"  # "daily" or "rolling"
+
     def __post_init__(self) -> None:
         """Validate configuration."""
         if self.initial_balance <= 0:
             raise ValueError("initial_balance must be positive")
         if not self.signal_detectors:
             raise ValueError("At least one signal detector required")
+        # Auto-enable VP if trade data provided
+        if self.trade_data_source and not self.vp_enabled:
+            self.vp_enabled = True
 
     @classmethod
     def from_dict(cls, data: dict) -> "BacktestConfig":

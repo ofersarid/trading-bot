@@ -20,6 +20,7 @@ class SignalType(Enum):
     MOMENTUM = "MOMENTUM"
     RSI = "RSI"
     MACD = "MACD"
+    VOLUME_PROFILE = "VOLUME_PROFILE"
 
 
 @dataclass

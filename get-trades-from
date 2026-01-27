@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Fetch historical trade data from Hyperliquid S3
+#
+# Usage:
+#   ./get-trades-from fetch --start 20-01-2026 --end 21-01-2026 --coin BTC
+#   ./get-trades-from info data/historical/trades/BTC_trades_20260120.parquet
+#   ./get-trades-from list
+#
+# Commands:
+#   fetch    Download and process trade data from Hyperliquid S3
+#   info     Show information about a trade data file
+#   list     List available dates in S3
+#
+# Fetch Options:
+#   --start, -s    Start date (dd-mm-yyyy, yyyy-mm-dd, or yyyymmdd) [required]
+#   --end, -e      End date (optional, defaults to start date)
+#   --coin, -c     Coin symbol (default: BTC)
+#   --output, -o   Output directory (default: data/historical/trades)
+#
+# Requirements:
+#   - AWS CLI (brew install awscli)
+#   - LZ4 (brew install lz4)
+#   - pyarrow (pip install pyarrow)
+
+set -e
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Activate virtual environment and run
+cd "$SCRIPT_DIR"
+source venv/bin/activate
+python -m bot.historical.trades_cli "$@"

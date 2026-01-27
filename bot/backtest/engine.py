@@ -11,6 +11,7 @@ executes trades through the position manager.
 import logging
 import time
 from collections import deque
+from collections.abc import Iterator
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -28,6 +29,7 @@ from bot.signals import (
     Signal,
     SignalAggregator,
     SignalValidator,
+    VolumeProfileSignalDetector,
 )
 from bot.simulation.historical_source import HistoricalDataSource, PriceUpdate
 from bot.simulation.paper_trader import PaperTrader
@@ -35,6 +37,9 @@ from bot.strategies import get_strategy
 
 if TYPE_CHECKING:
     from bot.ai.ollama_client import OllamaClient
+    from bot.historical.trade_storage import TradeStorage
+    from bot.indicators.volume_profile import Trade as VPTrade
+    from bot.indicators.volume_profile import VolumeProfileBuilder
     from bot.strategies import Strategy
 
 logger = logging.getLogger(__name__)
@@ -93,6 +98,40 @@ class BacktestEngine:
         self._all_candles: list[Candle] = []
         self._all_signals: list[tuple[int, Signal]] = []  # (candle_index, signal)
 
+        # Volume Profile components (initialized if trade data available)
+        self._vp_builder: "VolumeProfileBuilder | None" = None
+        self._vp_detector: VolumeProfileSignalDetector | None = None
+        self._trade_storage: "TradeStorage | None" = None
+        self._trade_iterator: Iterator["VPTrade"] | None = None
+
+        if config.vp_enabled and config.trade_data_source:
+            self._init_volume_profile()
+
+    def _init_volume_profile(self) -> None:
+        """Initialize Volume Profile components."""
+        from pathlib import Path
+
+        from bot.historical.trade_storage import TradeStorage
+        from bot.indicators.volume_profile import VolumeProfileBuilder
+
+        logger.info(f"Initializing Volume Profile with tick_size={self.config.vp_tick_size}")
+
+        self._vp_builder = VolumeProfileBuilder(
+            tick_size=self.config.vp_tick_size,
+            session_type=self.config.vp_session_type,  # type: ignore
+        )
+        self._vp_detector = VolumeProfileSignalDetector()
+        self._trade_storage = TradeStorage()
+
+        # Verify trade data file exists
+        trade_path = Path(self.config.trade_data_source)  # type: ignore
+        if not trade_path.exists():
+            logger.warning(f"Trade data file not found: {trade_path}")
+            self._vp_builder = None
+            self._vp_detector = None
+        else:
+            logger.info(f"Volume Profile enabled with trade data from: {trade_path}")
+
     def _create_detectors(self) -> list:
         """Create signal detectors based on config."""
         detectors = []
@@ -110,6 +149,47 @@ class BacktestEngine:
                 logger.warning(f"Unknown signal detector: {name}")
 
         return detectors
+
+    def _process_trades_for_candle(
+        self,
+        candle: Candle,
+        trade_iterator: Iterator["VPTrade"],
+        current_trade: "VPTrade",
+    ) -> "VPTrade | None":
+        """
+        Process trades that occurred during a candle's time window.
+
+        Adds trades to the VP builder that fall within the candle's timestamp.
+        Uses 1-minute candle assumption (trades within 60 seconds).
+
+        Args:
+            candle: The current candle
+            trade_iterator: Iterator over trades
+            current_trade: The current trade being processed
+
+        Returns:
+            The next trade to process (may be same trade if not consumed)
+        """
+        from datetime import timedelta
+
+        if self._vp_builder is None:
+            return current_trade
+
+        candle_end = candle.timestamp + timedelta(minutes=1)
+
+        # Process all trades within this candle's time window
+        while current_trade and current_trade.timestamp < candle_end:
+            # Only add if trade is at or after candle start
+            if current_trade.timestamp >= candle.timestamp:
+                self._vp_builder.add_trade(current_trade)
+
+            # Get next trade
+            try:
+                current_trade = next(trade_iterator)
+            except StopIteration:
+                return None
+
+        return current_trade
 
     async def _get_brain(self) -> SignalBrain:
         """Get or create the AI brain."""
@@ -309,6 +389,22 @@ class BacktestEngine:
         source = self._load_data()
         logger.info(f"Loaded {source.candle_count} candles for {source.coin}")
 
+        # Load trade data for Volume Profile if enabled
+        trade_iterator = None
+        current_trade = None
+        if self._vp_builder and self._trade_storage and self.config.trade_data_source:
+            from pathlib import Path
+
+            trade_path = Path(self.config.trade_data_source)
+            if trade_path.exists():
+                trade_iterator = iter(self._trade_storage.load_trades(trade_path))
+                try:
+                    current_trade = next(trade_iterator)
+                    logger.info("Volume Profile trade data loaded")
+                except StopIteration:
+                    logger.warning("No trades found in trade data file")
+                    trade_iterator = None
+
         candle_count = 0
         first_timestamp: datetime | None = None
         last_timestamp: datetime | None = None
@@ -326,6 +422,12 @@ class BacktestEngine:
             self._all_candles.append(candle)  # Track for breakout analysis
             candle_count += 1
 
+            # Process trades for Volume Profile (trades that occurred during this candle)
+            if self._vp_builder and trade_iterator and current_trade:
+                current_trade = self._process_trades_for_candle(
+                    candle, trade_iterator, current_trade
+                )
+
             # Current prices dict
             prices = {update.coin: update.close}
 
@@ -339,8 +441,20 @@ class BacktestEngine:
             # Get candles for this coin
             candles = self._get_candles(update.coin)
 
+            # Update VP detector with current profile
+            if self._vp_builder and self._vp_detector:
+                profile = self._vp_builder.get_profile()
+                self._vp_detector.update_profile(profile)
+
             # Process through signal aggregator
             new_signals = self.aggregator.process_candle(update.coin, candles)
+
+            # Also check VP detector if enabled
+            if self._vp_detector:
+                vp_signal = self._vp_detector.detect(update.coin, candles)
+                if vp_signal:
+                    new_signals.append(vp_signal)
+
             self._signals_generated += len(new_signals)
 
             # Track all signals with candle index for breakout analysis (before filtering)

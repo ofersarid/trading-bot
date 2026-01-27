@@ -14,6 +14,8 @@ from .detectors import (
     MomentumSignalDetector,
     RSIConfig,
     RSISignalDetector,
+    VolumeProfileConfig,
+    VolumeProfileSignalDetector,
 )
 from .validator import SignalValidator, ValidatorConfig
 
@@ -27,6 +29,8 @@ __all__ = [
     "RSISignalDetector",
     "MACDConfig",
     "MACDSignalDetector",
+    "VolumeProfileConfig",
+    "VolumeProfileSignalDetector",
     "SignalAggregator",
     "SignalValidator",
     "ValidatorConfig",
