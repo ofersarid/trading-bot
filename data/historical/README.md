@@ -14,9 +14,6 @@ data/historical/
 ├── BTC_20260121_0830_to_0915_bearish_rejection/
 │   ├── BTCUSD_1m_...csv
 │   └── BTC_trades_...parquet
-├── uncategorized/              # New data lands here before classification
-│   ├── BTCUSD_1m_...csv
-│   └── BTC_trades_...parquet
 └── README.md
 ```
 
