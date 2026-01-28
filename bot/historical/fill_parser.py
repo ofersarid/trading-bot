@@ -101,6 +101,7 @@ class HyperliquidFillParser:
         The structure can vary:
         - Direct fill: {coin, px, sz, side, time, ...}
         - Block with fills: {fills: [...], ...}
+        - Events format: {events: [[address, fill_dict], ...], ...}
         - Nested structure with multiple fills
         """
         # Check if this is a block containing fills
@@ -111,6 +112,17 @@ class HyperliquidFillParser:
                     trade = self._fill_to_trade(fill)
                     if trade:
                         yield trade
+        elif "events" in obj:
+            # Events format: [[address, fill_dict], ...]
+            events = obj["events"]
+            if isinstance(events, list):
+                for event in events:
+                    if isinstance(event, list) and len(event) >= 2:
+                        fill = event[1]
+                        if isinstance(fill, dict) and "px" in fill:
+                            trade = self._fill_to_trade(fill)
+                            if trade:
+                                yield trade
         elif "coin" in obj and "px" in obj:
             # Direct fill object
             trade = self._fill_to_trade(obj)

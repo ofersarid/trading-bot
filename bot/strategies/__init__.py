@@ -20,6 +20,7 @@ Usage:
     print(strategy.risk.max_position_pct)  # 15.0
 """
 
+from bot.signals.base import SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType, TradingStrategy
 from bot.strategies.conservative import CONSERVATIVE
 from bot.strategies.mean_reversion import MEAN_REVERSION
@@ -103,6 +104,8 @@ __all__ = [
     "Strategy",
     "StrategyType",
     "TradingStrategy",
+    # Signal types for custom strategy creation
+    "SignalType",
     # Registry functions
     "get_strategy",
     "list_strategies",

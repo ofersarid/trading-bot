@@ -18,13 +18,14 @@ from typing import TYPE_CHECKING
 from bot.ai.models import MarketContext, TradePlan
 from bot.ai.signal_brain import SignalBrain
 from bot.backtest.breakout_analyzer import BreakoutAnalysis, BreakoutAnalyzer
-from bot.backtest.models import BacktestConfig, BacktestResult, EquityPoint
+from bot.backtest.models import BacktestConfig, BacktestResult, EquityPoint, PrevDayVPLevels
 from bot.backtest.position_manager import PositionManager
 from bot.core.candle_aggregator import Candle
 from bot.indicators import atr
 from bot.signals import (
     MACDSignalDetector,
     MomentumSignalDetector,
+    PrevDayVPSignalDetector,
     RSISignalDetector,
     Signal,
     SignalAggregator,
@@ -104,8 +105,16 @@ class BacktestEngine:
         self._trade_storage: "TradeStorage | None" = None
         self._trade_iterator: Iterator["VPTrade"] | None = None
 
+        # Previous day's VP levels and detector (for trading context)
+        self._prev_day_vp: PrevDayVPLevels | None = None
+        self._prev_day_vp_detector: PrevDayVPSignalDetector | None = None
+
         if config.vp_enabled and config.trade_data_source:
             self._init_volume_profile()
+
+        # Calculate previous day's VP levels if data provided
+        if config.prev_day_trade_data:
+            self._init_prev_day_vp()
 
     def _init_volume_profile(self) -> None:
         """Initialize Volume Profile components."""
@@ -131,6 +140,68 @@ class BacktestEngine:
             self._vp_detector = None
         else:
             logger.info(f"Volume Profile enabled with trade data from: {trade_path}")
+
+    def _init_prev_day_vp(self) -> None:
+        """
+        Calculate previous day's VP levels (POC, VAH, VAL) for trading context.
+
+        These levels act as support/resistance for the current trading day.
+        """
+        from pathlib import Path
+
+        from bot.historical.trade_storage import TradeStorage
+        from bot.indicators.volume_profile import VolumeProfileBuilder, get_poc, get_value_area
+
+        prev_day_path = Path(self.config.prev_day_trade_data)  # type: ignore
+        if not prev_day_path.exists():
+            logger.warning(f"Previous day trade data not found: {prev_day_path}")
+            return
+
+        logger.info(f"Loading previous day VP data from: {prev_day_path}")
+
+        # Build VP profile from previous day's data
+        builder = VolumeProfileBuilder(
+            tick_size=self.config.vp_tick_size,
+            session_type="daily",
+        )
+        storage = TradeStorage()
+
+        # Load trades and build profile
+        try:
+            trades = list(storage.load_trades(prev_day_path))
+            logger.info(f"Loaded {len(trades)} trades from previous day")
+
+            for trade in trades:
+                builder.add_trade(trade)
+
+            profile = builder.get_profile()
+
+            # Calculate POC and Value Area
+            poc = get_poc(profile)
+            value_area = get_value_area(profile)
+
+            if poc is not None and value_area is not None:
+                self._prev_day_vp = PrevDayVPLevels(
+                    poc=poc,
+                    vah=value_area[1],
+                    val=value_area[0],
+                    total_volume=profile.total_volume,
+                )
+                logger.info(f"Previous day VP levels: {self._prev_day_vp}")
+                print("\n📊 Previous Day VP Levels:")
+                print(f"   POC: ${poc:,.2f}")
+                print(f"   VAH: ${value_area[1]:,.2f}")
+                print(f"   VAL: ${value_area[0]:,.2f}")
+
+                # Initialize prev day VP signal detector
+                self._prev_day_vp_detector = PrevDayVPSignalDetector()
+                self._prev_day_vp_detector.set_prev_day_levels(self._prev_day_vp)
+                logger.info("Previous day VP signal detector initialized")
+            else:
+                logger.warning("Could not calculate previous day VP levels")
+
+        except Exception as e:
+            logger.error(f"Failed to load previous day VP data: {e}")
 
     def _create_detectors(self) -> list:
         """Create signal detectors based on config."""
@@ -449,11 +520,17 @@ class BacktestEngine:
             # Process through signal aggregator
             new_signals = self.aggregator.process_candle(update.coin, candles)
 
-            # Also check VP detector if enabled
+            # Also check VP detector if enabled (current session)
             if self._vp_detector:
                 vp_signal = self._vp_detector.detect(update.coin, candles)
                 if vp_signal:
                     new_signals.append(vp_signal)
+
+            # Check previous day VP detector if enabled
+            if self._prev_day_vp_detector:
+                prev_day_signal = self._prev_day_vp_detector.detect(update.coin, candles)
+                if prev_day_signal:
+                    new_signals.append(prev_day_signal)
 
             self._signals_generated += len(new_signals)
 

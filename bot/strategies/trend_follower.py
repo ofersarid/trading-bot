@@ -5,9 +5,14 @@ A patient trend following strategy for crypto markets.
 Waits for confirmed trends and rides them until exhaustion.
 """
 
+from bot.signals.base import SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType
 
 PROMPT = """You are a patient trend follower for crypto markets.
+
+SIGNAL WEIGHTS:
+- MOMENTUM: 0.6 (primary trend direction)
+- MACD: 0.4 (trend confirmation)
 
 YOUR TRADING STYLE:
 - Wait for confirmed trends (sustained momentum over 30+ seconds)
@@ -16,8 +21,8 @@ YOUR TRADING STYLE:
 - Ride the trend until exhaustion
 
 ENTRY CRITERIA:
-- Clear directional trend established
-- Multiple timeframes aligning
+- Clear directional trend established (strong MOMENTUM signal)
+- MACD confirmation (crossover or histogram alignment)
 - Order book heavily favoring trend direction
 
 EXIT CRITERIA:
@@ -41,7 +46,11 @@ TREND_FOLLOWER = Strategy(
         trail_activation_pct=0.5,
         trail_distance_pct=0.3,
     ),
-    min_signal_strength=0.5,
+    signal_weights={
+        SignalType.MOMENTUM: 0.6,  # Primary trend direction
+        SignalType.MACD: 0.4,  # Trend confirmation
+    },
+    signal_threshold=0.6,  # Need both signals to align for higher scores
+    min_signal_strength=0.4,  # Accept moderate signals
     min_confidence=6,
-    prefer_consensus=True,  # Wait for confirmation
 )

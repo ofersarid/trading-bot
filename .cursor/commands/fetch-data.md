@@ -2,6 +2,8 @@
 
 Fetch OHLCV and trade data for NY trading session and create a data folder with a scenarios template.
 
+**Includes previous day's data** for Volume Profile context (POC, VAH, VAL levels).
+
 ---
 
 ## NY Trading Hours
@@ -30,15 +32,18 @@ Fetch OHLCV and trade data for NY trading session and create a data folder with 
 
 **Parse and confirm the input:**
 
+Calculate the previous day's date for VP context.
+
 > **Confirm details:**
 >
 > | Field | Value |
 > |-------|-------|
-> | Date | [DATE] |
+> | Trading Date | [DATE] |
+> | Previous Day (VP context) | [PREV_DATE] |
 > | Coin | [COIN] |
 > | Session | NY Trading Hours (16:30-23:00 Israel / 09:30-16:00 NY) |
 >
-> **Folder name:** `[COIN]_[YYYY-MM-DD]`
+> **Folder name:** `[COIN]_[YYYYMMDD]`
 > **Location:** `data/historical/[FOLDER_NAME]/`
 
 Use AskQuestion to confirm before proceeding.
@@ -53,7 +58,7 @@ Create the data folder with the naming convention:
 [COIN]_[YYYYMMDD]
 ```
 
-Example: `BTC_2026-01-21`
+Example: `BTC_20260121`
 
 ```bash
 mkdir -p "data/historical/[FOLDER_NAME]"
@@ -61,7 +66,7 @@ mkdir -p "data/historical/[FOLDER_NAME]"
 
 ---
 
-## Step 3: Fetch OHLCV Data
+## Step 3: Fetch OHLCV Data (Trading Day)
 
 Convert to UTC for the fetch command:
 - Start: 14:30 UTC on [DATE]
@@ -72,13 +77,35 @@ Convert to UTC for the fetch command:
 ```
 
 Report the result:
-> **OHLCV data fetched:** `[FILENAME]`
+> **OHLCV data (trading day) fetched:** `[FILENAME]`
 
 If the command fails, report the error and stop.
 
 ---
 
-## Step 4: Fetch Trade Data
+## Step 4: Fetch OHLCV Data (Previous Day for VP)
+
+Fetch the previous day's OHLCV data for Volume Profile context:
+- Start: 14:30 UTC on [PREV_DATE]
+- End: 21:00 UTC on [PREV_DATE]
+
+```bash
+./get-data-set-from --start [PREV_DD-MM-YYYY]:14-30 --end [PREV_DD-MM-YYYY]:21-00 -o "data/historical/[FOLDER_NAME]"
+```
+
+Rename the file to indicate it's the previous day:
+```bash
+mv "data/historical/[FOLDER_NAME]/[PREV_OHLCV_FILE]" "data/historical/[FOLDER_NAME]/prev_day_[PREV_OHLCV_FILE]"
+```
+
+Report the result:
+> **OHLCV data (previous day) fetched:** `prev_day_[FILENAME]`
+
+If the command fails, warn but continue (previous day data is optional but recommended).
+
+---
+
+## Step 5: Fetch Trade Data (Trading Day)
 
 Trade data is fetched by date:
 
@@ -87,13 +114,33 @@ Trade data is fetched by date:
 ```
 
 Report the result:
-> **Trade data fetched:** `[FILENAME]`
+> **Trade data (trading day) fetched:** `[FILENAME]`
 
 If the command fails, report the error but continue (trade data is optional for basic backtesting).
 
 ---
 
-## Step 5: Create Scenarios File
+## Step 6: Fetch Trade Data (Previous Day for VP)
+
+Fetch the previous day's trade data for Volume Profile context:
+
+```bash
+./get-trades-from fetch --start [PREV_DD-MM-YYYY] --coin [COIN] -o "data/historical/[FOLDER_NAME]"
+```
+
+Rename the file to indicate it's the previous day:
+```bash
+mv "data/historical/[FOLDER_NAME]/[PREV_TRADE_FILE]" "data/historical/[FOLDER_NAME]/prev_day_[PREV_TRADE_FILE]"
+```
+
+Report the result:
+> **Trade data (previous day) fetched:** `prev_day_[FILENAME]`
+
+If the command fails, warn but continue.
+
+---
+
+## Step 7: Create Scenarios File
 
 Create a `scenarios.md` file in the folder to break down the session into specific scenarios:
 
@@ -101,6 +148,14 @@ Create a `scenarios.md` file in the folder to break down the session into specif
 # [COIN] - [DATE]
 
 NY Session (09:30-16:00 ET / 16:30-23:00 Israel)
+
+## Previous Day VP Context
+
+| Level | Price | Notes |
+|-------|-------|-------|
+| VAH | $XX,XXX | Value Area High |
+| POC | $XX,XXX | Point of Control - highest volume |
+| VAL | $XX,XXX | Value Area Low |
 
 ---
 
@@ -139,36 +194,57 @@ NY Session (09:30-16:00 ET / 16:30-23:00 Israel)
 - `choppy` - No clear direction, sideways
 - `extreme_buying` - Overextended rally
 - `extreme_selling` - Panic drop
+
+## VP Trading Rules
+
+- **Price above VAH**: Bullish bias, look for longs on pullbacks to VAH
+- **Price below VAL**: Bearish bias, look for shorts on rallies to VAL
+- **Price inside VA**: Range-bound, expect mean reversion to POC
+- **POC acts as magnet**: Price tends to revisit POC during the session
 ```
 
 Write this template to `data/historical/[FOLDER_NAME]/scenarios.md`
 
 ---
 
-## Step 6: Report Summary
+## Step 8: Report Summary
 
 > **Data Folder Created Successfully**
 >
 > | Item | Value |
 > |------|-------|
-> | Folder | `data/historical/[COIN]_[YYYY-MM-DD]/` |
+> | Folder | `data/historical/[COIN]_[YYYYMMDD]/` |
+> | Trading Date | [DATE] |
+> | Previous Day | [PREV_DATE] |
 > | Session | NY Trading Hours (09:30-16:00 ET) |
+>
+> **Trading Day Files:**
+> | File | Status |
+> |------|--------|
 > | OHLCV | `[OHLCV_FILENAME]` |
-> | Trades | `[TRADE_FILENAME]` (or "Not fetched" if failed) |
-> | Scenarios | `scenarios.md` (ready to break down) |
+> | Trades | `[TRADE_FILENAME]` (or "Not fetched") |
+>
+> **Previous Day Files (VP Context):**
+> | File | Status |
+> |------|--------|
+> | OHLCV | `prev_day_[OHLCV_FILENAME]` |
+> | Trades | `prev_day_[TRADE_FILENAME]` (or "Not fetched") |
 >
 > **Files in folder:**
 > ```
-> data/historical/[COIN]_[YYYY-MM-DD]/
-> ├── [OHLCV_FILE]
-> ├── [TRADE_FILE]
+> data/historical/[COIN]_[YYYYMMDD]/
+> ├── [OHLCV_FILE]              # Trading day
+> ├── [TRADE_FILE]              # Trading day
+> ├── prev_day_[OHLCV_FILE]     # Previous day (VP context)
+> ├── prev_day_[TRADE_FILE]     # Previous day (VP context)
 > └── scenarios.md
 > ```
 >
 > **Next steps:**
 > 1. Review the session in TradingView
-> 2. Edit `scenarios.md` to break down into specific scenarios
-> 3. Run backtest: `python run_backtest.py --data "data/historical/[COIN]_[YYYY-MM-DD]/*.csv" --vp`
+> 2. Calculate previous day's VP levels (POC, VAH, VAL) and add to `scenarios.md`
+> 3. Edit `scenarios.md` to break down into specific scenarios
+> 4. Run backtest: `python run_backtest.py --data "data/historical/[COIN]_[YYYYMMDD]/*.csv" --vp`
 
 ---
 
@@ -179,7 +255,7 @@ Write this template to `data/historical/[FOLDER_NAME]/scenarios.md`
 > [Error message]
 >
 > Please check:
-> - Is the date format correct? (YYYY-MM-DD)
+> - Is the date format correct? (DD-MM-YYYY)
 > - Is the date in the past?
 > - Is the data source accessible?
 
@@ -188,6 +264,12 @@ Write this template to `data/historical/[FOLDER_NAME]/scenarios.md`
 > [Error message]
 >
 > You can still run backtests with OHLCV data only (no Volume Profile).
+
+**If previous day fetch fails:**
+> **Warning:** Failed to fetch previous day data. Continuing without VP context.
+> [Error message]
+>
+> You can still run backtests but won't have previous day's VP levels for reference.
 
 **If folder already exists:**
 > **Warning:** Folder `[FOLDER_NAME]` already exists.

@@ -37,6 +37,7 @@ class BacktestConfig:
 
     # Volume Profile settings
     trade_data_source: str | None = None  # Path to trade data (Parquet) for VP
+    prev_day_trade_data: str | None = None  # Path to previous day's trade data for VP context
     vp_enabled: bool = False  # Enable Volume Profile signals
     vp_tick_size: float = 10.0  # Price bucket size for VP
     vp_session_type: str = "daily"  # "daily" or "rolling"
@@ -66,6 +67,46 @@ class BacktestConfig:
             else None,
             end_date=datetime.fromisoformat(data["end_date"]) if data.get("end_date") else None,
         )
+
+
+@dataclass
+class PrevDayVPLevels:
+    """
+    Previous day's Volume Profile levels for trading context.
+
+    These levels act as support/resistance for the current trading day:
+    - POC: Point of Control - highest volume price, acts as magnet
+    - VAH: Value Area High - resistance if below, support if above
+    - VAL: Value Area Low - support if above, resistance if below
+    """
+
+    poc: float  # Point of Control
+    vah: float  # Value Area High
+    val: float  # Value Area Low
+    total_volume: float = 0.0  # Total volume for the day
+
+    def price_position(self, price: float) -> str:
+        """
+        Determine price position relative to value area.
+
+        Returns:
+            "above_va": Price is above VAH (bullish bias)
+            "below_va": Price is below VAL (bearish bias)
+            "inside_va": Price is inside value area (range-bound)
+        """
+        if price > self.vah:
+            return "above_va"
+        elif price < self.val:
+            return "below_va"
+        else:
+            return "inside_va"
+
+    def distance_to_poc(self, price: float) -> float:
+        """Calculate distance to POC as percentage."""
+        return ((price - self.poc) / self.poc) * 100
+
+    def __str__(self) -> str:
+        return f"VP Levels: POC=${self.poc:,.2f} | VAH=${self.vah:,.2f} | VAL=${self.val:,.2f}"
 
 
 @dataclass

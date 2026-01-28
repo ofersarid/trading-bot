@@ -116,23 +116,38 @@ class SignalBrain:
         Returns:
             TradePlan if AI decides to act, None if no valid response
         """
-        # Pre-filter signals based on strategy preferences
+        # Pre-filter signals based on strategy's signal_weights
         valid_signals = self._filter_signals(signals, market_context.coin)
 
         if not valid_signals:
             logger.debug(f"No valid signals for {market_context.coin}")
             return TradePlan.wait(market_context.coin, "No signals meet criteria")
 
-        # Check for consensus if strategy requires it
-        if self.strategy.prefer_consensus and not self._has_consensus(valid_signals):
-            logger.debug("No signal consensus, waiting")
-            return TradePlan.wait(market_context.coin, "Waiting for signal consensus")
+        # Calculate weighted scores and check threshold
+        long_score, short_score = self._calculate_weighted_scores(valid_signals)
+        meets_threshold, direction = self._meets_threshold(long_score, short_score)
+
+        if not meets_threshold:
+            logger.debug(
+                f"Signal scores below threshold: LONG={long_score:.2f}, "
+                f"SHORT={short_score:.2f}, threshold={self.strategy.signal_threshold}"
+            )
+            return TradePlan.wait(
+                market_context.coin,
+                f"Weighted score ({max(long_score, short_score):.2f}) below threshold ({self.strategy.signal_threshold})",
+            )
+
+        logger.info(
+            f"Signal threshold met: {direction} score={max(long_score, short_score):.2f} "
+            f">= {self.strategy.signal_threshold}"
+        )
 
         # Format the prompt
         prompt = self._format_prompt(
             signals=valid_signals,
             positions=current_positions,
             context=market_context,
+            weighted_scores=(long_score, short_score),
         )
 
         # Query the AI with system prompt for role enforcement
@@ -164,14 +179,14 @@ class SignalBrain:
 
     def _filter_signals(self, signals: list["Signal"], coin: str) -> list["Signal"]:
         """
-        Filter signals based on strategy preferences.
+        Filter signals based on strategy's signal_weights.
 
         Args:
             signals: All detected signals
             coin: Coin to filter for
 
         Returns:
-            Signals that meet strategy criteria
+            Signals that have a weight in the strategy
         """
         filtered = []
         for signal in signals:
@@ -179,43 +194,86 @@ class SignalBrain:
             if signal.coin != coin:
                 continue
 
-            # Check signal strength
+            # Only consider signal types that have a weight in this strategy
+            if signal.signal_type not in self.strategy.signal_weights:
+                logger.debug(
+                    f"Filtering out {signal.signal_type.value} signal - "
+                    f"not in strategy's signal_weights"
+                )
+                continue
+
+            # Apply noise filter - ignore very weak signals
             if signal.strength < self.strategy.min_signal_strength:
+                logger.debug(
+                    f"Filtering out {signal.signal_type.value} signal - "
+                    f"strength {signal.strength:.2f} below min {self.strategy.min_signal_strength}"
+                )
                 continue
 
             filtered.append(signal)
 
         return filtered
 
-    def _has_consensus(self, signals: list["Signal"]) -> bool:
+    def _calculate_weighted_scores(self, signals: list["Signal"]) -> tuple[float, float]:
         """
-        Check if signals have consensus on direction.
+        Calculate weighted scores for each direction.
+
+        Each signal contributes: weight * strength to its direction's score.
 
         Args:
             signals: Filtered signals
 
         Returns:
-            True if majority agree on direction
+            Tuple of (long_score, short_score)
         """
-        if len(signals) < 2:
-            return len(signals) == 1  # Single signal is fine
+        long_score = 0.0
+        short_score = 0.0
 
-        long_count = sum(1 for s in signals if s.direction == "LONG")
-        short_count = len(signals) - long_count
+        for signal in signals:
+            weight = self.strategy.signal_weights.get(signal.signal_type, 0.0)
+            weighted_value = weight * signal.strength
 
-        # Need at least 2:1 ratio for consensus
-        if long_count >= 2 * short_count:
-            return True
-        if short_count >= 2 * long_count:
-            return True
+            if signal.direction == "LONG":
+                long_score += weighted_value
+            else:
+                short_score += weighted_value
 
-        return False
+            logger.debug(
+                f"  {signal.signal_type.value} {signal.direction}: "
+                f"weight={weight:.2f} * strength={signal.strength:.2f} = {weighted_value:.2f}"
+            )
+
+        return long_score, short_score
+
+    def _meets_threshold(self, long_score: float, short_score: float) -> tuple[bool, str]:
+        """
+        Check if weighted scores meet the strategy's threshold.
+
+        Args:
+            long_score: Total weighted score for LONG signals
+            short_score: Total weighted score for SHORT signals
+
+        Returns:
+            Tuple of (meets_threshold, winning_direction)
+        """
+        threshold = self.strategy.signal_threshold
+
+        # LONG wins if it meets threshold and beats SHORT
+        if long_score >= threshold and long_score > short_score:
+            return True, "LONG"
+
+        # SHORT wins if it meets threshold and beats LONG
+        if short_score >= threshold and short_score > long_score:
+            return True, "SHORT"
+
+        return False, "WAIT"
 
     def _format_prompt(
         self,
         signals: list["Signal"],
         positions: dict[str, "Position"],
         context: MarketContext,
+        weighted_scores: tuple[float, float] | None = None,
     ) -> str:
         """
         Format the prompt for AI evaluation.
@@ -224,19 +282,34 @@ class SignalBrain:
             signals: Signals to include
             positions: Current positions
             context: Market context
+            weighted_scores: Optional (long_score, short_score) tuple
 
         Returns:
             Formatted prompt string
         """
-        # Format signals
+        # Format signals with their weights
         signal_lines = []
         for s in signals:
+            weight = self.strategy.signal_weights.get(s.signal_type, 0.0)
+            weighted_contribution = weight * s.strength
             meta_str = ", ".join(
                 f"{k}={v:.4f}" for k, v in s.metadata.items() if isinstance(v, float)
             )
             signal_lines.append(
-                f"  - {s.signal_type.value}: {s.direction} (strength: {s.strength:.2f}) [{meta_str}]"
+                f"  - {s.signal_type.value}: {s.direction} "
+                f"(strength: {s.strength:.2f}, weight: {weight:.1f}, "
+                f"contribution: {weighted_contribution:.2f}) [{meta_str}]"
             )
+
+        # Add weighted score summary
+        if weighted_scores:
+            long_score, short_score = weighted_scores
+            signal_lines.append("")
+            signal_lines.append(
+                f"  WEIGHTED SCORES: LONG={long_score:.2f}, SHORT={short_score:.2f}"
+            )
+            signal_lines.append(f"  THRESHOLD: {self.strategy.signal_threshold}")
+
         signals_str = "\n".join(signal_lines) if signal_lines else "  None"
 
         # Format positions
@@ -320,10 +393,22 @@ class SignalBrain:
         return plan
 
     def _get_avg_signal_strength(self, signals: list["Signal"] | None) -> float:
-        """Calculate average signal strength."""
+        """Calculate weighted average signal strength."""
         if not signals:
             return 0.5
-        return sum(s.strength for s in signals) / len(signals)
+
+        total_weight = 0.0
+        weighted_sum = 0.0
+
+        for s in signals:
+            weight = self.strategy.signal_weights.get(s.signal_type, 0.0)
+            weighted_sum += weight * s.strength
+            total_weight += weight
+
+        if total_weight == 0:
+            return 0.5
+
+        return weighted_sum / total_weight
 
     def _calculate_dynamic_risk(
         self,

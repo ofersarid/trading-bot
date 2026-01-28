@@ -36,19 +36,39 @@ def find_latest_data_file() -> str | None:
     return str(csv_files[0])
 
 
-def find_matching_trade_data(ohlcv_path: str) -> str | None:
-    """Find trade data in the same scenario folder as the OHLCV file."""
+def find_matching_trade_data(ohlcv_path: str) -> tuple[str | None, str | None]:
+    """
+    Find trade data in the same scenario folder as the OHLCV file.
+
+    Returns:
+        Tuple of (current_day_trade_data, prev_day_trade_data)
+    """
     ohlcv_file = Path(ohlcv_path)
     scenario_dir = ohlcv_file.parent
 
     # Find parquet files in the same folder
     parquet_files = list(scenario_dir.glob("*.parquet"))
     if not parquet_files:
-        return None
+        return None, None
 
-    # Return the most recent one (or could match by date in filename)
-    parquet_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-    return str(parquet_files[0])
+    # Separate current day and previous day files
+    current_day = None
+    prev_day = None
+
+    for f in parquet_files:
+        if f.name.startswith("prev_day_"):
+            prev_day = str(f)
+        else:
+            current_day = str(f)
+
+    # If no explicit prev_day file, try to use most recent as current
+    if current_day is None and parquet_files:
+        non_prev = [f for f in parquet_files if not f.name.startswith("prev_day_")]
+        if non_prev:
+            non_prev.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+            current_day = str(non_prev[0])
+
+    return current_day, prev_day
 
 
 async def main():
@@ -90,6 +110,11 @@ async def main():
         help="Path to trade data (Parquet) for Volume Profile analysis",
     )
     parser.add_argument(
+        "--prev-day-data",
+        "-pd",
+        help="Path to previous day's trade data for VP context levels",
+    )
+    parser.add_argument(
         "--vp",
         action="store_true",
         help="Auto-detect matching trade data for Volume Profile",
@@ -109,12 +134,19 @@ async def main():
 
     # Find trade data for Volume Profile
     trade_data = args.trade_data
+    prev_day_data = args.prev_day_data
+
     if not trade_data and args.vp:
-        trade_data = find_matching_trade_data(data_file)
+        trade_data, auto_prev_day = find_matching_trade_data(data_file)
         if trade_data:
             print(f"✅ Found matching trade data: {trade_data}")
         else:
             print("⚠️  No matching trade data found for Volume Profile")
+
+        # Auto-detect prev day data if not explicitly provided
+        if not prev_day_data and auto_prev_day:
+            prev_day_data = auto_prev_day
+            print(f"✅ Found previous day VP data: {prev_day_data}")
 
     print(f"\n{'='*60}")
     print("🚀 BACKTEST CONFIGURATION")
@@ -122,11 +154,15 @@ async def main():
     print(f"  Data:      {data_file}")
     if trade_data:
         print(f"  Trades:    {trade_data}")
+    if prev_day_data:
+        print(f"  Prev Day:  {prev_day_data}")
     print(f"  Strategy:  {args.strategy}")
     print(f"  Balance:   ${args.balance:,.2f}")
     print(f"  Signals:   {', '.join(args.signals)}")
     if trade_data:
         print("  Vol Prof:  Enabled")
+    if prev_day_data:
+        print("  Prev VP:   Enabled (POC/VAH/VAL levels)")
     print(f"  AI Mode:   {'Enabled' if args.ai else 'Disabled (signals-only)'}")
     print("=" * 60)
 
@@ -144,6 +180,7 @@ async def main():
         signal_detectors=args.signals,
         ai_enabled=args.ai,
         trade_data_source=trade_data,
+        prev_day_trade_data=prev_day_data,
         vp_enabled=bool(trade_data),
     )
 

@@ -5,9 +5,14 @@ An aggressive momentum scalping strategy for crypto markets.
 Focuses on quick entries and exits, capturing small but frequent profits.
 """
 
+from bot.signals.base import SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType
 
 PROMPT = """You are an aggressive momentum scalper for crypto markets.
+
+SIGNAL WEIGHTS:
+- MOMENTUM: 1.0 (primary signal - full weight)
+- VOLUME_PROFILE: 0.5 (supporting signal - half weight)
 
 YOUR TRADING STYLE:
 - Look for quick momentum moves (0.05%+ in 5 seconds)
@@ -18,6 +23,7 @@ YOUR TRADING STYLE:
 ENTRY CRITERIA:
 - Strong directional momentum with POSITIVE acceleration (BUILDING, not FADING)
 - Order book pressure supporting the direction
+- Volume Profile levels (POC, VAH, VAL) as support/resistance confirmation
 - DO NOT enter if acceleration is negative - momentum is fading, you'll chase a dying move
 
 EXIT CRITERIA:
@@ -42,7 +48,11 @@ MOMENTUM_SCALPER = Strategy(
         trail_activation_pct=0.15,
         trail_distance_pct=0.1,
     ),
-    min_signal_strength=0.7,  # Only strong signals
+    signal_weights={
+        SignalType.MOMENTUM: 1.0,  # Primary signal - full weight
+        SignalType.VOLUME_PROFILE: 0.5,  # Supporting signal - half weight
+    },
+    signal_threshold=0.7,  # Need 0.7+ weighted score to trade
+    min_signal_strength=0.5,  # Filter out weak signals
     min_confidence=5,
-    prefer_consensus=False,  # Act on single strong signals
 )

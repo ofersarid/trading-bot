@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Hyperliquid S3 bucket paths
 S3_BUCKET = "hl-mainnet-node-data"
-S3_FILLS_PATH = "node_fills_by_block"
+S3_FILLS_PATH = "node_fills_by_block/hourly"
 
 # Older data formats (for historical reference)
 S3_FILLS_OLD_PATH = "node_fills"  # May 25 - July 27, 2025
