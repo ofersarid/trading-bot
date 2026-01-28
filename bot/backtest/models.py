@@ -26,6 +26,7 @@ class BacktestConfig:
     strategy_name: str = "momentum_scalper"  # Name of strategy to use
     signal_detectors: list[str] = field(default_factory=lambda: ["momentum", "rsi", "macd"])
     ai_enabled: bool = True  # False = signals-only mode, True = AI decisions
+    ai_bypass: bool = False  # If True (and ai_enabled=True), skip AI call but use same risk mgmt
 
     # Optional date range filter (uses full data if not specified)
     start_date: datetime | None = None
@@ -62,6 +63,7 @@ class BacktestConfig:
             strategy_name=data.get("strategy_name", "momentum_scalper"),
             signal_detectors=data.get("signal_detectors", ["momentum", "rsi", "macd"]),
             ai_enabled=data.get("ai_enabled", True),
+            ai_bypass=data.get("ai_bypass", False),
             start_date=datetime.fromisoformat(data["start_date"])
             if data.get("start_date")
             else None,
@@ -193,6 +195,7 @@ class BacktestResult:
                 "strategy_name": self.config.strategy_name,
                 "signal_detectors": self.config.signal_detectors,
                 "ai_enabled": self.config.ai_enabled,
+                "ai_bypass": self.config.ai_bypass,
             },
             "performance": {
                 "final_balance": self.final_balance,

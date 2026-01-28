@@ -271,7 +271,13 @@ class BacktestEngine:
                 self._ollama = OllamaClient()
 
             strategy = get_strategy(self.config.strategy_name)
-            self._brain = SignalBrain(strategy=strategy, ollama_client=self._ollama)
+            # use_ai=False when ai_bypass is enabled - skips AI call but keeps risk management
+            use_ai = not self.config.ai_bypass
+            self._brain = SignalBrain(
+                strategy=strategy,
+                ollama_client=self._ollama,
+                use_ai=use_ai,
+            )
 
         return self._brain
 
@@ -766,6 +772,7 @@ class BacktestEngine:
 async def run_backtest(
     data_source: str,
     ai_enabled: bool = True,
+    ai_bypass: bool = False,
     strategy_name: str = "momentum_scalper",
     initial_balance: float = 10000.0,
 ) -> BacktestResult:
@@ -775,11 +782,23 @@ async def run_backtest(
     Args:
         data_source: Path to CSV file
         ai_enabled: Whether to use AI for decisions
+        ai_bypass: If True (and ai_enabled=True), skip AI call but use same risk management.
+                   Useful for A/B testing AI confirmation value.
         strategy_name: Name of strategy to use
         initial_balance: Starting balance
 
     Returns:
         BacktestResult
+
+    Example - A/B Testing:
+        # Test 1: AI confirms/rejects trades
+        result_with_ai = await run_backtest("data.csv", ai_enabled=True, ai_bypass=False)
+
+        # Test 2: Same risk management, but AI auto-confirms (bypass)
+        result_bypass = await run_backtest("data.csv", ai_enabled=True, ai_bypass=True)
+
+        # Test 3: Pure signals-only mode (different code path)
+        result_signals = await run_backtest("data.csv", ai_enabled=False)
     """
     config = BacktestConfig(
         data_source=data_source,
@@ -787,6 +806,7 @@ async def run_backtest(
         initial_balance=initial_balance,
         strategy_name=strategy_name,
         ai_enabled=ai_enabled,
+        ai_bypass=ai_bypass,
     )
 
     engine = BacktestEngine(config)
