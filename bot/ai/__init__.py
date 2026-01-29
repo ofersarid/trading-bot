@@ -3,7 +3,6 @@
 from bot.ai.analyzer import AIDecision, MarketAnalyzer
 from bot.ai.decision_analyzer import AIAnalysisReport, AIDecisionAnalyzer, analyze_decision_log
 from bot.ai.decision_logger import AIDecisionLogger, DecisionLog
-from bot.ai.interpretation_scheduler import InterpretationScheduler
 from bot.ai.models import (
     AIMetrics,
     AllocationDecision,
@@ -20,7 +19,6 @@ from bot.ai.models import (
 from bot.ai.ollama_client import OllamaClient
 from bot.ai.portfolio_allocator import PortfolioAllocator, create_portfolio_allocator
 from bot.ai.prompts import format_ai_trading_prompt, get_strategy_prompt
-from bot.ai.scalper_interpreter import ScalperInterpretation, ScalperInterpreter
 from bot.ai.signal_brain import SignalBrain, create_signal_brain
 from bot.strategies import (
     RiskConfig,
@@ -43,7 +41,6 @@ __all__ = [
     "CoinMomentum",
     "DecisionLog",
     "Freshness",
-    "InterpretationScheduler",
     "MarketAnalyzer",
     "OllamaClient",
     "PortfolioAllocation",
@@ -52,8 +49,6 @@ __all__ = [
     "PortfolioPosition",
     "PortfolioState",
     "RiskConfig",
-    "ScalperInterpretation",
-    "ScalperInterpreter",
     "Sentiment",
     "Signal",
     "SignalBrain",

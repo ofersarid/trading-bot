@@ -25,8 +25,6 @@ AI-powered trading analysis and decision-making components.
 | File | Description |
 |------|-------------|
 | `analyzer.py` | Legacy MarketAnalyzer (older approach) |
-| `scalper_interpreter.py` | Scalper-specific AI interpretation |
-| `interpretation_scheduler.py` | Schedules when to request AI interpretation |
 
 ## Architecture
 

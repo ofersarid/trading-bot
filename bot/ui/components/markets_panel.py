@@ -3,19 +3,21 @@ Markets panel component.
 
 Displays all trading markets in a DataTable with:
 - Coin symbol and tick direction
-- Price and momentum
-- Buy/Sell pressure bar
-- AI signal and confidence
+- Price
+- Market pressure bar (from orderbook)
+- Signal detector outputs (MOM, RSI, MACD, VP)
+- Weighted scores vs threshold
 - Position info (if any)
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.widgets import DataTable, Static
 
+from bot.signals.base import Signal
 from bot.simulation.paper_trader import Position
 
 # Theme colors (Rich markup)
@@ -43,12 +45,11 @@ class MarketData:
     ai_confidence: int  # 1-10
     position: Position | None
 
-    # Scalper AI interpretation values (0-100 scale)
-    scalper_momentum: int | None = None  # 0-100 from AI
-    scalper_pressure: int | None = None  # 0-100 from AI (50 = neutral)
-    scalper_prediction: int | None = None  # 0-100 from AI
-    scalper_freshness: str | None = None  # FRESH/DEVELOPING/EXTENDED/EXHAUSTED
-    scalper_age_seconds: float = 0.0  # Seconds since last interpretation
+    # Signal detector outputs (new architecture)
+    signals: list[Signal] = field(default_factory=list)
+    long_score: float = 0.0
+    short_score: float = 0.0
+    signal_threshold: float = 0.7
 
 
 class MarketsPanel(Container):
@@ -90,12 +91,12 @@ class MarketsPanel(Container):
         """Set up the table columns and initial rows."""
         table = self.query_one(DataTable)
 
-        # Add columns
+        # Add columns - new signal-based layout
         table.add_column("COIN", key="coin", width=8)
         table.add_column("PRICE", key="price", width=14)
-        table.add_column("MOMENTUM", key="momentum", width=10)
-        table.add_column("MARKET PRESSURE", key="pressure", width=26)
-        table.add_column("AI PREDICTION", key="ai", width=34)
+        table.add_column("SIGNALS", key="signals", width=28)
+        table.add_column("SCORE", key="score", width=20)
+        table.add_column("PRESSURE", key="pressure", width=26)
         table.add_column("POSITION", key="position", width=32)
 
         # Add initial rows for each coin
@@ -104,8 +105,8 @@ class MarketsPanel(Container):
                 Text(coin, style="bold cyan"),
                 Text("Loading...", style="dim"),
                 Text("—", style="dim"),
+                Text("—", style="dim"),
                 Text("────────────│────────────", style="dim"),
-                Text.from_markup("[dim]—[/dim]   [#333333]● ● ● ● ● ● ● ● ● ●[/#333333]"),
                 Text("—", style="dim"),
                 key=coin,
                 height=ROW_HEIGHT,
@@ -161,32 +162,29 @@ class MarketsPanel(Container):
                 self._data[coin].price = price
             self._update_row(coin)
 
-    def update_scalper(
+    def update_signals(
         self,
         coin: str,
-        momentum: int,
-        pressure: int,
-        prediction: int,
-        freshness: str,
-        age_seconds: float,
+        signals: list[Signal],
+        long_score: float,
+        short_score: float,
+        threshold: float,
     ) -> None:
         """
-        Update scalper AI interpretation values for a market.
+        Update signal detector outputs for a market.
 
         Args:
             coin: Coin symbol
-            momentum: AI-interpreted momentum (0-100)
-            pressure: AI-interpreted pressure (0-100, 50=neutral)
-            prediction: AI-interpreted continuation probability (0-100)
-            freshness: FRESH/DEVELOPING/EXTENDED/EXHAUSTED
-            age_seconds: Seconds since this interpretation
+            signals: List of recent signals from detectors
+            long_score: Weighted LONG score
+            short_score: Weighted SHORT score
+            threshold: Signal threshold from strategy
         """
         if coin in self._data:
-            self._data[coin].scalper_momentum = momentum
-            self._data[coin].scalper_pressure = pressure
-            self._data[coin].scalper_prediction = prediction
-            self._data[coin].scalper_freshness = freshness
-            self._data[coin].scalper_age_seconds = age_seconds
+            self._data[coin].signals = signals
+            self._data[coin].long_score = long_score
+            self._data[coin].short_score = short_score
+            self._data[coin].signal_threshold = threshold
             self._update_row(coin)
 
     def _update_row(self, coin: str) -> None:
@@ -201,12 +199,12 @@ class MarketsPanel(Container):
             if not data:
                 return
 
-            # Update each cell
+            # Update each cell - new signal-based layout
             table.update_cell(coin, "coin", self._format_coin(data))
             table.update_cell(coin, "price", self._format_price(data))
-            table.update_cell(coin, "momentum", self._format_momentum(data))
+            table.update_cell(coin, "signals", self._format_signals(data))
+            table.update_cell(coin, "score", self._format_score(data))
             table.update_cell(coin, "pressure", self._format_pressure(data))
-            table.update_cell(coin, "ai", self._format_ai(data))
             table.update_cell(coin, "position", self._format_position(data))
         except Exception:
             pass
@@ -233,38 +231,121 @@ class MarketsPanel(Container):
 
         return Text(price_str)
 
-    def _format_momentum(self, data: MarketData) -> Text:
-        """Format momentum column - shows scalper AI value only."""
-        if data.scalper_momentum is not None:
-            mom = data.scalper_momentum
-            # Color based on 0-100 scale (50 = neutral)
-            if mom >= 60:
-                color = COLOR_UP
-            elif mom <= 40:
-                color = COLOR_DOWN
-            else:
-                color = "yellow"
-            return Text.from_markup(f"[{color}]{mom}/100[/{color}]")
+    def _format_signals(self, data: MarketData) -> Text:
+        """
+        Format signals column showing detector outputs.
 
-        return Text("—", style="dim")
+        Format: MOM▲0.85 RSI▲0.60 MACD─ VP▲0.55
+        - ▲ Green = LONG signal
+        - ▼ Red = SHORT signal
+        - ─ Gray = No signal / not active
+        """
+        if not data.signals:
+            return Text("─", style="dim")
+
+        # Group signals by type (keep most recent of each)
+        from bot.signals.base import SignalType
+
+        by_type: dict[SignalType, Signal] = {}
+        for signal in data.signals:
+            if (
+                signal.signal_type not in by_type
+                or signal.timestamp > by_type[signal.signal_type].timestamp
+            ):
+                by_type[signal.signal_type] = signal
+
+        # Format each signal type
+        parts: list[str] = []
+        signal_abbrevs = {
+            SignalType.MOMENTUM: "MOM",
+            SignalType.RSI: "RSI",
+            SignalType.MACD: "MACD",
+            SignalType.VOLUME_PROFILE: "VP",
+        }
+
+        for sig_type, abbrev in signal_abbrevs.items():
+            if sig_type in by_type:
+                signal = by_type[sig_type]
+                if signal.direction == "LONG":
+                    arrow = f"[{COLOR_UP}]▲[/{COLOR_UP}]"
+                else:
+                    arrow = f"[{COLOR_DOWN}]▼[/{COLOR_DOWN}]"
+                parts.append(f"{abbrev}{arrow}{signal.strength:.2f}")
+
+        if not parts:
+            return Text("─", style="dim")
+
+        return Text.from_markup(" ".join(parts))
+
+    def _format_score(self, data: MarketData) -> Text:
+        """
+        Format score column showing weighted scores vs threshold.
+
+        Format:
+        L:1.15 ████████░░ 0.7
+        S:0.40 ████░░░░░░
+        """
+        # Determine which score is higher
+        long_score = data.long_score
+        short_score = data.short_score
+        threshold = data.signal_threshold
+
+        # Build visual bar (10 chars wide)
+        bar_width = 10
+
+        # Normalize scores relative to 2x threshold for bar display
+        max_display = threshold * 2
+        long_filled = min(bar_width, int((long_score / max_display) * bar_width))
+        short_filled = min(bar_width, int((short_score / max_display) * bar_width))
+
+        # Build bars with threshold marker
+        threshold_pos = int((threshold / max_display) * bar_width)
+
+        def build_bar(filled: int, is_long: bool) -> str:
+            color = COLOR_UP if is_long else COLOR_DOWN
+            bar_chars: list[str] = []
+            for i in range(bar_width):
+                if i == threshold_pos:
+                    bar_chars.append("[white]│[/white]")
+                elif i < filled:
+                    bar_chars.append(f"[{color}]█[/{color}]")
+                else:
+                    bar_chars.append("[dim]░[/dim]")
+            return "".join(bar_chars)
+
+        long_bar = build_bar(long_filled, is_long=True)
+        short_bar = build_bar(short_filled, is_long=False)
+
+        # Highlight the winning direction
+        if long_score >= threshold and long_score > short_score:
+            long_prefix = f"[{COLOR_UP}]L:{long_score:.2f}[/{COLOR_UP}]"
+        else:
+            long_prefix = f"L:{long_score:.2f}"
+
+        if short_score >= threshold and short_score > long_score:
+            short_prefix = f"[{COLOR_DOWN}]S:{short_score:.2f}[/{COLOR_DOWN}]"
+        else:
+            short_prefix = f"S:{short_score:.2f}"
+
+        return Text.from_markup(f"{long_prefix} {long_bar}\n{short_prefix} {short_bar}")
 
     def _format_pressure(self, data: MarketData) -> Text:
-        """Format pressure bar column - uses scalper AI pressure only."""
-        if data.scalper_pressure is not None:
-            pressure = data.scalper_pressure
-            # Convert 0-100 scale to buy/sell bars
-            # >50 = buy pressure, <50 = sell pressure
-            if pressure >= 50:
-                buy_pct = (pressure - 50) * 2  # 50->0, 100->100
-                sell_pct = 0
-            else:
-                buy_pct = 0
-                sell_pct = (50 - pressure) * 2  # 50->0, 0->100
+        """
+        Format pressure bar column using real orderbook data.
 
-            buy_filled = int((buy_pct / 100) * PRESSURE_BAR_WIDTH)
-            sell_filled = int((sell_pct / 100) * PRESSURE_BAR_WIDTH)
+        Shows buy/sell pressure from actual orderbook imbalance,
+        not AI-interpreted values.
+        """
+        # Use real orderbook pressure data
+        buy_pct = data.buy_pressure
+        sell_pct = data.sell_pressure
+
+        # Normalize to bar width
+        total_pressure = buy_pct + sell_pct
+        if total_pressure > 0:
+            buy_filled = int((buy_pct / total_pressure) * PRESSURE_BAR_WIDTH)
+            sell_filled = int((sell_pct / total_pressure) * PRESSURE_BAR_WIDTH)
         else:
-            # No scalper interpretation yet - show empty/neutral bar
             buy_filled = 0
             sell_filled = 0
 
@@ -281,64 +362,6 @@ class MarketsPanel(Container):
         bar = f"{buy_bar}│{sell_bar}"
 
         return Text.from_markup(bar)
-
-    def _format_ai(self, data: MarketData) -> Text:
-        """
-        Format AI signal column with freshness indicator and confidence dots.
-
-        Format: DEVELOPING ●●●●●○○○○○
-        - Left: Freshness (FRESH/DEVELOPING/EXTENDED/EXHAUSTED)
-        - Right: 10 dots, colored count = prediction value / 10
-        - Green dots = bullish (>50%), Red dots = bearish (<50%), Yellow = neutral (50%)
-        """
-        if data.scalper_prediction is not None and data.scalper_freshness is not None:
-            pred = data.scalper_prediction
-            fresh = data.scalper_freshness
-            age = data.scalper_age_seconds
-
-            # Number of colored dots (1-10 scale from 0-100 prediction)
-            colored_count = round(pred / 10)
-            colored_count = max(0, min(10, colored_count))  # Clamp to 0-10
-            gray_count = 10 - colored_count
-
-            # Dot color based on prediction direction
-            if pred > 50:
-                dot_color = COLOR_UP  # Bullish = green
-            elif pred < 50:
-                dot_color = COLOR_DOWN  # Bearish = red
-            else:
-                dot_color = "yellow"  # Neutral
-
-            # Build dots string with spaces between dots
-            colored_dots = f"[{dot_color}]" + " ".join("●" * colored_count) + f"[/{dot_color}]"
-            gray_dots = "[#333333]" + " ".join("●" * gray_count) + "[/#333333]"
-            # Add separator space between colored and gray sections
-            separator = " " if colored_count > 0 and gray_count > 0 else ""
-
-            # Freshness color
-            if fresh == "FRESH":
-                fresh_color = COLOR_UP
-            elif fresh == "DEVELOPING":
-                fresh_color = "yellow"
-            elif fresh == "EXTENDED":
-                fresh_color = "orange1"
-            else:  # EXHAUSTED
-                fresh_color = COLOR_DOWN
-
-            # Staleness indicator (data getting old)
-            if age > 30:
-                stale = "[red]![/red]"
-            elif age > 20:
-                stale = "[yellow]·[/yellow]"
-            else:
-                stale = ""
-
-            return Text.from_markup(
-                f"[{fresh_color}]{fresh}[/{fresh_color}] {colored_dots}{separator}{gray_dots}{stale}"
-            )
-
-        # No scalper interpretation yet - show all gray dots
-        return Text.from_markup("[dim]—[/dim]   [#333333]● ● ● ● ● ● ● ● ● ●[/#333333]")
 
     def _format_position(self, data: MarketData) -> Text:
         """Format position column."""

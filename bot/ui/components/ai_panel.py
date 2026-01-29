@@ -101,7 +101,7 @@ class AIPanel(Container):
         ai_calls: int = 0,
         disconnects: int = 0,
         reconnects: int = 0,
-        scalper_age: float | None = None,
+        scalper_age: float | None = None,  # noqa: ARG002 - deprecated, kept for compatibility
     ) -> None:
         """
         Update the AI panel title with mode and stats.
@@ -113,7 +113,7 @@ class AIPanel(Container):
             ai_calls: Number of AI API calls made
             disconnects: Total WebSocket disconnects
             reconnects: Successful reconnection count
-            scalper_age: Seconds since last scalper interpretation (optional)
+            scalper_age: DEPRECATED - no longer used
         """
         try:
             title = self.query_one("#ai-title", Static)
@@ -123,104 +123,121 @@ class AIPanel(Container):
             if disconnects > 0:
                 conn_info = f" [dim]│[/dim] [yellow]Reconn: {reconnects}[/yellow] [dim]│[/dim] [red]Disc: {disconnects}[/red]"
 
-            # Scalper staleness indicator
-            scalper_info = ""
-            if scalper_age is not None:
-                if scalper_age > 30:
-                    scalper_info = f" [dim]│[/dim] [red]Scalper: {scalper_age:.0f}s ago[/red]"
-                elif scalper_age > 20:
-                    scalper_info = f" [dim]│[/dim] [yellow]Scalper: {scalper_age:.0f}s ago[/yellow]"
-                else:
-                    scalper_info = (
-                        f" [dim]│[/dim] [#44ffaa]Scalper: {scalper_age:.0f}s ago[/#44ffaa]"
-                    )
-
             if analysis_mode == "RULE-BASED":
                 title.update(
                     f"🧠 ANALYSIS [dim]│[/dim] [yellow]📐 {analysis_mode}[/yellow] [dim]│[/dim] "
-                    f"Model: [cyan]{ai_model}[/cyan]{scalper_info}{conn_info}"
+                    f"Model: [cyan]{ai_model}[/cyan]{conn_info}"
                 )
             elif "Local" in analysis_mode:
                 # Local AI mode (Ollama)
                 title.update(
                     f"🧠 AI REASONING [dim]│[/dim] [#44ffaa]🤖 LOCAL AI[/#44ffaa] [dim]│[/dim] "
                     f"Model: [cyan]{ai_model}[/cyan] [dim]│[/dim] "
-                    f"Calls: [blue]{ai_calls}[/blue]{scalper_info}{conn_info}"
+                    f"Calls: [blue]{ai_calls}[/blue]{conn_info}"
                 )
             else:
                 title.update(
                     f"🧠 AI REASONING [dim]│[/dim] [#44ffaa]🤖 {analysis_mode}[/#44ffaa] [dim]│[/dim] "
                     f"Model: [cyan]{ai_model}[/cyan] [dim]│[/dim] "
-                    f"Calls: [blue]{ai_calls}[/blue]{scalper_info}{conn_info}"
+                    f"Calls: [blue]{ai_calls}[/blue]{conn_info}"
                 )
         except Exception as e:
             logger.debug(f"AI title not ready: {e}")
 
-    def log_scalper_interpretation(
+    def log_sizing_decision(
         self,
         coin: str,
-        momentum: int,
-        pressure: int,
-        prediction: int,
-        freshness: str,
-        action: str,
-        confidence: int,
+        direction: str,
+        signal_score: float,
+        threshold: float,
+        goal_progress_pct: float | None,
+        time_progress_pct: float | None,
+        pace_status: str,
+        position_multiplier: float,
+        base_size_pct: float,
+        actual_size_pct: float,
         reason: str,
         response_time_ms: float,
     ) -> None:
         """
-        Log a scalper interpretation with visual formatting.
+        Log an AI sizing decision with goal context.
+
+        This is the new signal-based logging format that shows:
+        - Signal score vs threshold
+        - Goal progress context
+        - AI position sizing decision
 
         Args:
             coin: Coin symbol
-            momentum: AI-interpreted momentum (0-100)
-            pressure: AI-interpreted pressure (0-100, 50=neutral)
-            prediction: Continuation probability (0-100)
-            freshness: FRESH/DEVELOPING/EXTENDED/EXHAUSTED
-            action: NONE/LONG/SHORT/EXIT
-            confidence: Confidence level (1-10)
-            reason: Scalper's reasoning
+            direction: LONG or SHORT
+            signal_score: Weighted score from signals
+            threshold: Strategy threshold
+            goal_progress_pct: Progress toward goal (if set)
+            time_progress_pct: Time elapsed percentage (if set)
+            pace_status: ahead/on_pace/behind/goal_reached/no_goal
+            position_multiplier: AI's sizing multiplier (0.5 - 2.0)
+            base_size_pct: Base position size percentage
+            actual_size_pct: Final position size after multiplier
+            reason: AI's reasoning for the decision
             response_time_ms: AI response time
         """
+        # Direction color
+        dir_color = "#44ffaa" if direction == "LONG" else "#ff7777"
 
-        # Color helpers
-        def metric_color(val: int, neutral: int = 50) -> str:
-            if val >= neutral + 10:
-                return "#44ffaa"
-            elif val <= neutral - 10:
-                return "#ff7777"
-            return "yellow"
+        # Signal threshold check
+        signal_check = "✓" if signal_score >= threshold else "✗"
+        signal_color = "#44ffaa" if signal_score >= threshold else "#ff7777"
 
-        freshness_colors = {
-            "FRESH": "#44ffaa",
-            "DEVELOPING": "yellow",
-            "EXTENDED": "orange1",
-            "EXHAUSTED": "#ff7777",
+        # Pace status color and icon
+        pace_colors = {
+            "goal_reached": "#44ffaa",
+            "ahead": "#44ffaa",
+            "on_pace": "yellow",
+            "behind": "orange1",
+            "just_started": "dim",
+            "no_goal": "dim",
         }
+        pace_color = pace_colors.get(pace_status, "dim")
 
-        action_colors = {
-            "LONG": "#44ffaa",
-            "SHORT": "#ff7777",
-            "EXIT": "orange1",
-            "NONE": "dim",
-        }
+        # Multiplier color
+        if position_multiplier >= 1.5:
+            mult_color = "orange1"
+            mult_label = "aggressive"
+        elif position_multiplier >= 1.2:
+            mult_color = "yellow"
+            mult_label = "elevated"
+        elif position_multiplier >= 0.8:
+            mult_color = "white"
+            mult_label = "standard"
+        else:
+            mult_color = "cyan"
+            mult_label = "conservative"
 
-        mom_color = metric_color(momentum)
-        press_color = metric_color(pressure)
-        pred_color = metric_color(prediction)
-        fresh_color = freshness_colors.get(freshness, "white")
-        act_color = action_colors.get(action, "white")
-
+        # Build log lines
         lines = [
-            f"[cyan]━━━ 🎯 SCALPER: {coin} ━━━[/cyan]",
-            f"[bold]Mom:[/bold] [{mom_color}]{momentum}[/{mom_color}] "
-            f"[bold]Press:[/bold] [{press_color}]{pressure}[/{press_color}] "
-            f"[bold]Pred:[/bold] [{pred_color}]{prediction}%[/{pred_color}]",
-            f"[bold]Setup:[/bold] [{fresh_color}]{freshness}[/{fresh_color}] "
-            f"[bold]Action:[/bold] [{act_color}]{action}[/{act_color}] "
-            f"[bold]Conf:[/bold] {confidence}/10",
-            f"[dim]{reason}[/dim]",
-            f"[dim]⚡ {response_time_ms:.0f}ms[/dim]",
+            "[cyan]━━━ 🤖 AI SIZING DECISION ━━━[/cyan]",
+            f"Direction: [{dir_color}]{direction} {coin}[/{dir_color}] (from signals)",
+            f"Signal Score: [{signal_color}]{signal_score:.2f}[/{signal_color}] "
+            f"(threshold: {threshold:.2f}) [{signal_color}]{signal_check}[/{signal_color}]",
         ]
+
+        # Add goal context if available
+        if goal_progress_pct is not None and time_progress_pct is not None:
+            lines.append("")
+            lines.append("[bold]🎯 GOAL CONTEXT:[/bold]")
+            lines.append(
+                f"Progress: {goal_progress_pct:.0f}% │ Time: {time_progress_pct:.0f}% │ "
+                f"Status: [{pace_color}]{pace_status.upper()}[/{pace_color}]"
+            )
+
+        lines.append("")
+        lines.append("[bold]POSITION SIZING:[/bold]")
+        lines.append(
+            f"Multiplier: [{mult_color}]{position_multiplier:.1f}x ({mult_label})[/{mult_color}]"
+        )
+        lines.append(f"Base: {base_size_pct:.0f}% → Actual: {actual_size_pct:.0f}%")
+        lines.append("")
+        lines.append(f'[dim]Reason: "{reason}"[/dim]')
+        lines.append(f"[dim]⚡ {response_time_ms:.0f}ms[/dim]")
 
         self.log_block(lines)
