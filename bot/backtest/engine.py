@@ -13,14 +13,26 @@ import time
 from collections import deque
 from collections.abc import Iterator
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from bot.ai.models import MarketContext, TradePlan
+from bot.ai.decision_analyzer import AIDecisionAnalyzer
+from bot.ai.decision_logger import AIDecisionLogger
+from bot.ai.models import (
+    AccountContext,
+    MarketContext,
+    PortfolioOpportunity,
+    PortfolioPosition,
+    PortfolioState,
+    TradePlan,
+)
+from bot.ai.portfolio_allocator import PortfolioAllocator
 from bot.ai.signal_brain import SignalBrain
 from bot.backtest.breakout_analyzer import BreakoutAnalysis, BreakoutAnalyzer
 from bot.backtest.models import BacktestConfig, BacktestResult, EquityPoint, PrevDayVPLevels
 from bot.backtest.position_manager import PositionManager
 from bot.core.candle_aggregator import Candle
+from bot.core.levels import StructureLevels, calculate_structure_tp_sl
 from bot.indicators import atr
 from bot.signals import (
     MACDSignalDetector,
@@ -86,6 +98,9 @@ class BacktestEngine:
         # AI Brain (lazy initialized)
         self._brain: SignalBrain | None = None
 
+        # Portfolio Allocator (lazy initialized, for portfolio mode)
+        self._portfolio_allocator: PortfolioAllocator | None = None
+
         # Candle buffers per coin
         self._candle_buffers: dict[str, deque[Candle]] = {}
         self._max_candles = 100  # Keep last 100 candles for indicators
@@ -116,6 +131,13 @@ class BacktestEngine:
         if config.prev_day_trade_data:
             self._init_prev_day_vp()
 
+        # AI Decision logging
+        self._decision_logger: AIDecisionLogger | None = None
+        self._pending_decision_ids: dict[str, str] = {}  # trade_id -> decision_id mapping
+
+        if config.log_decisions and config.ai_enabled:
+            self._init_decision_logging()
+
     def _init_volume_profile(self) -> None:
         """Initialize Volume Profile components."""
         from pathlib import Path
@@ -141,13 +163,20 @@ class BacktestEngine:
         else:
             logger.info(f"Volume Profile enabled with trade data from: {trade_path}")
 
+    def _init_decision_logging(self) -> None:
+        """Initialize AI decision logging for post-backtest analysis."""
+        self._decision_logger = AIDecisionLogger(
+            strategy_name=self.config.strategy_name,
+            data_file=self.config.data_source,
+        )
+        logger.info("AI decision logging enabled")
+
     def _init_prev_day_vp(self) -> None:
         """
         Calculate previous day's VP levels (POC, VAH, VAL) for trading context.
 
         These levels act as support/resistance for the current trading day.
         """
-        from pathlib import Path
 
         from bot.historical.trade_storage import TradeStorage
         from bot.indicators.volume_profile import VolumeProfileBuilder, get_poc, get_value_area
@@ -263,7 +292,14 @@ class BacktestEngine:
         return current_trade
 
     async def _get_brain(self) -> SignalBrain:
-        """Get or create the AI brain."""
+        """
+        Get or create the SignalBrain for weighted scoring and position sizing.
+
+        The brain handles:
+        - Weighted scoring (using strategy's signal_weights)
+        - Threshold check (using strategy's signal_threshold)
+        - Position sizing (AI determines 0.5x-2.0x multiplier)
+        """
         if self._brain is None:
             from bot.ai.ollama_client import OllamaClient
 
@@ -271,15 +307,28 @@ class BacktestEngine:
                 self._ollama = OllamaClient()
 
             strategy = get_strategy(self.config.strategy_name)
-            # use_ai=False when ai_bypass is enabled - skips AI call but keeps risk management
-            use_ai = not self.config.ai_bypass
             self._brain = SignalBrain(
                 strategy=strategy,
                 ollama_client=self._ollama,
-                use_ai=use_ai,
+                decision_logger=self._decision_logger,
             )
 
         return self._brain
+
+    async def _get_portfolio_allocator(self) -> PortfolioAllocator:
+        """Get or create the portfolio allocator."""
+        if self._portfolio_allocator is None:
+            from bot.ai.ollama_client import OllamaClient
+
+            if self._ollama is None:
+                self._ollama = OllamaClient()
+
+            self._portfolio_allocator = PortfolioAllocator(
+                ollama_client=self._ollama,
+                max_total_allocation=80.0,  # Keep 20% cash buffer
+            )
+
+        return self._portfolio_allocator
 
     def _load_data(self) -> HistoricalDataSource:
         """Load historical data from CSV."""
@@ -549,10 +598,32 @@ class BacktestEngine:
 
             # If we have signals and no position, evaluate
             if new_signals and not self.position_manager.has_position(update.coin):
-                plan = await self._evaluate_signals(new_signals, update.coin, update.close)
+                # Portfolio mode: use portfolio allocator
+                if self.config.portfolio_mode and self.config.ai_enabled:
+                    opportunity = self._signals_to_opportunity(
+                        new_signals, update.coin, update.close
+                    )
+                    if opportunity:
+                        plans = await self._evaluate_portfolio_opportunities([opportunity])
+                        for plan in plans:
+                            if plan.is_actionable:
+                                self.position_manager.open_position(plan, update.close)
+                else:
+                    # Standard mode: single-asset evaluation
+                    evaluated_plan = await self._evaluate_signals(
+                        new_signals, update.coin, update.close
+                    )
 
-                if plan and plan.is_actionable:
-                    self.position_manager.open_position(plan, update.close)
+                    if evaluated_plan and evaluated_plan.is_actionable:
+                        self.position_manager.open_position(evaluated_plan, update.close)
+
+                        # Track decision ID for outcome linking
+                        if self._brain and self._brain.last_decision_id:
+                            position = self.trader.positions.get(update.coin)
+                            if position:
+                                self._pending_decision_ids[str(id(position))] = (
+                                    self._brain.last_decision_id
+                                )
 
             # Record equity periodically (every 10 candles to reduce memory)
             if candle_count % 10 == 0:
@@ -584,6 +655,29 @@ class BacktestEngine:
         # Include signal accuracy report in results
         result.signal_accuracy_report = self.validator.get_accuracy_report()
 
+        # Finalize AI decision logging and run analysis
+        if self._decision_logger and self.config.log_decisions:
+            result.decision_log = self._decision_logger.finalize()
+
+            # Link trade outcomes to decisions
+            self._link_trade_outcomes(result.trades)
+
+            # Run AI analysis
+            ai_analyzer = AIDecisionAnalyzer()
+            result.ai_analysis = ai_analyzer.analyze(result.decision_log)
+
+            # Save decision log if path specified
+            if self.config.decision_log_path:
+                self._decision_logger.save(self.config.decision_log_path)
+            else:
+                # Auto-generate path
+                log_dir = Path("data/logs")
+                log_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_path = log_dir / f"decisions_{self.config.strategy_name}_{timestamp}.json"
+                self._decision_logger.save(log_path)
+                logger.info(f"Saved decision log to {log_path}")
+
         logger.info(
             f"Backtest complete: {result.total_trades} trades, "
             f"P&L: {result.pnl_pct:+.2f}%, "
@@ -601,6 +695,13 @@ class BacktestEngine:
         """
         Evaluate signals and decide on action.
 
+        UNIFIED FLOW:
+        1. Signals fire with strength scores
+        2. Weighted scoring normalizes signals into one meaningful score
+        3. Threshold check determines direction (LONG/SHORT/WAIT)
+        4. Position setup calculated (entry, TP, SL from ATR)
+        5. Position SIZE determined by AI (0.5x-2.0x based on goals)
+
         Args:
             signals: List of detected signals
             coin: Coin being evaluated
@@ -609,21 +710,218 @@ class BacktestEngine:
         Returns:
             TradePlan if action should be taken
         """
-        if not self.config.ai_enabled:
-            # Signals-only mode - create simple plan from strongest signal
-            return self._signals_to_plan(signals, coin, current_price)
-
-        # AI-enabled mode
+        # Use SignalBrain for weighted scoring and AI position sizing
         brain = await self._get_brain()
         context = self._calculate_market_context(coin, current_price)
 
         # Get current positions from paper trader
         positions = self.trader.positions
 
-        plan = await brain.evaluate_signals(signals, positions, context)
-        self._ai_calls += 1
+        # Create account context for AI position sizing
+        account_context = self._create_account_context()
+
+        plan = await brain.evaluate_signals(signals, positions, context, account_context)
+
+        # Count AI calls when AI is enabled
+        if self.config.ai_enabled:
+            self._ai_calls += 1
 
         return plan
+
+    def _create_account_context(self) -> AccountContext:
+        """
+        Create account context for AI position sizing decisions.
+
+        Returns:
+            AccountContext with current account state and goals
+        """
+        strategy = get_strategy(self.config.strategy_name)
+
+        # Calculate days elapsed (simplified - assumes backtest runs in chronological order)
+        days_elapsed = 0
+        if self._equity_curve:
+            start_time = self._equity_curve[0].timestamp
+            current_time = self._equity_curve[-1].timestamp
+            days_elapsed = (current_time - start_time).days
+
+        return AccountContext(
+            current_balance=self.trader.balance,
+            initial_balance=self.config.initial_balance,
+            account_goal=self.config.account_goal,
+            goal_timeframe_days=self.config.goal_timeframe_days,
+            days_elapsed=days_elapsed,
+            base_position_pct=strategy.risk.max_position_pct,
+        )
+
+    def _signals_to_opportunity(
+        self,
+        signals: list[Signal],
+        coin: str,
+        current_price: float,
+    ) -> PortfolioOpportunity | None:
+        """
+        Convert signals to a portfolio opportunity for multi-asset allocation.
+
+        Args:
+            signals: Detected signals for this coin
+            coin: Coin symbol
+            current_price: Current price
+
+        Returns:
+            PortfolioOpportunity if signals meet threshold, None otherwise
+        """
+        if not signals:
+            return None
+
+        strategy = get_strategy(self.config.strategy_name)
+
+        # Calculate weighted scores
+        long_score = 0.0
+        short_score = 0.0
+        signal_names = []
+
+        for s in signals:
+            weight = strategy.signal_weights.get(s.signal_type, 0.0)
+            if weight <= 0:
+                continue
+            signal_names.append(s.signal_type.value)
+            if s.direction == "LONG":
+                long_score += s.strength * weight
+            else:
+                short_score += s.strength * weight
+
+        # Check threshold
+        winning_score = max(long_score, short_score)
+        if winning_score < strategy.signal_threshold:
+            return None
+
+        direction = "LONG" if long_score > short_score else "SHORT"
+
+        # Get market context for volatility
+        context = self._calculate_market_context(coin, current_price)
+
+        return PortfolioOpportunity(
+            coin=coin,
+            direction=direction,  # type: ignore[arg-type]
+            signal_score=winning_score,
+            signal_threshold=strategy.signal_threshold,
+            signals=list(set(signal_names)),  # Dedupe
+            current_price=current_price,
+            volatility=context.volatility_level,
+            atr_percent=context.atr_percent,
+        )
+
+    def _build_portfolio_state(self) -> PortfolioState:
+        """
+        Build current portfolio state for the allocator.
+
+        Returns:
+            PortfolioState with current positions and account context
+        """
+        positions: list[PortfolioPosition] = []
+
+        for coin, pos in self.trader.positions.items():
+            # Get current price from latest candle
+            current_price = pos.entry_price  # Default to entry if no recent price
+            if self._candle_buffers.get(coin):
+                current_price = self._candle_buffers[coin][-1].close
+
+            unrealized_pnl = pos.unrealized_pnl_percent(current_price)
+            size_pct = (pos.size * pos.entry_price / self.trader.balance) * 100
+
+            positions.append(
+                PortfolioPosition(
+                    coin=coin,
+                    side="long" if pos.side.value == "LONG" else "short",
+                    size_pct=size_pct,
+                    entry_price=pos.entry_price,
+                    current_price=current_price,
+                    unrealized_pnl_pct=unrealized_pnl,
+                )
+            )
+
+        # Calculate available capital
+        total_in_positions = sum(p.size_pct for p in positions)
+        available_pct = max(0, 100 - total_in_positions)
+
+        return PortfolioState(
+            total_balance=self.trader.balance,
+            available_capital_pct=available_pct,
+            positions=positions,
+            account_context=self._create_account_context(),
+        )
+
+    async def _evaluate_portfolio_opportunities(
+        self,
+        opportunities: list[PortfolioOpportunity],
+    ) -> list[TradePlan]:
+        """
+        Evaluate multiple opportunities using the portfolio allocator.
+
+        Args:
+            opportunities: List of opportunities across markets
+
+        Returns:
+            List of TradePlans to execute
+        """
+        if not opportunities:
+            return []
+
+        allocator = await self._get_portfolio_allocator()
+        portfolio_state = self._build_portfolio_state()
+
+        allocation = await allocator.allocate(opportunities, portfolio_state)
+        self._ai_calls += 1
+
+        if allocation is None:
+            logger.error("Portfolio allocation failed")
+            return []
+
+        # Convert allocation decisions to trade plans
+        plans: list[TradePlan] = []
+
+        for decision in allocation.actionable_decisions:
+            # Find the corresponding opportunity
+            opp = next((o for o in opportunities if o.coin == decision.coin), None)
+            if not opp:
+                continue
+
+            # Create trade plan from allocation decision
+            context = self._calculate_market_context(opp.coin, opp.current_price)
+
+            # Calculate position size from allocation percentage
+            position_value = self.trader.balance * (decision.allocation_pct / 100)
+            size_pct = (position_value / self.trader.balance) * 100
+
+            # Create basic plan
+            plan = TradePlan(
+                action=decision.action,  # type: ignore[arg-type]
+                coin=opp.coin,
+                size_pct=size_pct,
+                stop_loss=0,  # Will be calculated
+                take_profit=0,  # Will be calculated
+                trail_activation=0,
+                trail_distance_pct=0.3,
+                confidence=7,
+                reason=decision.reasoning,
+                signals_considered=opp.signals,
+            )
+
+            # Apply ATR-based stops
+            if plan.is_long:
+                plan.stop_loss = opp.current_price - context.atr * 1.5
+                plan.take_profit = opp.current_price + context.atr * 2.5
+            else:
+                plan.stop_loss = opp.current_price + context.atr * 1.5
+                plan.take_profit = opp.current_price - context.atr * 2.5
+
+            plans.append(plan)
+            logger.info(
+                f"Portfolio allocation: {opp.coin} {decision.action} "
+                f"{decision.allocation_pct:.1f}% (${position_value:,.2f})"
+            )
+
+        return plans
 
     def _signals_to_plan(
         self,
@@ -632,12 +930,15 @@ class BacktestEngine:
         current_price: float,
     ) -> TradePlan | None:
         """
-        Convert signals directly to a trade plan with DYNAMIC risk management.
+        Convert signals directly to a trade plan with STRUCTURE-AWARE TP/SL.
 
-        Risk is adjusted based on signal strength and volatility:
-        - Strong signals (0.8+) → Larger position, tighter stop
-        - Medium signals (0.5-0.8) → Normal position, wider TP
-        - Weak signals (<0.5) → Smaller position, wide stop, much wider TP
+        TP/SL is calculated using Volume Profile structure levels (support/resistance)
+        when available, with ATR as fallback and sanity check.
+
+        Position sizing is adjusted based on signal strength and volatility:
+        - Strong signals (0.8+) → Larger position
+        - Medium signals (0.5-0.8) → Normal position
+        - Weak signals (<0.5) → Smaller position
         """
         if not signals:
             return None
@@ -661,17 +962,41 @@ class BacktestEngine:
         # Calculate average signal strength
         avg_strength = sum(s.strength for s in signals) / len(signals)
 
-        # DYNAMIC RISK MANAGEMENT
+        # DYNAMIC POSITION SIZING (based on signal strength and volatility)
         risk_params = self._calculate_dynamic_risk(avg_strength, context.volatility_level, strategy)
 
-        # Apply dynamic stops
+        # STRUCTURE-AWARE TP/SL
+        # Build structure levels from previous day VP if available
+        structure_levels = self._build_structure_levels()
+
+        if structure_levels.has_levels():
+            # Use structure-aware calculation
+            tp_sl = calculate_structure_tp_sl(
+                direction=direction,  # type: ignore[arg-type]
+                current_price=current_price,
+                levels=structure_levels,
+                atr=atr_value,
+                max_sl_atr_mult=risk_params["stop_mult"] * 1.5,  # Allow wider for structure
+                max_tp_atr_mult=risk_params["tp_mult"] * 1.5,
+                min_rr_ratio=1.5,
+            )
+            stop_loss = tp_sl.stop_loss
+            take_profit = tp_sl.take_profit
+            tp_sl_reason = f"SL: {tp_sl.stop_reason} | TP: {tp_sl.tp_reason}"
+        else:
+            # Fallback to ATR-based (no structure levels available)
+            if direction == "LONG":
+                stop_loss = current_price - (atr_value * risk_params["stop_mult"])
+                take_profit = current_price + (atr_value * risk_params["tp_mult"])
+            else:
+                stop_loss = current_price + (atr_value * risk_params["stop_mult"])
+                take_profit = current_price - (atr_value * risk_params["tp_mult"])
+            tp_sl_reason = "ATR-based (no VP structure available)"
+
+        # Trail activation based on strategy
         if direction == "LONG":
-            stop_loss = current_price - (atr_value * risk_params["stop_mult"])
-            take_profit = current_price + (atr_value * risk_params["tp_mult"])
             trail_activation = current_price * (1 + strategy.risk.trail_activation_pct / 100)
         else:
-            stop_loss = current_price + (atr_value * risk_params["stop_mult"])
-            take_profit = current_price - (atr_value * risk_params["tp_mult"])
             trail_activation = current_price * (1 - strategy.risk.trail_activation_pct / 100)
 
         return TradePlan(
@@ -683,9 +1008,38 @@ class BacktestEngine:
             trail_activation=trail_activation,
             trail_distance_pct=strategy.risk.trail_distance_pct,
             confidence=int(avg_strength * 10),
-            reason=f"Signal consensus: {direction} (strength: {avg_strength:.2f})",
+            reason=f"Signal consensus: {direction} (strength: {avg_strength:.2f}) | {tp_sl_reason}",
             signals_considered=[f"{s.signal_type.value}:{s.direction}" for s in signals],
         )
+
+    def _build_structure_levels(self) -> StructureLevels:
+        """
+        Build StructureLevels from available Volume Profile data.
+
+        Combines previous day VP levels (POC, VAH, VAL) with current session
+        HVN levels if available.
+
+        Returns:
+            StructureLevels with available VP data
+        """
+        levels = StructureLevels()
+
+        # Add previous day VP levels if available
+        if self._prev_day_vp is not None:
+            levels.poc = self._prev_day_vp.poc
+            levels.vah = self._prev_day_vp.vah
+            levels.val = self._prev_day_vp.val
+
+        # Add current session HVN levels if VP builder is available
+        if self._vp_builder is not None:
+            from bot.indicators.volume_profile import get_hvn_levels
+
+            profile = self._vp_builder.get_profile()
+            if profile and profile.levels:
+                hvn = get_hvn_levels(profile, threshold_pct=0.8, min_levels=3)
+                levels.hvn_levels = hvn
+
+        return levels
 
     def _calculate_dynamic_risk(
         self,
@@ -755,6 +1109,55 @@ class BacktestEngine:
             f"Validator report: {self.validator.get_accuracy_report()}"
         )
 
+    def _link_trade_outcomes(self, trades: list) -> None:
+        """
+        Link trade outcomes to AI decisions for analysis.
+
+        This connects each completed trade to the AI decision that initiated it,
+        enabling analysis of confidence calibration and pattern accuracy.
+
+        Args:
+            trades: List of completed trades from the backtest
+        """
+        if not self._decision_logger:
+            return
+
+        # Build a simple mapping of decision order to trades
+        # Since we can't track position IDs perfectly, we match by order
+        confirmed_decisions = [d for d in self._decision_logger.log.decisions if d.confirmed]
+
+        # Match trades to decisions by index (they should align)
+        for i, trade in enumerate(trades):
+            if i >= len(confirmed_decisions):
+                break
+
+            decision = confirmed_decisions[i]
+
+            # Determine outcome
+            if trade.pnl > 0:
+                outcome = "WIN"
+            elif trade.pnl < 0:
+                outcome = "LOSS"
+            else:
+                outcome = "BREAKEVEN"
+
+            # Determine exit reason from trade if available
+            exit_reason = getattr(trade, "exit_reason", "unknown")
+
+            self._decision_logger.log.link_trade_outcome(
+                decision_id=decision.decision_id,
+                trade_id=str(i),
+                outcome=outcome,
+                pnl=trade.pnl,
+                pnl_pct=trade.pnl_percent,
+                exit_reason=exit_reason,
+                hold_duration=trade.duration_seconds,
+            )
+
+        logger.info(
+            f"Linked {min(len(trades), len(confirmed_decisions))} trade outcomes to decisions"
+        )
+
     def reset(self) -> None:
         """Reset the engine for a new backtest."""
         self.trader.reset()
@@ -772,8 +1175,7 @@ class BacktestEngine:
 async def run_backtest(
     data_source: str,
     ai_enabled: bool = True,
-    ai_bypass: bool = False,
-    strategy_name: str = "momentum_scalper",
+    strategy_name: str = "momentum_based",
     initial_balance: float = 10000.0,
 ) -> BacktestResult:
     """
@@ -782,23 +1184,18 @@ async def run_backtest(
     Args:
         data_source: Path to CSV file
         ai_enabled: Whether to use AI for decisions
-        ai_bypass: If True (and ai_enabled=True), skip AI call but use same risk management.
-                   Useful for A/B testing AI confirmation value.
         strategy_name: Name of strategy to use
         initial_balance: Starting balance
 
     Returns:
         BacktestResult
 
-    Example - A/B Testing:
-        # Test 1: AI confirms/rejects trades
-        result_with_ai = await run_backtest("data.csv", ai_enabled=True, ai_bypass=False)
+    Example:
+        # With AI position sizing
+        result = await run_backtest("data.csv", ai_enabled=True)
 
-        # Test 2: Same risk management, but AI auto-confirms (bypass)
-        result_bypass = await run_backtest("data.csv", ai_enabled=True, ai_bypass=True)
-
-        # Test 3: Pure signals-only mode (different code path)
-        result_signals = await run_backtest("data.csv", ai_enabled=False)
+        # Signals-only mode (no AI)
+        result = await run_backtest("data.csv", ai_enabled=False)
     """
     config = BacktestConfig(
         data_source=data_source,
@@ -806,7 +1203,6 @@ async def run_backtest(
         initial_balance=initial_balance,
         strategy_name=strategy_name,
         ai_enabled=ai_enabled,
-        ai_bypass=ai_bypass,
     )
 
     engine = BacktestEngine(config)

@@ -1,14 +1,17 @@
 """
-Mean Reversion Strategy.
+RSI-Based Strategy.
 
-A contrarian strategy that fades overextended moves.
-Looks for price to snap back after moving too far too fast.
+Primary signal: RSI (weight 1.0)
+Supporting signal: VOLUME_PROFILE (weight 0.3)
+
+Focuses on overbought/oversold conditions with VP level support.
+Smaller positions (fading is risky), quick exits.
 """
 
 from bot.signals.base import SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType
 
-PROMPT = """You are a mean reversion trader for crypto markets.
+PROMPT = """You are an RSI-focused trader for crypto markets.
 
 SIGNAL WEIGHTS:
 - RSI: 1.0 (primary signal for overbought/oversold)
@@ -35,9 +38,9 @@ RISK RULES:
 - Small position sizes (fading is risky)
 - Maximum position: 8% of balance"""
 
-MEAN_REVERSION = Strategy(
-    name="Mean Reversion",
-    strategy_type=StrategyType.MEAN_REVERSION,
+RSI_BASED = Strategy(
+    name="RSI Based",
+    strategy_type=StrategyType.RSI_BASED,
     prompt=PROMPT,
     risk=RiskConfig(
         max_position_pct=8.0,  # Smaller positions - fading is risky

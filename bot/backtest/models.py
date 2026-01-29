@@ -7,6 +7,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from bot.ai.decision_analyzer import AIAnalysisReport
+    from bot.ai.decision_logger import DecisionLog
     from bot.backtest.breakout_analyzer import BreakoutAnalysis
     from bot.simulation.models import Trade
 
@@ -23,10 +25,14 @@ class BacktestConfig:
     data_source: str  # Path to CSV file
     coins: list[str]  # Coins to trade (derived from data if not specified)
     initial_balance: float = 10000.0
-    strategy_name: str = "momentum_scalper"  # Name of strategy to use
+    strategy_name: str = "momentum_based"  # Name of strategy to use
     signal_detectors: list[str] = field(default_factory=lambda: ["momentum", "rsi", "macd"])
     ai_enabled: bool = True  # False = signals-only mode, True = AI decisions
-    ai_bypass: bool = False  # If True (and ai_enabled=True), skip AI call but use same risk mgmt
+    portfolio_mode: bool = False  # If True, AI allocates across all markets at once
+
+    # Account goal settings (for AI position sizing strategist / portfolio allocator)
+    account_goal: float | None = None  # Target balance to reach (e.g., 50000.0)
+    goal_timeframe_days: int | None = None  # Days to reach the goal (e.g., 30)
 
     # Optional date range filter (uses full data if not specified)
     start_date: datetime | None = None
@@ -42,6 +48,10 @@ class BacktestConfig:
     vp_enabled: bool = False  # Enable Volume Profile signals
     vp_tick_size: float = 10.0  # Price bucket size for VP
     vp_session_type: str = "daily"  # "daily" or "rolling"
+
+    # AI Decision logging settings
+    log_decisions: bool = False  # Enable AI decision logging for analysis
+    decision_log_path: str | None = None  # Path to save decision log (auto-generated if not set)
 
     def __post_init__(self) -> None:
         """Validate configuration."""
@@ -60,10 +70,12 @@ class BacktestConfig:
             data_source=data["data_source"],
             coins=data.get("coins", []),
             initial_balance=data.get("initial_balance", 10000.0),
-            strategy_name=data.get("strategy_name", "momentum_scalper"),
+            strategy_name=data.get("strategy_name", "momentum_based"),
             signal_detectors=data.get("signal_detectors", ["momentum", "rsi", "macd"]),
             ai_enabled=data.get("ai_enabled", True),
-            ai_bypass=data.get("ai_bypass", False),
+            portfolio_mode=data.get("portfolio_mode", False),
+            account_goal=data.get("account_goal"),
+            goal_timeframe_days=data.get("goal_timeframe_days"),
             start_date=datetime.fromisoformat(data["start_date"])
             if data.get("start_date")
             else None,
@@ -151,6 +163,10 @@ class BacktestResult:
     # Signal accuracy report (optional, populated after run)
     signal_accuracy_report: dict | None = None
 
+    # AI decision analysis (optional, populated when log_decisions=True)
+    decision_log: "DecisionLog | None" = None
+    ai_analysis: "AIAnalysisReport | None" = None
+
     @property
     def total_trades(self) -> int:
         """Total number of completed trades."""
@@ -195,7 +211,6 @@ class BacktestResult:
                 "strategy_name": self.config.strategy_name,
                 "signal_detectors": self.config.signal_detectors,
                 "ai_enabled": self.config.ai_enabled,
-                "ai_bypass": self.config.ai_bypass,
             },
             "performance": {
                 "final_balance": self.final_balance,
@@ -277,6 +292,10 @@ class BacktestResult:
         # Print signal accuracy report if available
         if self.signal_accuracy_report:
             self._print_signal_accuracy()
+
+        # Print AI analysis if available
+        if self.ai_analysis:
+            self.ai_analysis.print_summary()
 
     def _print_breakout_analysis(self) -> None:
         """Print breakout analysis section."""

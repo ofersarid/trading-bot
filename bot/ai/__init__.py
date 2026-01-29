@@ -1,9 +1,24 @@
 """AI module for local LLM-powered trading analysis."""
 
 from bot.ai.analyzer import AIDecision, MarketAnalyzer
+from bot.ai.decision_analyzer import AIAnalysisReport, AIDecisionAnalyzer, analyze_decision_log
+from bot.ai.decision_logger import AIDecisionLogger, DecisionLog
 from bot.ai.interpretation_scheduler import InterpretationScheduler
-from bot.ai.models import AIMetrics, AnalysisResult, CoinMomentum, Freshness, Sentiment, Signal
+from bot.ai.models import (
+    AIMetrics,
+    AllocationDecision,
+    AnalysisResult,
+    CoinMomentum,
+    Freshness,
+    PortfolioAllocation,
+    PortfolioOpportunity,
+    PortfolioPosition,
+    PortfolioState,
+    Sentiment,
+    Signal,
+)
 from bot.ai.ollama_client import OllamaClient
+from bot.ai.portfolio_allocator import PortfolioAllocator, create_portfolio_allocator
 from bot.ai.prompts import format_ai_trading_prompt, get_strategy_prompt
 from bot.ai.scalper_interpreter import ScalperInterpretation, ScalperInterpreter
 from bot.ai.signal_brain import SignalBrain, create_signal_brain
@@ -18,14 +33,24 @@ from bot.strategies import (
 )
 
 __all__ = [
+    "AIAnalysisReport",
     "AIDecision",
+    "AIDecisionAnalyzer",
+    "AIDecisionLogger",
     "AIMetrics",
+    "AllocationDecision",
     "AnalysisResult",
     "CoinMomentum",
+    "DecisionLog",
     "Freshness",
     "InterpretationScheduler",
     "MarketAnalyzer",
     "OllamaClient",
+    "PortfolioAllocation",
+    "PortfolioAllocator",
+    "PortfolioOpportunity",
+    "PortfolioPosition",
+    "PortfolioState",
     "RiskConfig",
     "ScalperInterpretation",
     "ScalperInterpreter",
@@ -35,6 +60,8 @@ __all__ = [
     "Strategy",
     "StrategyType",
     "TradingStrategy",
+    "analyze_decision_log",
+    "create_portfolio_allocator",
     "create_signal_brain",
     "format_ai_trading_prompt",
     "get_strategy",

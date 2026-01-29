@@ -1,8 +1,14 @@
 # Fetch Data
 
-Fetch OHLCV and trade data for NY trading session and create a data folder with a scenarios template.
+Fetch OHLCV and trade data for NY trading session, then **analyze price action to identify optimal trades**.
 
 **Includes previous day's data** for Volume Profile context (POC, VAH, VAL levels).
+
+**Generates `scenarios.md`** with:
+- Session summary (open/high/low/close/range)
+- Optimal single trade (maximum profit with one trade)
+- Optimal two trades (maximum combined profit)
+- Scenario breakdown with entry/exit points for training
 
 ---
 
@@ -140,48 +146,127 @@ If the command fails, warn but continue.
 
 ---
 
-## Step 7: Create Scenarios File
+## Step 7: Analyze Session and Create Scenarios File
 
-Create a `scenarios.md` file in the folder to break down the session into specific scenarios:
+**Read the OHLCV CSV file** and perform hindsight optimal trade analysis.
+
+### 7.1 Load and Parse Data
+
+Read the trading day OHLCV file: `data/historical/[FOLDER_NAME]/[OHLCV_FILE]`
+
+Extract from the CSV:
+- All candle data (timestamp, open, high, low, close, volume)
+- Session open price (first candle open)
+- Session high (maximum high across all candles, with timestamp)
+- Session low (minimum low across all candles, with timestamp)
+- Session close (last candle close)
+
+### 7.2 Calculate Optimal Trades
+
+**Single Optimal Trade:**
+Find the largest price swing in the session:
+1. If session low occurs BEFORE session high: Optimal trade is LONG from low to high
+2. If session high occurs BEFORE session low: Optimal trade is SHORT from high to low
+3. Calculate profit percentage: `((exit - entry) / entry) * 100`
+
+**Two Optimal Trades:**
+Find the best combination of two non-overlapping trades:
+1. Scan all significant swing points (local highs/lows with >0.2% moves)
+2. Find the two best non-overlapping trades that maximize combined profit
+3. Consider all combinations: LONG+LONG, SHORT+SHORT, LONG+SHORT, SHORT+LONG
+
+### 7.3 Identify Scenario Types
+
+For each significant price move, classify as:
+- `bullish_breakout` - Price breaks above resistance with momentum (>0.3% move up)
+- `bearish_breakdown` - Price breaks below support with momentum (>0.3% move down)
+- `bullish_rejection` - Price tests low and reverses up sharply
+- `bearish_rejection` - Price tests high and reverses down sharply
+- `consolidation` - Sideways movement (<0.2% range over >30 minutes)
+- `trend_continuation` - Move in same direction as previous scenario
+
+### 7.4 Generate scenarios.md
+
+Write the analysis to `data/historical/[FOLDER_NAME]/scenarios.md` with this structure:
 
 ```markdown
-# [COIN] - [DATE]
+# [COIN] - [DATE] - Optimal Trade Analysis
 
 NY Session (09:30-16:00 ET / 16:30-23:00 Israel)
 
-## Previous Day VP Context
+## Session Summary
 
-| Level | Price | Notes |
-|-------|-------|-------|
-| VAH | $XX,XXX | Value Area High |
-| POC | $XX,XXX | Point of Control - highest volume |
-| VAL | $XX,XXX | Value Area Low |
+| Metric | Value |
+|--------|-------|
+| Open | $[OPEN] |
+| High | $[HIGH] (at [HIGH_TIME] Israel) |
+| Low | $[LOW] (at [LOW_TIME] Israel) |
+| Close | $[CLOSE] |
+| Range | [RANGE]% |
+| Direction | [BULLISH/BEARISH/NEUTRAL] |
 
 ---
 
-## Scenarios
+## Optimal Trades (Hindsight Analysis)
+
+### Single Trade (Maximum Profit)
+
+| Direction | Entry | Exit | Profit |
+|-----------|-------|------|--------|
+| [LONG/SHORT] | $[ENTRY] @ [TIME] | $[EXIT] @ [TIME] | **+[PROFIT]%** |
+
+**Setup**: [Describe the price action that led to this optimal entry]
+
+---
+
+### Two Trades (Maximum Combined Profit)
+
+| # | Direction | Entry | Exit | Profit |
+|---|-----------|-------|------|--------|
+| 1 | [LONG/SHORT] | $[ENTRY] @ [TIME] | $[EXIT] @ [TIME] | +[PROFIT]% |
+| 2 | [LONG/SHORT] | $[ENTRY] @ [TIME] | $[EXIT] @ [TIME] | +[PROFIT]% |
+| | | | **Total** | **+[TOTAL]%** |
+
+---
+
+## Session Scenarios
 
 | # | Time (Israel) | Type | Description |
 |---|---------------|------|-------------|
-| 1 | HH:MM - HH:MM | | |
-| 2 | HH:MM - HH:MM | | |
-| 3 | HH:MM - HH:MM | | |
+| 1 | [START] - [END] | [TYPE] | [DESCRIPTION] |
+| 2 | [START] - [END] | [TYPE] | [DESCRIPTION] |
+| ... | ... | ... | ... |
 
 ---
 
 ## Scenario Details
 
-### 1. [Time] - [Type]
+### Scenario 1: [TIME_RANGE] - [TYPE]
 
+**Price Action**: [Describe what happened]
 
+**Optimal Trade**:
+- Direction: [LONG/SHORT]
+- Entry: $[PRICE] @ [TIME] - [Why this is the optimal entry]
+- Exit: $[PRICE] @ [TIME] - [Why this is the optimal exit]
+- Profit: +[X]%
 
-### 2. [Time] - [Type]
+---
 
+### Scenario 2: [TIME_RANGE] - [TYPE]
 
+[Same structure as above]
 
-### 3. [Time] - [Type]
+---
 
+## Training Data Summary
 
+These optimal trades can be used to train the system:
+
+| Scenario | Signal Type | Entry Trigger | Exit Trigger | Profit |
+|----------|-------------|---------------|--------------|--------|
+| 1 | [TYPE] | [CONDITION] | [CONDITION] | +[X]% |
+| 2 | [TYPE] | [CONDITION] | [CONDITION] | +[X]% |
 
 ---
 
@@ -191,25 +276,17 @@ NY Session (09:30-16:00 ET / 16:30-23:00 Israel)
 - `bearish_breakdown` - Strong move down through support
 - `bullish_rejection` - Failed breakdown, reversal up
 - `bearish_rejection` - Failed breakout, reversal down
-- `choppy` - No clear direction, sideways
-- `extreme_buying` - Overextended rally
-- `extreme_selling` - Panic drop
-
-## VP Trading Rules
-
-- **Price above VAH**: Bullish bias, look for longs on pullbacks to VAH
-- **Price below VAL**: Bearish bias, look for shorts on rallies to VAL
-- **Price inside VA**: Range-bound, expect mean reversion to POC
-- **POC acts as magnet**: Price tends to revisit POC during the session
+- `consolidation` - Sideways, no clear direction
+- `trend_continuation` - Continuation of previous move
 ```
 
-Write this template to `data/historical/[FOLDER_NAME]/scenarios.md`
+**Important**: Fill in ALL values from the actual data. Do not leave placeholders.
 
 ---
 
 ## Step 8: Report Summary
 
-> **Data Folder Created Successfully**
+> **Data Folder Created and Analyzed**
 >
 > | Item | Value |
 > |------|-------|
@@ -230,6 +307,14 @@ Write this template to `data/historical/[FOLDER_NAME]/scenarios.md`
 > | OHLCV | `prev_day_[OHLCV_FILENAME]` |
 > | Trades | `prev_day_[TRADE_FILENAME]` (or "Not fetched") |
 >
+> **Scenario Analysis:**
+> | Metric | Value |
+> |--------|-------|
+> | Session Range | [RANGE]% |
+> | Optimal Single Trade | [DIRECTION] +[PROFIT]% |
+> | Optimal Two Trades | +[TOTAL_PROFIT]% combined |
+> | Scenarios Identified | [COUNT] |
+>
 > **Files in folder:**
 > ```
 > data/historical/[COIN]_[YYYYMMDD]/
@@ -237,14 +322,13 @@ Write this template to `data/historical/[FOLDER_NAME]/scenarios.md`
 > ├── [TRADE_FILE]              # Trading day
 > ├── prev_day_[OHLCV_FILE]     # Previous day (VP context)
 > ├── prev_day_[TRADE_FILE]     # Previous day (VP context)
-> └── scenarios.md
+> └── scenarios.md              # Optimal trade analysis (generated)
 > ```
 >
 > **Next steps:**
-> 1. Review the session in TradingView
-> 2. Calculate previous day's VP levels (POC, VAH, VAL) and add to `scenarios.md`
-> 3. Edit `scenarios.md` to break down into specific scenarios
-> 4. Run backtest: `python run_backtest.py --data "data/historical/[COIN]_[YYYYMMDD]/*.csv" --vp`
+> 1. Review `scenarios.md` for optimal entry/exit points
+> 2. Use the training data to configure signal detection
+> 3. Run backtest: `python run_backtest.py --data "data/historical/[COIN]_[YYYYMMDD]/*.csv" --vp`
 
 ---
 

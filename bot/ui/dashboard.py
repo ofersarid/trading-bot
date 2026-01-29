@@ -108,10 +108,10 @@ class TradingDashboard(App):
 
     # Available AI trading strategies
     AI_STRATEGIES = [
-        TradingStrategy.MOMENTUM_SCALPER,
-        TradingStrategy.TREND_FOLLOWER,
-        TradingStrategy.MEAN_REVERSION,
-        TradingStrategy.CONSERVATIVE,
+        TradingStrategy.MOMENTUM_BASED,
+        TradingStrategy.MOMENTUM_MACD,
+        TradingStrategy.RSI_BASED,
+        TradingStrategy.MULTI_SIGNAL,
     ]
 
     # Reactive state
@@ -174,7 +174,7 @@ class TradingDashboard(App):
         self.ai_calls = 0
 
         # AI Trading Strategy - defines how the AI trades (via prompt)
-        self.ai_strategy = TradingStrategy.MOMENTUM_SCALPER
+        self.ai_strategy = TradingStrategy.MOMENTUM_BASED
 
         # Local AI analyzer (Ollama + Mistral) - enabled by default
         self.ai_client = OllamaClient(model="mistral")
@@ -1187,7 +1187,7 @@ class TradingDashboard(App):
         """
         Run the Scalper AI for trading decisions.
 
-        This is the unified decision system for MOMENTUM_SCALPER strategy.
+        This is the unified decision system for MOMENTUM_BASED strategy.
         Uses the rich scalper persona to read the tape and make trading decisions.
         """
         # Find the best coin to analyze (prioritize coins with positions, then primary)
@@ -1360,15 +1360,15 @@ class TradingDashboard(App):
         """
         AI makes a complete trading decision - full control mode.
 
-        For MOMENTUM_SCALPER strategy, uses the dedicated ScalperInterpreter
+        For MOMENTUM_BASED strategy, uses the dedicated ScalperInterpreter
         which has a richer persona and tape-reading capabilities.
         For other strategies, uses the general AI trading prompt.
         """
         if not self.prices:
             return
 
-        # For MOMENTUM_SCALPER, use the dedicated scalper interpreter
-        if self.ai_strategy == TradingStrategy.MOMENTUM_SCALPER:
+        # For MOMENTUM_BASED, use the dedicated scalper interpreter
+        if self.ai_strategy == TradingStrategy.MOMENTUM_BASED:
             await self._run_scalper_decision()
             return
 
@@ -2012,10 +2012,10 @@ class TradingDashboard(App):
 
         # Get strategy description
         descriptions = {
-            TradingStrategy.MOMENTUM_SCALPER: "Quick entries/exits, small profits",
-            TradingStrategy.TREND_FOLLOWER: "Ride the wave, let winners run",
-            TradingStrategy.MEAN_REVERSION: "Fade overextended moves",
-            TradingStrategy.CONSERVATIVE: "High-confidence only, preserve capital",
+            TradingStrategy.MOMENTUM_BASED: "Primary: MOMENTUM + VP support",
+            TradingStrategy.MOMENTUM_MACD: "Primary: MOMENTUM + MACD confirmation",
+            TradingStrategy.RSI_BASED: "Primary: RSI + VP support",
+            TradingStrategy.MULTI_SIGNAL: "Balanced: Multiple signals required",
         }
         desc = descriptions.get(self.ai_strategy, "")
 

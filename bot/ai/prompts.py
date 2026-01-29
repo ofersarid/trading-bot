@@ -1,4 +1,15 @@
-"""Prompt templates for trading analysis."""
+"""
+Prompt templates for trading analysis.
+
+DEPRECATED: This module uses different prompts than the backtest system.
+For consistent backtest-to-live results, use bot.core.TradingCore instead.
+
+The unified architecture in bot.core.trading_core.py and bot.ai.signal_brain.py
+ensures that backtest results are predictive of live performance.
+
+This module is kept for backward compatibility but should not be used
+for new development.
+"""
 
 from typing import TYPE_CHECKING
 
@@ -300,15 +311,15 @@ def get_strategy_prompt(strategy: "StrategyType") -> str:
     Returns:
         The strategy's prompt string
     """
-    from bot.strategies import MOMENTUM_SCALPER
+    from bot.strategies import MOMENTUM_BASED
     from bot.strategies import get_strategy as get_strategy_instance
 
     try:
         strategy_obj = get_strategy_instance(strategy.value)
         return strategy_obj.prompt
     except (ValueError, AttributeError):
-        # Fallback to momentum scalper if strategy not found
-        return MOMENTUM_SCALPER.prompt
+        # Fallback to momentum_based if strategy not found
+        return MOMENTUM_BASED.prompt
 
 
 def format_ai_trading_prompt(

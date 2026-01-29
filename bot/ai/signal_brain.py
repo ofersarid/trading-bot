@@ -8,61 +8,87 @@ based on the configured strategy's trading style and risk parameters.
 import logging
 from typing import TYPE_CHECKING
 
-from bot.ai.models import MarketContext, TradePlan
+from bot.ai.models import AccountContext, MarketContext, TradePlan
 from bot.ai.ollama_client import OllamaClient
 from bot.strategies import Strategy, get_strategy
 
 if TYPE_CHECKING:
+    from bot.ai.decision_logger import AIDecisionLogger
     from bot.signals.base import Signal
     from bot.simulation.models import Position
 
 logger = logging.getLogger(__name__)
 
 
-# System prompt to enforce trading role - prevents "I'm an assistant" responses
-TRADING_SYSTEM_PROMPT = """You are a TRADING SIGNAL FILTER, not a chatbot or assistant.
+# System prompt for Position Sizing Strategist role
+TRADING_SYSTEM_PROMPT = """You are a POSITION SIZING STRATEGIST, not a chatbot or assistant.
 
 CRITICAL RULES:
 1. You MUST output ONLY the exact format requested - no explanations, no preamble
-2. Your response MUST start with "CONFIRM:" followed by YES or NO
-3. You are evaluating a pre-calculated trade setup - confirm or reject it
-4. Risk parameters (stops, size) are handled separately - focus ONLY on setup quality
+2. Your response MUST start with "POSITION_MULTIPLIER:"
+3. The trade direction (LONG/SHORT) is already decided - you decide HOW MUCH to risk
+4. Your job is to adjust position size based on account goals and current progress
 
-You will receive market signals and must evaluate if this is a quality trade setup."""
+You will receive account context and must decide the appropriate position size multiplier."""
 
-# Simplified prompt template - focused on judgment, not parameter calculation
-SIGNAL_EVALUATION_PROMPT = """Strategy: "{strategy_name}"
+# Position Sizing Strategist prompt - AI decides HOW MUCH to risk, not IF to trade
+SIGNAL_EVALUATION_PROMPT = """You are a Position Sizing Strategist for a {strategy_name} strategy.
 
 {strategy_prompt}
 
-## TRADE SETUP TO EVALUATE
+## TRADE SETUP (Direction already decided)
 Direction: {direction}
-Weighted Score: {winning_score:.2f} (threshold: {threshold})
+Signal Score: {winning_score:.2f} (threshold: {threshold})
+Volatility: {volatility_level}
 
-## SIGNALS DETECTED
+## SIGNALS
 {signals}
 
-## CURRENT POSITIONS
-{positions}
-
-## MARKET CONTEXT
-- Volatility: {volatility_level}
+## ACCOUNT CONTEXT
+{account_context}
 
 ## YOUR JOB
-The signals suggest going {direction}. Evaluate this setup:
+The signals have triggered a {direction} trade. You must decide the POSITION SIZE.
 
-1. Do these signals tell a coherent story, or are they contradictory?
-2. Is anything suspicious (e.g., strong RSI but weak momentum)?
-3. Would a disciplined trader take this trade?
+Consider:
+1. Are we ahead or behind on our goal? (Adjust aggression)
+2. How strong is this signal setup? (Higher score = more confidence)
+3. What's the market volatility? (Higher vol = smaller size)
+4. How much time do we have left? (Less time + behind = more aggressive OR accept failure)
 
-OUTPUT FORMAT (start with CONFIRM:):
-CONFIRM: [YES/NO]
-CONFIDENCE: [1-10]
-REASON: [One sentence - what makes this setup good or questionable]
+POSITION_MULTIPLIER guidelines:
+- 0.5x = Conservative (protect gains, or weak setup)
+- 1.0x = Normal (on track, decent setup)
+- 1.5x = Aggressive (behind schedule, strong setup)
+- 2.0x = Very aggressive (last chance, excellent setup)
+- 0.0x = Skip trade (goal reached, or setup too risky given account state)
+
+OUTPUT FORMAT (start with POSITION_MULTIPLIER:):
+POSITION_MULTIPLIER: [0.0 - 2.0]
+REASONING: [One sentence - why this size given account state and setup]"""
+
+# Fallback prompt when no account goal is set (simple confirmation mode)
+SIMPLE_EVALUATION_PROMPT = """Strategy: "{strategy_name}"
+
+## TRADE SETUP
+Direction: {direction}
+Signal Score: {winning_score:.2f} (threshold: {threshold})
+Volatility: {volatility_level}
+
+## SIGNALS
+{signals}
+
+## YOUR JOB
+The signals suggest going {direction}. Confirm or adjust:
+
+OUTPUT FORMAT:
+POSITION_MULTIPLIER: [0.5 - 1.5]
+REASONING: [One sentence]
 
 Guidelines:
-- YES = Signals align well, clean setup, take the trade
-- NO = Something off, contradictory signals, or low quality setup"""
+- 1.0 = Normal size (signals look good)
+- 0.5-0.8 = Reduced size (something off, high volatility)
+- 1.2-1.5 = Increased size (strong alignment, low volatility)"""
 
 
 # Legacy prompt for backward compatibility (kept but not used)
@@ -110,22 +136,24 @@ RULES:
 
 class SignalBrain:
     """
-    AI decision maker that evaluates signals and produces trade plans.
+    AI Position Sizing Strategist for the 3-layer backtesting architecture.
 
-    The brain receives signals from multiple detectors, considers the
-    current market context and positions, and decides whether to trade
-    based on the strategy's trading style.
+    The brain receives signals from multiple detectors and decides HOW MUCH
+    to risk on each trade based on:
+    - Signal strength and quality
+    - Account state and goals
+    - Market volatility
+    - Progress toward trading objectives
 
-    Supports two modes:
-    - use_ai=True: AI confirms/rejects trades based on signal quality
-    - use_ai=False: Bypass AI, auto-confirm trades that meet threshold (for A/B testing)
+    The direction (LONG/SHORT) is determined by weighted signal scoring.
+    The AI's job is to decide position SIZE, not direction.
     """
 
     def __init__(
         self,
         strategy: Strategy,
         ollama_client: OllamaClient,
-        use_ai: bool = True,
+        decision_logger: "AIDecisionLogger | None" = None,
     ) -> None:
         """
         Initialize the signal brain.
@@ -133,31 +161,32 @@ class SignalBrain:
         Args:
             strategy: Trading strategy that defines decision-making style
             ollama_client: Client for AI inference
-            use_ai: If True, use AI for trade confirmation. If False, bypass AI
-                    and auto-confirm trades that meet signal threshold.
+            decision_logger: Optional logger to track AI decisions for analysis
         """
         self.strategy = strategy
         self.ollama = ollama_client
-        self.use_ai = use_ai
+        self.decision_logger = decision_logger
         self._call_count = 0
-        self._bypass_count = 0  # Track trades that bypassed AI
+        self._last_decision_id: str | None = None  # Track for linking outcomes
 
     async def evaluate_signals(
         self,
         signals: list["Signal"],
         current_positions: dict[str, "Position"],
         market_context: MarketContext,
+        account_context: AccountContext | None = None,
     ) -> TradePlan | None:
         """
-        Evaluate signals and decide on a trade plan.
+        Evaluate signals and decide on a trade plan with AI-determined position sizing.
 
         Args:
             signals: List of signals to evaluate
             current_positions: Current open positions by coin
             market_context: Market context with volatility info
+            account_context: Account state and goals for position sizing decisions
 
         Returns:
-            TradePlan if AI decides to act, None if no valid response
+            TradePlan if trade should be taken, None if no valid response
         """
         # Pre-filter signals based on strategy's signal_weights
         valid_signals = self._filter_signals(signals, market_context.coin)
@@ -189,77 +218,96 @@ class SignalBrain:
         signal_names = [f"{s.signal_type.value}:{s.direction}" for s in valid_signals]
         winning_score = max(long_score, short_score)
 
-        # MODE: AI Bypass - auto-confirm trades that meet threshold
-        if not self.use_ai:
-            self._bypass_count += 1
-            logger.info(f"AI BYPASS: Auto-confirming {direction} (score={winning_score:.2f})")
-
-            # Create plan directly from threshold result
-            plan = self._create_plan_from_signals(
-                direction=direction,
-                coin=market_context.coin,
-                confidence=7,  # Default confidence for bypass mode
-                reason=f"AI bypass: threshold met (score={winning_score:.2f})",
-                signal_names=signal_names,
-            )
-
-            # Apply risk management
-            return self._validate_plan(plan, market_context, valid_signals)
-
-        # MODE: AI Confirmation - ask AI to confirm/reject the setup
+        # AI Position Sizing - ask AI to determine position size
         prompt = self._format_prompt(
             signals=valid_signals,
             positions=current_positions,
             context=market_context,
             direction=direction,
             winning_score=winning_score,
+            account_context=account_context,
         )
 
         try:
             response_text, tokens, response_time = await self.ollama.analyze(
                 prompt=prompt,
-                temperature=0.1,  # Lower temperature for more deterministic output
-                max_tokens=100,  # Reduced - only need CONFIRM/CONFIDENCE/REASON
+                temperature=0.2,  # Slightly higher for position sizing creativity
+                max_tokens=100,
                 system_prompt=TRADING_SYSTEM_PROMPT,
             )
             self._call_count += 1
 
             logger.debug(f"AI response ({tokens} tokens, {response_time:.0f}ms): {response_text}")
 
-            # Parse simplified response
-            confirmed, confidence, reason = self._parse_confirmation_response(response_text)
+            # Parse position sizing response
+            position_multiplier, reasoning = self._parse_position_sizing_response(response_text)
 
-            if not confirmed:
-                logger.info(f"AI REJECTED {direction}: {reason}")
-                return TradePlan.wait(market_context.coin, f"AI rejected: {reason}")
+            # If AI says 0.0x, skip the trade
+            if position_multiplier <= 0:
+                logger.info(f"AI SKIPPED {direction}: {reasoning}")
 
-            logger.info(f"AI CONFIRMED {direction} (confidence={confidence}): {reason}")
+                # Log the skip decision
+                if self.decision_logger:
+                    self._last_decision_id = self.decision_logger.log_decision(
+                        signals=valid_signals,
+                        market_context=market_context,
+                        weighted_score=winning_score,
+                        threshold=self.strategy.signal_threshold,
+                        direction=direction,
+                        confirmed=False,
+                        confidence=0,
+                        reason=reasoning,
+                        mode="AI_SIZING",
+                        signal_weights=self.strategy.signal_weights,
+                    )
 
-            # Create plan with AI's confidence
+                return TradePlan.wait(market_context.coin, f"AI skipped: {reasoning}")
+
+            logger.info(f"AI SIZED {direction} at {position_multiplier:.1f}x: {reasoning}")
+
+            # Log the position sizing decision
+            if self.decision_logger:
+                self._last_decision_id = self.decision_logger.log_decision(
+                    signals=valid_signals,
+                    market_context=market_context,
+                    weighted_score=winning_score,
+                    threshold=self.strategy.signal_threshold,
+                    direction=direction,
+                    confirmed=True,
+                    confidence=int(position_multiplier * 5),  # Convert multiplier to confidence
+                    reason=reasoning,
+                    mode="AI_SIZING",
+                    signal_weights=self.strategy.signal_weights,
+                )
+
+            # Create plan with AI-determined position size
             plan = self._create_plan_from_signals(
                 direction=direction,
                 coin=market_context.coin,
-                confidence=confidence,
-                reason=reason,
+                confidence=int(position_multiplier * 5),
+                reason=reasoning,
                 signal_names=signal_names,
+                position_multiplier=position_multiplier,
             )
 
-            # Validate the plan with dynamic risk management
-            return self._validate_plan(plan, market_context, valid_signals)
+            # Validate the plan with AI-determined position multiplier
+            return self._validate_plan(
+                plan, market_context, valid_signals, position_multiplier=position_multiplier
+            )
 
         except Exception as e:
             logger.error(f"AI evaluation failed: {e}")
             return None
 
-    def _parse_confirmation_response(self, response: str) -> tuple[bool, int, str]:
+    def _parse_position_sizing_response(self, response: str) -> tuple[float, str]:
         """
-        Parse the simplified AI confirmation response.
+        Parse the AI position sizing response.
 
         Args:
             response: Raw AI response text
 
         Returns:
-            Tuple of (confirmed, confidence, reason)
+            Tuple of (position_multiplier, reasoning)
         """
         lines = response.strip().split("\n")
         data: dict[str, str] = {}
@@ -269,21 +317,21 @@ class SignalBrain:
                 key, value = line.split(":", 1)
                 data[key.strip().upper()] = value.strip()
 
-        # Parse CONFIRM
-        confirm_str = data.get("CONFIRM", "NO").upper()
-        confirmed = confirm_str in ("YES", "Y", "TRUE", "1")
-
-        # Parse CONFIDENCE
+        # Parse POSITION_MULTIPLIER
         try:
-            confidence = int(data.get("CONFIDENCE", "5"))
-            confidence = max(1, min(10, confidence))
+            multiplier_str = data.get("POSITION_MULTIPLIER", "1.0")
+            # Handle formats like "1.5x" or "1.5"
+            multiplier_str = multiplier_str.lower().replace("x", "").strip()
+            position_multiplier = float(multiplier_str)
+            # Clamp to valid range
+            position_multiplier = max(0.0, min(2.0, position_multiplier))
         except ValueError:
-            confidence = 5
+            position_multiplier = 1.0
 
-        # Parse REASON
-        reason = data.get("REASON", "No reason provided")
+        # Parse REASONING
+        reasoning = data.get("REASONING", data.get("REASON", "No reasoning provided"))
 
-        return confirmed, confidence, reason
+        return position_multiplier, reasoning
 
     def _create_plan_from_signals(
         self,
@@ -292,6 +340,7 @@ class SignalBrain:
         confidence: int,
         reason: str,
         signal_names: list[str],
+        position_multiplier: float = 1.0,  # noqa: ARG002 - reserved for future use
     ) -> TradePlan:
         """
         Create a TradePlan from the signal direction.
@@ -305,6 +354,7 @@ class SignalBrain:
             confidence: Confidence level 1-10
             reason: Reason for the trade
             signal_names: List of signal names
+            position_multiplier: AI-determined multiplier for position size (0.0-2.0)
 
         Returns:
             TradePlan with direction set, risk params to be filled by validation
@@ -416,13 +466,14 @@ class SignalBrain:
     def _format_prompt(
         self,
         signals: list["Signal"],
-        positions: dict[str, "Position"],
+        positions: dict[str, "Position"],  # noqa: ARG002 - reserved for position context
         context: MarketContext,
         direction: str,
         winning_score: float,
+        account_context: AccountContext | None = None,
     ) -> str:
         """
-        Format the simplified prompt for AI confirmation.
+        Format the prompt for AI position sizing.
 
         Args:
             signals: Signals to include
@@ -430,11 +481,12 @@ class SignalBrain:
             context: Market context
             direction: LONG or SHORT (pre-determined by threshold)
             winning_score: The winning weighted score
+            account_context: Account state and goals for position sizing
 
         Returns:
             Formatted prompt string
         """
-        # Format signals with their weights - simplified
+        # Format signals with their weights
         signal_lines = []
         for s in signals:
             weight = self.strategy.signal_weights.get(s.signal_type, 0.0)
@@ -445,15 +497,13 @@ class SignalBrain:
 
         signals_str = "\n".join(signal_lines) if signal_lines else "  None"
 
-        # Format positions - simplified
-        position_lines = []
-        for coin, pos in positions.items():
-            if coin == context.coin:
-                pnl = pos.unrealized_pnl_percent(context.current_price)
-                position_lines.append(f"  - {coin}: {pos.side.value.upper()} (P&L: {pnl:+.2f}%)")
-        positions_str = "\n".join(position_lines) if position_lines else "  No open positions"
+        # Format account context
+        if account_context and account_context.has_goal:
+            account_context_str = self._format_account_context(account_context)
+        else:
+            account_context_str = "No account goal set. Use standard position sizing."
 
-        # Build the simplified prompt
+        # Build the prompt
         return SIGNAL_EVALUATION_PROMPT.format(
             strategy_prompt=self.strategy.prompt,
             strategy_name=self.strategy.name,
@@ -461,51 +511,91 @@ class SignalBrain:
             winning_score=winning_score,
             threshold=self.strategy.signal_threshold,
             signals=signals_str,
-            positions=positions_str,
             volatility_level=context.volatility_level,
+            account_context=account_context_str,
         )
+
+    def _format_account_context(self, account_context: AccountContext) -> str:
+        """
+        Format account context for the AI prompt.
+
+        Args:
+            account_context: Account state and goals
+
+        Returns:
+            Formatted account context string
+        """
+        lines = [
+            f"Current Balance: ${account_context.current_balance:,.2f}",
+            f"Starting Balance: ${account_context.initial_balance:,.2f}",
+            f"Current P&L: ${account_context.pnl:+,.2f} ({account_context.pnl_pct:+.1f}%)",
+        ]
+
+        if account_context.has_goal:
+            lines.extend(
+                [
+                    "",
+                    f"GOAL: ${account_context.account_goal:,.2f}",
+                    f"Timeframe: {account_context.goal_timeframe_days} days",
+                    f"Days Elapsed: {account_context.days_elapsed}",
+                    f"Days Remaining: {account_context.days_remaining}",
+                    "",
+                    f"Goal Progress: {account_context.goal_progress_pct:.1f}%",
+                    f"Time Progress: {account_context.time_progress_pct:.1f}%",
+                    f"Pace Status: {account_context.pace_status.upper()}",
+                ]
+            )
+
+            req_daily = account_context.required_daily_return_pct
+            if req_daily is not None:
+                lines.append(f"Required Daily Return: {req_daily:.2f}%")
+
+        lines.append("")
+        lines.append(f"Base Position Size: {account_context.base_position_pct:.1f}%")
+
+        return "\n".join(lines)
 
     def _validate_plan(
         self,
         plan: TradePlan,
         context: MarketContext,
-        signals: list["Signal"] | None = None,
+        signals: list["Signal"] | None = None,  # noqa: ARG002 - reserved for signal-based stops
+        position_multiplier: float = 1.0,
     ) -> TradePlan:
         """
-        Validate and adjust the trade plan with DYNAMIC risk management.
+        Validate and adjust the trade plan.
 
-        Risk is adjusted based on:
-        1. Signal strength (stronger signals → larger positions, tighter stops)
-        2. Volatility (higher volatility → smaller positions, wider stops)
-        3. Confidence (higher confidence → better risk/reward targets)
+        POSITION SIZE: Determined SOLELY by AI multiplier.
+        The AI receives the base position size and decides the multiplier.
+        No deterministic adjustment - AI is the only decider.
+
+        STOPS: Determined by ATR and volatility (deterministic).
+        AI does not decide stops - that's pure risk management math.
 
         Args:
             plan: Parsed trade plan
             context: Market context
-            signals: Original signals for strength-based adjustments
+            signals: Original signals (for stop calculation only)
+            position_multiplier: AI-determined multiplier (0.0-2.0)
 
         Returns:
-            Validated (possibly adjusted) plan
+            Validated plan with AI-determined size and ATR-based stops
         """
-        # Check confidence threshold
-        if plan.is_actionable and plan.confidence < self.strategy.min_confidence:
-            logger.debug(
-                f"Plan confidence {plan.confidence} below threshold "
-                f"{self.strategy.min_confidence}, converting to WAIT"
-            )
-            return TradePlan.wait(plan.coin, f"Confidence too low ({plan.confidence})")
+        # POSITION SIZE: AI decides via multiplier
+        # Base is strategy's max_position_pct, AI scales it 0x-2x
+        base_position = self.strategy.risk.max_position_pct
+        plan.size_pct = base_position * position_multiplier
+        # Hard cap at 2x base (AI can go aggressive, but not crazy)
+        plan.size_pct = min(plan.size_pct, base_position * 2.0)
 
-        # Calculate dynamic risk parameters
-        avg_signal_strength = self._get_avg_signal_strength(signals)
-        risk_params = self._calculate_dynamic_risk(avg_signal_strength, plan.confidence, context)
-
-        # Apply dynamic position sizing
-        plan.size_pct = min(risk_params["position_pct"], self.strategy.risk.max_position_pct)
-
-        # Apply dynamic stops
+        # STOPS: Deterministic ATR-based calculation
+        # This is pure math, not competing with AI
         if plan.is_actionable:
-            atr_sl = context.atr * risk_params["stop_multiplier"]
-            atr_tp = context.atr * risk_params["tp_multiplier"]
+            # Volatility adjustment for stops only (not position size)
+            vol_factor = {"high": 1.5, "medium": 1.0, "low": 0.7}.get(context.volatility_level, 1.0)
+
+            atr_sl = context.atr * self.strategy.risk.stop_loss_atr_multiplier * vol_factor
+            atr_tp = context.atr * self.strategy.risk.take_profit_atr_multiplier * vol_factor
 
             if plan.is_long:
                 plan.stop_loss = context.current_price - atr_sl
@@ -515,79 +605,12 @@ class SignalBrain:
                 plan.take_profit = context.current_price - atr_tp
 
             logger.debug(
-                f"Dynamic risk: strength={avg_signal_strength:.2f}, "
-                f"size={plan.size_pct:.1f}%, SL={risk_params['stop_multiplier']:.1f}x ATR, "
-                f"TP={risk_params['tp_multiplier']:.1f}x ATR"
+                f"Plan validated: size={plan.size_pct:.1f}% "
+                f"(base {base_position:.1f}% x {position_multiplier:.1f}x), "
+                f"SL={atr_sl:.2f}, TP={atr_tp:.2f}"
             )
 
         return plan
-
-    def _get_avg_signal_strength(self, signals: list["Signal"] | None) -> float:
-        """Calculate weighted average signal strength."""
-        if not signals:
-            return 0.5
-
-        total_weight = 0.0
-        weighted_sum = 0.0
-
-        for s in signals:
-            weight = self.strategy.signal_weights.get(s.signal_type, 0.0)
-            weighted_sum += weight * s.strength
-            total_weight += weight
-
-        if total_weight == 0:
-            return 0.5
-
-        return weighted_sum / total_weight
-
-    def _calculate_dynamic_risk(
-        self,
-        signal_strength: float,
-        confidence: int,
-        context: MarketContext,
-    ) -> dict[str, float]:
-        """
-        Calculate dynamic risk parameters - CUT LOSSES FAST strategy.
-
-        Key insight: At ~50% win rate, need avg_win > avg_loss.
-        Use TIGHT stops to cut losers quickly.
-
-        Returns:
-            Dict with position_pct, stop_multiplier, tp_multiplier
-        """
-        base_position = self.strategy.risk.max_position_pct
-        base_stop = self.strategy.risk.stop_loss_atr_multiplier
-        base_tp = self.strategy.risk.take_profit_atr_multiplier
-
-        # Volatility adjustment
-        vol_factor = {"high": 0.6, "medium": 0.8, "low": 1.0}.get(context.volatility_level, 1.0)
-
-        # Signal strength adjustments - VERY TIGHT STOPS to match signals-only performance
-        if signal_strength >= 0.8:
-            # Strong signal: moderate position, very tight stop
-            position_pct = base_position * 0.7 * vol_factor
-            stop_mult = base_stop * 0.4  # 60% tighter stop
-            tp_mult = base_tp * 1.0
-        elif signal_strength >= 0.5:
-            # Medium signal: smaller position, tight stop
-            position_pct = base_position * 0.5 * vol_factor
-            stop_mult = base_stop * 0.5  # 50% tighter
-            tp_mult = base_tp * 1.0
-        else:
-            # Weak signal: tiny position, tight stop
-            position_pct = base_position * 0.3 * vol_factor
-            stop_mult = base_stop * 0.6
-            tp_mult = base_tp * 0.9
-
-        # Confidence boost
-        conf_factor = max(0, (confidence - 5)) / 5
-        position_pct *= 1 + (conf_factor * 0.2)
-
-        return {
-            "position_pct": position_pct,
-            "stop_multiplier": stop_mult,
-            "tp_multiplier": tp_mult,
-        }
 
     @property
     def call_count(self) -> int:
@@ -595,22 +618,20 @@ class SignalBrain:
         return self._call_count
 
     @property
-    def bypass_count(self) -> int:
-        """Number of trades that bypassed AI (when use_ai=False)."""
-        return self._bypass_count
+    def last_decision_id(self) -> str | None:
+        """Get the last decision ID for linking to trade outcomes."""
+        return self._last_decision_id
 
     def reset_metrics(self) -> None:
         """Reset call count and AI metrics."""
         self._call_count = 0
-        self._bypass_count = 0
+        self._last_decision_id = None
         self.ollama.reset_metrics()
 
     def get_metrics_summary(self) -> dict:
-        """Get a summary of AI usage metrics for comparison."""
+        """Get a summary of AI usage metrics."""
         return {
-            "mode": "AI" if self.use_ai else "BYPASS",
             "ai_calls": self._call_count,
-            "bypass_trades": self._bypass_count,
             "ollama_metrics": {
                 "total_tokens": self.ollama.metrics.total_tokens,
                 "avg_response_ms": self.ollama.metrics.avg_response_time_ms,
@@ -619,37 +640,43 @@ class SignalBrain:
 
 
 def create_signal_brain(
-    strategy_name: str = "momentum_scalper",
+    strategy_name: str = "momentum_based",
     ollama_model: str = "mistral",
     ollama_url: str = "http://localhost:11434",
-    use_ai: bool = True,
+    decision_logger: "AIDecisionLogger | None" = None,
 ) -> SignalBrain:
     """
     Factory function to create a SignalBrain with a strategy.
 
     Args:
-        strategy_name: Name of strategy (momentum_scalper, trend_follower,
-                       mean_reversion, conservative)
+        strategy_name: Name of strategy (momentum_based, momentum_macd,
+                       rsi_based, multi_signal)
         ollama_model: Ollama model to use
         ollama_url: Ollama server URL
-        use_ai: If True (default), use AI for trade confirmation.
-                If False, bypass AI and auto-confirm trades that meet threshold.
-                Use False for A/B testing to compare AI vs no-AI performance.
+        decision_logger: Optional logger to track AI decisions for analysis.
+                        When provided, all decisions are logged for post-backtest
+                        analysis of confidence calibration, pattern accuracy, etc.
 
     Returns:
         Configured SignalBrain instance
 
     Example:
-        # With AI confirmation (default)
-        brain = create_signal_brain("momentum_scalper")
-
-        # Without AI (for A/B testing)
-        brain = create_signal_brain("momentum_scalper", use_ai=False)
+        # Create a signal brain
+        brain = create_signal_brain("momentum_based")
 
         # With different model
-        brain = create_signal_brain("conservative", ollama_model="llama2")
+        brain = create_signal_brain("multi_signal", ollama_model="llama2")
+
+        # With decision logging for analysis
+        from bot.ai.decision_logger import AIDecisionLogger
+        logger = AIDecisionLogger(strategy_name="momentum_based")
+        brain = create_signal_brain("momentum_based", decision_logger=logger)
     """
     strategy = get_strategy(strategy_name)
     ollama = OllamaClient(base_url=ollama_url, model=ollama_model)
 
-    return SignalBrain(strategy=strategy, ollama_client=ollama, use_ai=use_ai)
+    return SignalBrain(
+        strategy=strategy,
+        ollama_client=ollama,
+        decision_logger=decision_logger,
+    )

@@ -18,10 +18,10 @@ if TYPE_CHECKING:
 class StrategyType(Enum):
     """Available strategy types."""
 
-    MOMENTUM_SCALPER = "momentum_scalper"
-    TREND_FOLLOWER = "trend_follower"
-    MEAN_REVERSION = "mean_reversion"
-    CONSERVATIVE = "conservative"
+    MOMENTUM_BASED = "momentum_based"  # Primary: MOMENTUM
+    MOMENTUM_MACD = "momentum_macd"  # Primary: MOMENTUM + MACD confirmation
+    RSI_BASED = "rsi_based"  # Primary: RSI
+    MULTI_SIGNAL = "multi_signal"  # Balanced: Multiple signals required
 
 
 # Backwards compatibility alias

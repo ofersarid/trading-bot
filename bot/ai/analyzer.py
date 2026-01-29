@@ -1,4 +1,15 @@
-"""Market analyzer using local AI for trading signals."""
+"""
+Market analyzer using local AI for trading signals.
+
+DEPRECATED: This module uses different logic than the backtest system.
+For consistent backtest-to-live results, use bot.core.TradingCore instead.
+
+The MarketAnalyzer class uses prompts.py which has different AI prompts
+than SignalBrain. This means backtest results won't match live performance.
+
+Use bot.live.LiveEngine for live trading - it uses the same TradingCore
+as BacktestEngine.
+"""
 
 import logging
 from dataclasses import dataclass

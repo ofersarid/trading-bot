@@ -1,6 +1,18 @@
 """
 Scalper Interpreter Service.
 
+DEPRECATED: This module uses different logic than the backtest system.
+For consistent backtest-to-live results, use bot.core.TradingCore instead.
+
+The ScalperInterpreter has its own prompts and scoring system that
+doesn't match SignalBrain. Backtest results won't predict live performance.
+
+Use bot.live.LiveEngine for live trading - it uses the same TradingCore
+as BacktestEngine.
+
+---
+
+Original purpose:
 Interprets market data through the Scalper strategy, returning
 AI-derived momentum, pressure, and prediction values.
 

@@ -4,11 +4,18 @@ Run a backtest with the 3-layer architecture.
 
 Usage:
     python run_backtest.py                           # Signals-only mode (fast)
-    python run_backtest.py --ai                      # With AI decisions (slower)
-    python run_backtest.py --strategy momentum_scalper  # Use specific strategy
+    python run_backtest.py --ai                      # With AI position sizing (requires Ollama)
+    python run_backtest.py --ai --goal 50000 --goal-days 30  # AI with goal-aware sizing
+    python run_backtest.py --strategy momentum_based  # Use specific strategy
     python run_backtest.py --data path/to/ohlcv.csv  # Custom OHLCV data file
     python run_backtest.py --vp                      # Auto-detect trade data for Volume Profile
     python run_backtest.py --trade-data path/to/trades.parquet  # Explicit trade data
+
+Modes:
+    1. Signals-only (--ai not set): Pure signal-based trading, no AI
+    2. AI mode (--ai): AI decides position sizing (0.5x-2.0x) based on setup quality
+    3. AI + Goals (--ai --goal X): AI sizes positions based on goal progress
+    4. Portfolio mode (--ai --portfolio): AI allocates across multiple assets
 """
 
 import argparse
@@ -81,14 +88,14 @@ async def main():
     parser.add_argument(
         "--ai",
         action="store_true",
-        help="Enable AI decisions (requires Ollama running)",
+        help="Enable AI position sizing (requires Ollama running)",
     )
     parser.add_argument(
         "--strategy",
         "-p",
-        default="momentum_scalper",
+        default="momentum_based",
         choices=[name for name, _ in list_strategies()],
-        help="Trading strategy to use (default: momentum_scalper)",
+        help="Trading strategy to use (default: momentum_based)",
     )
     parser.add_argument(
         "--balance",
@@ -118,6 +125,28 @@ async def main():
         "--vp",
         action="store_true",
         help="Auto-detect matching trade data for Volume Profile",
+    )
+    parser.add_argument(
+        "--log-decisions",
+        action="store_true",
+        help="Enable AI decision logging for post-backtest analysis",
+    )
+    parser.add_argument(
+        "--goal",
+        "-g",
+        type=float,
+        help="Account goal target (e.g., 50000 for $50k). Enables AI position sizing strategist.",
+    )
+    parser.add_argument(
+        "--goal-days",
+        type=int,
+        help="Days to reach the goal (e.g., 30). Required with --goal.",
+    )
+    parser.add_argument(
+        "--portfolio",
+        "-P",
+        action="store_true",
+        help="Enable portfolio allocation mode. AI considers all positions and opportunities holistically.",
     )
 
     args = parser.parse_args()
@@ -163,7 +192,23 @@ async def main():
         print("  Vol Prof:  Enabled")
     if prev_day_data:
         print("  Prev VP:   Enabled (POC/VAH/VAL levels)")
-    print(f"  AI Mode:   {'Enabled' if args.ai else 'Disabled (signals-only)'}")
+    # Determine AI mode description
+    if args.ai and args.portfolio:
+        ai_mode_str = "Portfolio Allocator (multi-asset, goal-aware)"
+    elif args.ai:
+        if args.goal:
+            ai_mode_str = "Position Sizing Strategist (goal-aware)"
+        else:
+            ai_mode_str = "Position Sizing (no goal set)"
+    else:
+        ai_mode_str = "Disabled (signals-only)"
+    print(f"  AI Mode:   {ai_mode_str}")
+    if args.portfolio:
+        print("  Portfolio: Enabled (AI allocates across all markets)")
+    if args.goal:
+        print(f"  Goal:      ${args.goal:,.2f} in {args.goal_days or '?'} days")
+    if args.log_decisions and args.ai:
+        print("  Logging:   AI decisions enabled (for analysis)")
     print("=" * 60)
 
     if args.ai:
@@ -171,7 +216,23 @@ async def main():
         print("   Start with: ollama serve")
         print("   Model needed: mistral (or change in config)")
 
+    if args.portfolio and not args.ai:
+        print("\n⚠️  --portfolio requires --ai flag. Ignoring --portfolio.")
+
     # Create config
+    # log_decisions only applies when ai_enabled is True
+    log_decisions = args.log_decisions and args.ai
+
+    # Validate goal settings
+    if args.goal and not args.goal_days:
+        print("\n⚠️  --goal requires --goal-days. Using default of 30 days.")
+        goal_days = 30
+    else:
+        goal_days = args.goal_days
+
+    # portfolio_mode only applies when ai_enabled is True
+    portfolio_mode = args.portfolio and args.ai
+
     config = BacktestConfig(
         data_source=data_file,
         coins=[],  # Will be derived from data
@@ -179,9 +240,13 @@ async def main():
         strategy_name=args.strategy,
         signal_detectors=args.signals,
         ai_enabled=args.ai,
+        portfolio_mode=portfolio_mode,
+        account_goal=args.goal,
+        goal_timeframe_days=goal_days,
         trade_data_source=trade_data,
         prev_day_trade_data=prev_day_data,
         vp_enabled=bool(trade_data),
+        log_decisions=log_decisions,
     )
 
     # Run backtest

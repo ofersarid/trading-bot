@@ -2,19 +2,19 @@
 
 This folder contains trading strategy definitions for the AI trader. Each strategy defines:
 
-1. **Prompt**: The AI's trading mindset and rules
-2. **Risk Config**: Position sizing, stop-loss, take-profit parameters
-3. **Signal Weights**: How important each signal type is to the strategy
-4. **Signal Threshold**: Minimum weighted score to consider a trade
+1. **Signal Weights**: How important each signal type is to the strategy
+2. **Signal Threshold**: Minimum weighted score to consider a trade
+3. **Risk Config**: Position sizing, stop-loss, take-profit parameters
+4. **Prompt**: The AI's trading mindset and rules (used when AI mode enabled)
 
 ## Available Strategies
 
-| Strategy | File | Description |
-|----------|------|-------------|
-| Momentum Scalper | `momentum_scalper.py` | Aggressive quick trades, small profits |
-| Trend Follower | `trend_follower.py` | Patient, rides trends until exhaustion |
-| Mean Reversion | `mean_reversion.py` | Contrarian, fades overextended moves |
-| Conservative | `conservative.py` | High-confidence only, preserves capital |
+| Strategy | File | Primary Signals | Description |
+|----------|------|-----------------|-------------|
+| Momentum Based | `momentum_based.py` | MOMENTUM (1.0) + VP (0.5) | Primary momentum with VP support |
+| Momentum + MACD | `momentum_macd.py` | MOMENTUM (0.6) + MACD (0.4) | Requires MACD confirmation |
+| RSI Based | `rsi_based.py` | RSI (1.0) + VP (0.3) | Primary RSI with VP support |
+| Multi-Signal | `multi_signal.py` | MOM (0.4) + RSI (0.3) + MACD (0.3) | Multiple signals must align |
 
 ## Usage
 
@@ -22,9 +22,8 @@ This folder contains trading strategy definitions for the AI trader. Each strate
 from bot.strategies import get_strategy, list_strategies
 
 # Get a strategy by name
-strategy = get_strategy("momentum_scalper")
-print(strategy.name)  # "Momentum Scalper"
-print(strategy.prompt)  # The AI trading prompt
+strategy = get_strategy("momentum_based")
+print(strategy.name)  # "Momentum Based"
 print(strategy.signal_weights)  # {SignalType.MOMENTUM: 1.0, SignalType.VOLUME_PROFILE: 0.5}
 print(strategy.signal_threshold)  # 0.7
 
@@ -45,7 +44,7 @@ Total score per direction = sum of all contributions for LONG or SHORT
 
 **Example:**
 ```
-Momentum Scalper receives:
+Momentum Based receives:
 - MOMENTUM LONG, strength=0.85, weight=1.0 → contribution: 0.85
 - VOLUME_PROFILE LONG, strength=0.60, weight=0.5 → contribution: 0.30
 
@@ -88,7 +87,7 @@ RISK RULES:
 
 MY_STRATEGY = Strategy(
     name="My Strategy",
-    strategy_type=StrategyType.MOMENTUM_SCALPER,  # Pick closest type
+    strategy_type=StrategyType.MOMENTUM_BASED,  # Pick closest type
     prompt=PROMPT,
     risk=RiskConfig(
         max_position_pct=10.0,
@@ -145,10 +144,10 @@ Each strategy defines weights for the signal types it uses:
 
 | Strategy | MOMENTUM | RSI | MACD | VOLUME_PROFILE | Threshold |
 |----------|----------|-----|------|----------------|-----------|
-| Momentum Scalper | 1.0 | - | - | 0.5 | 0.7 |
-| Trend Follower | 0.6 | - | 0.4 | - | 0.6 |
-| Mean Reversion | - | 1.0 | - | 0.3 | 0.8 |
-| Conservative | 0.4 | 0.3 | 0.3 | - | 0.8 |
+| Momentum Based | 1.0 | - | - | 0.5 | 0.7 |
+| Momentum + MACD | 0.6 | - | 0.4 | - | 0.6 |
+| RSI Based | - | 1.0 | - | 0.3 | 0.8 |
+| Multi-Signal | 0.4 | 0.3 | 0.3 | - | 0.8 |
 
 **Note:** `-` means the signal type is not used by that strategy.
 
@@ -160,9 +159,9 @@ Available signal types: `MOMENTUM`, `RSI`, `MACD`, `VOLUME_PROFILE`
 bot/strategies/
 ├── __init__.py          # Registry and exports
 ├── base.py              # Strategy, RiskConfig, StrategyType classes
-├── momentum_scalper.py  # Momentum scalper strategy
-├── trend_follower.py    # Trend follower strategy
-├── mean_reversion.py    # Mean reversion strategy
-├── conservative.py      # Conservative strategy
+├── momentum_based.py    # Primary MOMENTUM signal
+├── momentum_macd.py     # MOMENTUM + MACD confirmation
+├── rsi_based.py         # Primary RSI signal
+├── multi_signal.py      # Multiple signals required
 └── README.md            # This file
 ```

@@ -1,21 +1,23 @@
 """
-Conservative Strategy.
+Multi-Signal Strategy.
 
-A risk-averse strategy that prioritizes capital preservation.
-Only trades high-probability setups with multiple confirming signals.
+Balanced weights: MOMENTUM (0.4), RSI (0.3), MACD (0.3)
+
+Requires multiple signals to align before trading.
+Smaller positions, preserves capital, high threshold.
 """
 
 from bot.signals.base import SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType
 
-PROMPT = """You are a conservative, risk-averse crypto trader.
+PROMPT = """You are a multi-signal trader for crypto markets.
 
 SIGNAL WEIGHTS:
 - MOMENTUM: 0.4 (trend direction)
 - RSI: 0.3 (overbought/oversold filter)
 - MACD: 0.3 (trend confirmation)
 
-All three signals contribute equally. You need multiple signals to align for the weighted score to reach the high threshold.
+All three signals contribute. You need multiple signals to align for the weighted score to reach the high threshold.
 
 YOUR TRADING STYLE:
 - Only trade high-probability setups
@@ -40,9 +42,9 @@ RISK RULES:
 - Skip anything uncertain
 - Maximum position: 5% of balance"""
 
-CONSERVATIVE = Strategy(
-    name="Conservative",
-    strategy_type=StrategyType.CONSERVATIVE,
+MULTI_SIGNAL = Strategy(
+    name="Multi-Signal",
+    strategy_type=StrategyType.MULTI_SIGNAL,
     prompt=PROMPT,
     risk=RiskConfig(
         max_position_pct=5.0,  # Small positions

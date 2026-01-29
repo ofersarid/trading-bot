@@ -2,6 +2,22 @@
 """
 Paper Trading Simulator Runner
 
+DEPRECATED: This module uses different logic than the backtest system.
+For consistent backtest-to-live results, use bot.live.LiveEngine instead.
+
+The TradingSimulator uses OpportunitySeeker with simple momentum thresholds,
+which is completely different from BacktestEngine's signal detectors and
+weighted scoring. Backtest results won't predict this simulator's performance.
+
+USE INSTEAD:
+    python -m bot.live.engine --balance 10000 --ai --goal 50000 --goal-days 30
+
+The LiveEngine uses the same TradingCore as BacktestEngine, ensuring
+backtest results are predictive of live performance.
+
+---
+
+Original purpose:
 Connects everything together:
 1. WebSocket stream for live prices OR historical CSV replay
 2. Opportunity Seeker for detecting trades

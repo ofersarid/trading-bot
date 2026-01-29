@@ -1,14 +1,17 @@
 """
-Momentum Scalper Strategy.
+Momentum-Based Strategy.
 
-An aggressive momentum scalping strategy for crypto markets.
-Focuses on quick entries and exits, capturing small but frequent profits.
+Primary signal: MOMENTUM (weight 1.0)
+Supporting signal: VOLUME_PROFILE (weight 0.5)
+
+Optimized for quick momentum moves with VP level confirmation.
+Tighter stops, good risk/reward ratio.
 """
 
 from bot.signals.base import SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType
 
-PROMPT = """You are an aggressive momentum scalper for crypto markets.
+PROMPT = """You are a momentum-focused trader for crypto markets.
 
 SIGNAL WEIGHTS:
 - MOMENTUM: 1.0 (primary signal - full weight)
@@ -37,9 +40,9 @@ RISK RULES:
 - Exit immediately if momentum reverses OR starts fading
 - Maximum position: 10% of balance"""
 
-MOMENTUM_SCALPER = Strategy(
-    name="Momentum Scalper",
-    strategy_type=StrategyType.MOMENTUM_SCALPER,
+MOMENTUM_BASED = Strategy(
+    name="Momentum Based",
+    strategy_type=StrategyType.MOMENTUM_BASED,
     prompt=PROMPT,
     risk=RiskConfig(
         max_position_pct=15.0,

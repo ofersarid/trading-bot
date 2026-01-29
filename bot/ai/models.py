@@ -232,6 +232,100 @@ class AIMetrics:
 
 
 @dataclass
+class AccountContext:
+    """
+    Account context for AI position sizing decisions.
+
+    Contains account state and goal information that enables the AI
+    to act as a Position Sizing Strategist rather than a trade filter.
+    """
+
+    current_balance: float  # Current account balance
+    initial_balance: float  # Starting balance
+    account_goal: float | None  # Target balance to reach
+    goal_timeframe_days: int | None  # Days to reach the goal
+    days_elapsed: int  # Days since start of trading period
+    base_position_pct: float  # Base position size from strategy (e.g., 10%)
+
+    @property
+    def pnl(self) -> float:
+        """Current P&L in dollars."""
+        return self.current_balance - self.initial_balance
+
+    @property
+    def pnl_pct(self) -> float:
+        """Current P&L as percentage of initial balance."""
+        if self.initial_balance <= 0:
+            return 0
+        return (self.pnl / self.initial_balance) * 100
+
+    @property
+    def has_goal(self) -> bool:
+        """Whether account has a goal set."""
+        return self.account_goal is not None and self.goal_timeframe_days is not None
+
+    @property
+    def goal_progress_pct(self) -> float | None:
+        """Progress toward goal as percentage (0-100+)."""
+        if not self.has_goal or self.account_goal is None:
+            return None
+        total_needed = self.account_goal - self.initial_balance
+        if total_needed <= 0:
+            return 100.0
+        achieved = self.current_balance - self.initial_balance
+        return (achieved / total_needed) * 100
+
+    @property
+    def time_progress_pct(self) -> float | None:
+        """Time elapsed as percentage of goal timeframe."""
+        if not self.has_goal or self.goal_timeframe_days is None:
+            return None
+        return (self.days_elapsed / self.goal_timeframe_days) * 100
+
+    @property
+    def days_remaining(self) -> int | None:
+        """Days remaining to reach goal."""
+        if not self.has_goal or self.goal_timeframe_days is None:
+            return None
+        return max(0, self.goal_timeframe_days - self.days_elapsed)
+
+    @property
+    def required_daily_return_pct(self) -> float | None:
+        """Required daily return to reach goal on time."""
+        if not self.has_goal or self.account_goal is None:
+            return None
+        days_left = self.days_remaining
+        if days_left is None or days_left <= 0:
+            return None
+        remaining_gain_needed = self.account_goal - self.current_balance
+        if remaining_gain_needed <= 0:
+            return 0  # Goal already reached
+        # Simple linear calculation (not compound)
+        return (remaining_gain_needed / self.current_balance / days_left) * 100
+
+    @property
+    def pace_status(self) -> str:
+        """Whether we're ahead, behind, or on pace for the goal."""
+        if not self.has_goal:
+            return "no_goal"
+        goal_pct = self.goal_progress_pct
+        time_pct = self.time_progress_pct
+        if goal_pct is None or time_pct is None:
+            return "unknown"
+        if goal_pct >= 100:
+            return "goal_reached"
+        if time_pct <= 0:
+            return "just_started"
+        ratio = goal_pct / time_pct
+        if ratio >= 1.2:
+            return "ahead"
+        elif ratio >= 0.8:
+            return "on_pace"
+        else:
+            return "behind"
+
+
+@dataclass
 class MarketContext:
     """
     Market context for AI decision making.
@@ -404,3 +498,206 @@ class TradePlan:
             reason=data.get("REASON", "No reason provided"),
             signals_considered=signals_considered,
         )
+
+
+# =============================================================================
+# Portfolio Allocation Models (Multi-Asset AI Decision Making)
+# =============================================================================
+
+
+@dataclass
+class PortfolioOpportunity:
+    """
+    A trading opportunity detected in a specific market.
+
+    Represents a potential trade that the Portfolio Allocator will
+    consider alongside other opportunities across markets.
+    """
+
+    coin: str
+    direction: Literal["LONG", "SHORT"]
+    signal_score: float  # Weighted score from signal detectors
+    signal_threshold: float  # The threshold that was met
+    signals: list[str]  # Signal types that contributed
+    current_price: float
+    volatility: Literal["low", "medium", "high"]
+    atr_percent: float  # ATR as percentage of price
+    timestamp: datetime = field(default_factory=datetime.now)
+
+    @property
+    def score_strength(self) -> float:
+        """How much the score exceeds the threshold (0-1 normalized)."""
+        if self.signal_threshold <= 0:
+            return 0.5
+        excess = self.signal_score - self.signal_threshold
+        max_excess = self.signal_threshold  # Assume score can be 2x threshold max
+        return min(1.0, max(0.0, 0.5 + (excess / max_excess) * 0.5))
+
+    def to_prompt_string(self) -> str:
+        """Format for AI prompt."""
+        return (
+            f"  {self.coin}: {self.direction} | "
+            f"Score: {self.signal_score:.2f} (threshold: {self.signal_threshold}) | "
+            f"Volatility: {self.volatility} ({self.atr_percent:.2f}%) | "
+            f"Signals: {', '.join(self.signals)}"
+        )
+
+
+@dataclass
+class PortfolioPosition:
+    """
+    Current position in a specific market.
+
+    Used to inform the AI about existing exposure when making
+    new allocation decisions.
+    """
+
+    coin: str
+    side: Literal["long", "short"]
+    size_pct: float  # Size as % of portfolio
+    entry_price: float
+    current_price: float
+    unrealized_pnl_pct: float
+
+    def to_prompt_string(self) -> str:
+        """Format for AI prompt."""
+        return (
+            f"  {self.coin}: {self.side.upper()} {self.size_pct:.1f}% | "
+            f"Entry: ${self.entry_price:,.2f} | "
+            f"P&L: {self.unrealized_pnl_pct:+.2f}%"
+        )
+
+
+@dataclass
+class PortfolioState:
+    """
+    Complete portfolio state for AI decision making.
+
+    Contains all information needed for the AI to make
+    informed allocation decisions across multiple markets.
+    """
+
+    total_balance: float
+    available_capital_pct: float  # % not in positions
+    positions: list[PortfolioPosition]
+    account_context: AccountContext | None  # Goal tracking
+
+    @property
+    def total_exposure_pct(self) -> float:
+        """Total % of portfolio in positions."""
+        return sum(p.size_pct for p in self.positions)
+
+    @property
+    def long_exposure_pct(self) -> float:
+        """Total % in long positions."""
+        return sum(p.size_pct for p in self.positions if p.side == "long")
+
+    @property
+    def short_exposure_pct(self) -> float:
+        """Total % in short positions."""
+        return sum(p.size_pct for p in self.positions if p.side == "short")
+
+    @property
+    def net_exposure_pct(self) -> float:
+        """Net directional exposure (long - short)."""
+        return self.long_exposure_pct - self.short_exposure_pct
+
+    def to_prompt_string(self) -> str:
+        """Format portfolio state for AI prompt."""
+        lines = [
+            f"Total Balance: ${self.total_balance:,.2f}",
+            f"Available Capital: {self.available_capital_pct:.1f}%",
+            f"Current Exposure: {self.total_exposure_pct:.1f}% "
+            f"(Long: {self.long_exposure_pct:.1f}%, Short: {self.short_exposure_pct:.1f}%)",
+            f"Net Direction: {self.net_exposure_pct:+.1f}%",
+        ]
+
+        if self.positions:
+            lines.append("\nCurrent Positions:")
+            for pos in self.positions:
+                lines.append(pos.to_prompt_string())
+        else:
+            lines.append("\nNo open positions.")
+
+        if self.account_context and self.account_context.has_goal:
+            ctx = self.account_context
+            lines.extend(
+                [
+                    "",
+                    "GOAL TRACKING:",
+                    f"  Target: ${ctx.account_goal:,.2f} in {ctx.goal_timeframe_days} days",
+                    f"  Progress: {ctx.goal_progress_pct:.1f}% of goal, "
+                    f"{ctx.time_progress_pct:.1f}% of time elapsed",
+                    f"  Status: {ctx.pace_status.upper()}",
+                ]
+            )
+            if ctx.required_daily_return_pct is not None:
+                lines.append(f"  Required Daily Return: {ctx.required_daily_return_pct:.2f}%")
+
+        return "\n".join(lines)
+
+
+@dataclass
+class AllocationDecision:
+    """
+    AI's decision for a single market within the portfolio allocation.
+    """
+
+    coin: str
+    action: Literal["LONG", "SHORT", "SKIP", "CLOSE"]
+    allocation_pct: float  # % of total portfolio to allocate
+    reasoning: str
+
+    @property
+    def is_actionable(self) -> bool:
+        """Whether this decision requires a trade."""
+        return self.action in ("LONG", "SHORT") and self.allocation_pct > 0
+
+
+@dataclass
+class PortfolioAllocation:
+    """
+    Complete portfolio allocation decision from the AI.
+
+    Contains allocation decisions for all considered opportunities
+    plus overall reasoning about the portfolio strategy.
+    """
+
+    decisions: list[AllocationDecision]
+    cash_reserve_pct: float  # % to keep in cash
+    overall_reasoning: str
+    timestamp: datetime = field(default_factory=datetime.now)
+
+    @property
+    def total_allocated_pct(self) -> float:
+        """Total % allocated to positions."""
+        return sum(d.allocation_pct for d in self.decisions if d.is_actionable)
+
+    @property
+    def actionable_decisions(self) -> list[AllocationDecision]:
+        """Decisions that require trades."""
+        return [d for d in self.decisions if d.is_actionable]
+
+    def get_decision(self, coin: str) -> AllocationDecision | None:
+        """Get decision for a specific coin."""
+        for d in self.decisions:
+            if d.coin == coin:
+                return d
+        return None
+
+    def to_dict(self) -> dict:
+        """Serialize for logging."""
+        return {
+            "decisions": [
+                {
+                    "coin": d.coin,
+                    "action": d.action,
+                    "allocation_pct": d.allocation_pct,
+                    "reasoning": d.reasoning,
+                }
+                for d in self.decisions
+            ],
+            "cash_reserve_pct": self.cash_reserve_pct,
+            "overall_reasoning": self.overall_reasoning,
+            "timestamp": self.timestamp.isoformat(),
+        }
