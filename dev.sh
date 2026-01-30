@@ -15,11 +15,20 @@
 #   ./dev.sh --historical data/historical/BTCUSD_1m_....csv --speed 0.1
 
 cd "$(dirname "$0")"
-source venv/bin/activate
+
+# Use explicit path to venv python
+PYTHON="./venv/bin/python"
+
+# Verify venv exists
+if [ ! -f "$PYTHON" ]; then
+    echo "❌ Virtual environment not found at ./venv"
+    echo "   Run: python3 -m venv venv && ./venv/bin/pip install -r requirements.txt"
+    exit 1
+fi
 
 # Handle --list flag
 if [ "$1" = "--list" ] || [ "$1" = "-l" ]; then
-    python bot/ui/dashboard.py --list-sessions
+    $PYTHON bot/ui/dashboard.py --list-sessions
     exit 0
 fi
 
@@ -60,7 +69,7 @@ if [ "$1" = "--historical" ] || [ "$1" = "-H" ]; then
 
     # Run in historical mode (no hot reload needed for replay)
     export TEXTUAL_DEV=1
-    python bot/ui/dashboard.py --historical "$CSV_FILE" --speed "$SPEED"
+    $PYTHON bot/ui/dashboard.py --historical "$CSV_FILE" --speed "$SPEED"
     exit 0
 fi
 
@@ -81,12 +90,12 @@ if [ -z "$SESSION_NAME" ]; then
     echo ""
 
     # Show available sessions if any
-    python bot/ui/dashboard.py --list-sessions 2>/dev/null
+    $PYTHON bot/ui/dashboard.py --list-sessions 2>/dev/null
     exit 1
 fi
 
 # Install watchfiles if not present
-pip show watchfiles > /dev/null 2>&1 || pip install watchfiles
+$PYTHON -m pip show watchfiles > /dev/null 2>&1 || $PYTHON -m pip install watchfiles
 
 # Check if session exists (for display purposes)
 SESSION_DIR="data/sessions/$SESSION_NAME"
@@ -106,4 +115,4 @@ echo ""
 # TEXTUAL_DEV=1 enables CSS hot reload
 # Always use --resume so hot reload preserves session state
 export TEXTUAL_DEV=1
-watchfiles "python bot/ui/dashboard.py --session $SESSION_NAME --balance $BALANCE --resume" bot/
+./venv/bin/watchfiles "$PYTHON bot/ui/dashboard.py --session $SESSION_NAME --balance $BALANCE --resume" bot/
