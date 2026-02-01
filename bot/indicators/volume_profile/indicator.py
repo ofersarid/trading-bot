@@ -10,6 +10,7 @@ Functions:
 - get_value_area: Price range containing 70% of volume
 - get_hvn_levels: High Volume Nodes
 - get_lvn_levels: Low Volume Nodes
+- get_significant_lvn_levels: LVNs that are "volume dips" (bounded by higher volume)
 - get_delta_at_price: Delta at specific price
 - get_total_delta: Overall delta
 """
@@ -190,6 +191,106 @@ def get_lvn_levels(
     lvn_levels = [price for price, _ in sorted_levels[:cutoff_idx]]
 
     return lvn_levels
+
+
+def get_significant_lvn_levels(
+    profile: VolumeProfile,
+    volume_ratio_threshold: float = 1.5,
+    neighbor_window: int = 2,
+    max_levels: int = 2,
+) -> list[dict]:
+    """
+    Find LVNs that are 'volume dips' - bounded by higher volume above and below.
+
+    A "volume dip" LVN is characterized by low volume at a price level with
+    significantly higher volume on both sides. These represent price rejection
+    zones where the market quickly moved through.
+
+    Algorithm:
+    1. Get all LVN candidates (bottom 30% by volume)
+    2. For each candidate, check neighbor levels (within tick_size * neighbor_window)
+    3. Verify at least one level above AND below has volume > candidate * threshold
+    4. Calculate contrast_ratio = avg_neighbor_volume / lvn_volume
+    5. Return top max_levels sorted by contrast_ratio (most significant first)
+
+    Args:
+        profile: VolumeProfile to analyze
+        volume_ratio_threshold: Minimum ratio of neighbor volume to LVN volume (default 1.5)
+        neighbor_window: Number of tick levels to check on each side (default 2)
+        max_levels: Maximum number of significant LVNs to return (default 2)
+
+    Returns:
+        List of dicts with keys: price, volume, contrast_ratio, volume_above, volume_below
+        Sorted by contrast_ratio (most significant first)
+    """
+    if not profile.levels:
+        return []
+
+    # Get sorted price levels
+    sorted_prices = sorted(profile.levels.keys())
+    if len(sorted_prices) < 3:
+        return []
+
+    # Get LVN candidates (bottom 30% by volume)
+    sorted_by_volume = sorted(
+        profile.levels.items(),
+        key=lambda x: x[1].total_volume,
+    )
+    cutoff_idx = max(1, int(len(sorted_by_volume) * 0.3))
+    lvn_candidates = {price for price, _ in sorted_by_volume[:cutoff_idx]}
+
+    significant_lvns = []
+
+    for price in lvn_candidates:
+        lvn_volume = profile.levels[price].total_volume
+        if lvn_volume == 0:
+            continue
+
+        price_idx = sorted_prices.index(price)
+
+        # Collect neighbor volumes above
+        volumes_above = []
+        for i in range(1, neighbor_window + 1):
+            if price_idx + i < len(sorted_prices):
+                neighbor_price = sorted_prices[price_idx + i]
+                volumes_above.append(profile.levels[neighbor_price].total_volume)
+
+        # Collect neighbor volumes below
+        volumes_below = []
+        for i in range(1, neighbor_window + 1):
+            if price_idx - i >= 0:
+                neighbor_price = sorted_prices[price_idx - i]
+                volumes_below.append(profile.levels[neighbor_price].total_volume)
+
+        # Need at least one neighbor on each side
+        if not volumes_above or not volumes_below:
+            continue
+
+        max_volume_above = max(volumes_above)
+        max_volume_below = max(volumes_below)
+
+        # Check if both sides have higher volume than the LVN
+        threshold_volume = lvn_volume * volume_ratio_threshold
+        if max_volume_above < threshold_volume or max_volume_below < threshold_volume:
+            continue
+
+        # Calculate contrast ratio (how much higher the neighbors are)
+        avg_neighbor_volume = (max_volume_above + max_volume_below) / 2
+        contrast_ratio = avg_neighbor_volume / lvn_volume
+
+        significant_lvns.append(
+            {
+                "price": price,
+                "volume": lvn_volume,
+                "contrast_ratio": round(contrast_ratio, 2),
+                "volume_above": max_volume_above,
+                "volume_below": max_volume_below,
+            }
+        )
+
+    # Sort by contrast ratio (most significant first) and limit
+    significant_lvns.sort(key=lambda x: x["contrast_ratio"], reverse=True)
+    return significant_lvns[:max_levels]
 
 
 def get_delta_at_price(profile: VolumeProfile, price: float) -> float:

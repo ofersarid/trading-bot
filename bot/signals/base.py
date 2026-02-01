@@ -30,6 +30,9 @@ class Signal:
 
     Represents a potential trading opportunity with direction,
     strength, and metadata about what triggered it.
+
+    Position info (entry_price, stop_loss, take_profit) can be set by
+    SignalsFactory after signal generation, based on market context.
     """
 
     coin: str
@@ -38,6 +41,12 @@ class Signal:
     strength: float  # 0.0-1.0, higher = stronger signal
     timestamp: datetime
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    # Position info - populated by SignalsFactory
+    entry_price: float | None = None
+    stop_loss: float | None = None
+    take_profit: float | None = None
+    atr: float | None = None  # ATR at signal time, for reference
 
     def __post_init__(self) -> None:
         """Validate signal strength is in valid range."""
@@ -63,7 +72,25 @@ class Signal:
             "strength": self.strength,
             "timestamp": self.timestamp.isoformat(),
             "metadata": self.metadata,
+            "entry_price": self.entry_price,
+            "stop_loss": self.stop_loss,
+            "take_profit": self.take_profit,
+            "atr": self.atr,
         }
+
+    @property
+    def has_position_info(self) -> bool:
+        """True if position info (entry, SL, TP) has been set."""
+        return self.entry_price is not None and self.stop_loss is not None
+
+    @property
+    def risk_reward_ratio(self) -> float | None:
+        """Calculate risk/reward ratio if position info is set."""
+        if not self.has_position_info or self.take_profit is None:
+            return None
+        risk = abs(self.entry_price - self.stop_loss)  # type: ignore
+        reward = abs(self.take_profit - self.entry_price)  # type: ignore
+        return reward / risk if risk > 0 else None
 
 
 class SignalDetector(Protocol):

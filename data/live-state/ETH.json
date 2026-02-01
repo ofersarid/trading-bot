@@ -1,0 +1,27 @@
+{
+  "coin": "ETH",
+  "timestamp": "2026-01-31T21:04:09.006998",
+  "price": 2375.55,
+  "indicators": {
+    "session_vp": {
+      "poc": 2357.0,
+      "vah": 2378.0,
+      "val": 2356.0,
+      "lvn": [
+        2334.0,
+        2339.0
+      ]
+    },
+    "momentum": {
+      "1m_pct": 0.0063
+    }
+  },
+  "signals": {
+    "active": [],
+    "combined": {
+      "direction": "WAIT",
+      "score": 0.0,
+      "threshold": 0.8
+    }
+  }
+}

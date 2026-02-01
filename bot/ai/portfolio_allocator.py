@@ -79,9 +79,9 @@ class PortfolioAllocator:
     """
     AI-driven portfolio allocation across multiple trading opportunities.
 
-    Unlike the SignalBrain which evaluates one asset at a time, the
-    PortfolioAllocator receives ALL opportunities and makes a holistic
-    decision about capital allocation.
+    Unlike single-asset evaluation (via SignalsFactory + GoalBasedSizer),
+    the PortfolioAllocator receives ALL opportunities and makes a holistic
+    decision about capital allocation across the portfolio.
     """
 
     def __init__(

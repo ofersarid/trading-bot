@@ -1,206 +1,334 @@
 """
-Command-line interface for the Trading Dashboard.
+Command-line interface for the Trading Dashboard v2.
 
-Handles argument parsing, session management commands,
-and launching the dashboard application.
+Supports:
+- Live mode (WebSocket connection)
+- Historical mode (CSV/Parquet replay)
+- Server mode (background data server for multi-terminal)
+- Client mode (single-coin terminal reading from data server)
+- Interactive startup with prompts
 """
 
 import argparse
+from pathlib import Path
+from typing import Literal
 
-from bot.simulation.state_manager import SessionStateManager
+from bot.strategies import list_strategies
 
 
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
-    parser = argparse.ArgumentParser(description="Paper Trading Dashboard")
-    parser.add_argument(
-        "--balance", "-b", type=float, default=10000, help="Starting balance (default: 10000)"
+    parser = argparse.ArgumentParser(
+        description="Trading Bot Dashboard v2 - Observation Mode",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Live mode with default strategy
+  python -m bot.ui.cli --live
+
+  # Historical mode with specific folder
+  python -m bot.ui.cli --historical data/historical/BTC_20260126
+
+  # Specify strategy and coins
+  python -m bot.ui.cli --live --strategy rsi_based --coins BTC ETH
+
+  # Multi-terminal mode:
+  # 1. Start the data server (once, in background)
+  python -m bot.ui.cli --server --strategy momentum_based
+
+  # 2. Start individual market terminals (one per market)
+  python -m bot.ui.cli --coin BTC
+  python -m bot.ui.cli --coin ETH
+  python -m bot.ui.cli --coin SOL
+
+  # Interactive mode (will prompt for options)
+  python -m bot.ui.cli
+        """,
     )
+
+    # Mode selection
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--live",
+        action="store_true",
+        help="Live mode - connect to Hyperliquid WebSocket",
+    )
+    mode_group.add_argument(
+        "--historical",
+        type=str,
+        metavar="FOLDER",
+        help="Historical mode - replay from data folder",
+    )
+    mode_group.add_argument(
+        "--server",
+        action="store_true",
+        help="Server mode - run background data server for multi-terminal",
+    )
+    mode_group.add_argument(
+        "--coin",
+        type=str,
+        metavar="COIN",
+        help="Client mode - single-coin terminal (reads from data server)",
+    )
+
+    # Strategy
+    parser.add_argument(
+        "--strategy",
+        "-s",
+        type=str,
+        default="momentum_based",
+        help="Strategy name (default: momentum_based)",
+    )
+
+    # Coins
     parser.add_argument(
         "--coins",
         "-c",
         nargs="+",
         default=["BTC", "ETH", "SOL"],
-        help="Coins to watch (default: BTC ETH SOL)",
+        help="Coins to monitor (default: BTC ETH SOL)",
     )
-    parser.add_argument(
-        "--resume", "-r", action="store_true", help="Resume from saved session state"
-    )
-    parser.add_argument(
-        "--fresh", "-f", action="store_true", help="Start fresh, ignoring any saved state"
-    )
-    parser.add_argument(
-        "--session", "-s", type=str, default=None, help="Session name to use (required for trading)"
-    )
-    parser.add_argument(
-        "--list-sessions", "-l", action="store_true", help="List all available sessions and exit"
-    )
-    parser.add_argument(
-        "--delete-session", type=str, metavar="NAME", help="Delete a saved session and exit"
-    )
-    # Historical replay mode
-    parser.add_argument(
-        "--historical",
-        "-H",
-        type=str,
-        metavar="CSV_FILE",
-        help="Run in historical replay mode with specified CSV file",
-    )
+
+    # Replay speed
     parser.add_argument(
         "--speed",
         type=float,
         default=0.5,
-        help="Playback speed in seconds between candles (default: 0.5)",
+        help="Replay speed in seconds between candles (default: 0.5)",
     )
+
+    # List options
+    parser.add_argument(
+        "--list-strategies",
+        action="store_true",
+        help="List available strategies and exit",
+    )
+    parser.add_argument(
+        "--list-historical",
+        action="store_true",
+        help="List available historical data folders and exit",
+    )
+
     return parser
 
 
-def handle_list_sessions() -> None:
-    """Display all available sessions."""
-    sessions = SessionStateManager.list_sessions()
-    if not sessions:
-        print("\n📂 No saved sessions found.")
-        print("   Sessions are saved to data/sessions/")
-        print()
-    else:
-        print(f"\n📂 Available Sessions ({len(sessions)}):")
-        print("-" * 70)
-        for s in sessions:
-            pnl_symbol = "+" if s["pnl"] >= 0 else ""
-            print(f"  📊 {s['name']}")
-            print(
-                f"     Balance: ${s['balance']:,.2f} | P&L: {pnl_symbol}${s['pnl']:.2f} ({s['pnl_pct']:+.1f}%)"
-            )
-            report_status = "✓" if s.get("has_report") else "-"
-            print(
-                f"     Trades: {s['total_trades']} | Win Rate: {s['win_rate']:.1f}% | Open: {s['open_positions']} | Report: {report_status}"
-            )
-            print(f"     Last updated: {s['last_update']}")
-            print()
-        print("   Use --session <name> --resume to load a session")
-        print()
+def list_historical_folders() -> list[Path]:
+    """List available historical data folders."""
+    historical_dir = Path("data/historical")
+    if not historical_dir.exists():
+        return []
+
+    folders = []
+    for item in historical_dir.iterdir():
+        if item.is_dir() and not item.name.startswith("."):
+            # Check if it has any data files
+            csv_files = list(item.glob("*.csv"))
+            parquet_files = list(item.glob("*.parquet"))
+            if csv_files or parquet_files:
+                folders.append(item)
+
+    return sorted(folders)
 
 
-def handle_delete_session(session_name: str) -> None:
-    """Delete a saved session."""
-    if SessionStateManager.delete_session(session_name):
-        print(f"✓ Deleted session '{session_name}'")
-    else:
-        print(f"✗ Session '{session_name}' not found")
-
-
-def show_session_required_error() -> None:
-    """Display error when session name is not provided."""
-    print("\n❌ Session name required!")
-    print("\nUsage:")
-    print("  python bot/ui/dashboard.py --session <name> [--balance 10000] [--resume]")
-    print("\nExamples:")
-    print("  python bot/ui/dashboard.py --session my_strategy")
-    print("  python bot/ui/dashboard.py --session aggressive --balance 5000")
-    print("  python bot/ui/dashboard.py --session my_strategy --resume")
-    print("\nOr use dev.sh:")
-    print("  ./dev.sh my_strategy")
-    print("  ./dev.sh aggressive 5000")
+def show_strategies() -> None:
+    """Display available strategies."""
+    print("\n📊 Available Strategies:")
+    print("-" * 50)
+    for name, description in list_strategies():
+        print(f"  {name}")
+        print(f"    └─ {description}")
     print()
 
-    sessions = SessionStateManager.list_sessions()
-    if sessions:
-        print(f"📂 Available Sessions ({len(sessions)}):")
-        for s in sessions:
-            print(f"  • {s['name']} - ${s['balance']:,.2f} ({s['total_trades']} trades)")
-        print()
+
+def show_historical_folders() -> None:
+    """Display available historical data folders."""
+    folders = list_historical_folders()
+    if not folders:
+        print("\n📂 No historical data found in data/historical/")
+        print("   Run the data fetcher first to download historical data.")
+        return
+
+    print("\n📂 Available Historical Data:")
+    print("-" * 50)
+    for folder in folders:
+        csv_count = len(list(folder.glob("*.csv")))
+        parquet_count = len(list(folder.glob("*.parquet")))
+        print(f"  {folder.name}")
+        print(f"    └─ {csv_count} CSV, {parquet_count} Parquet files")
+    print()
 
 
-def handle_fresh_session(session_name: str) -> None:
-    """Clear saved state for a fresh start."""
-    state_manager = SessionStateManager(session_name=session_name)
-    if state_manager.has_saved_state:
-        state_manager.clear_state()
-        print(f"Cleared session '{session_name}'. Starting fresh.")
+def interactive_mode_selection() -> Literal["live", "historical"]:
+    """Prompt user to select mode."""
+    print("\n🚀 Trading Bot Dashboard v2")
+    print("-" * 40)
+    print("Select mode:")
+    print("  1. Live (WebSocket)")
+    print("  2. Historical (Replay)")
+    print()
+
+    while True:
+        choice = input("Enter choice [1/2]: ").strip()
+        if choice == "1":
+            return "live"
+        elif choice == "2":
+            return "historical"
+        print("Invalid choice. Enter 1 or 2.")
 
 
-def show_existing_session_info(session_name: str) -> None:
-    """Display info about an existing session if not resuming."""
-    state_manager = SessionStateManager(session_name=session_name)
-    summary = state_manager.get_session_summary()
-    if summary:
-        print(f"\n📊 Found saved session '{session_name}':")
-        print(
-            f"   Balance: ${summary['balance']:,.2f} (started: ${summary['starting_balance']:,.2f})"
-        )
-        print(f"   P&L: ${summary['pnl']:+,.2f} ({summary['pnl_pct']:+.2f}%)")
-        print(f"   Trades: {summary['total_trades']} ({summary['win_rate']:.1f}% win rate)")
-        print(f"   Open positions: {summary['open_positions']}")
-        print(f"\n   Use --resume --session {session_name} to continue")
-        print(f"   Use --fresh --session {session_name} to reset this session")
-        print("   Use --session <new_name> to create a new session")
-        print()
+def interactive_historical_selection() -> str | None:
+    """Prompt user to select historical folder."""
+    folders = list_historical_folders()
+    if not folders:
+        print("\n❌ No historical data found in data/historical/")
+        return None
+
+    print("\n📂 Select historical data folder:")
+    for i, folder in enumerate(folders, 1):
+        print(f"  {i}. {folder.name}")
+    print()
+
+    while True:
+        choice = input(f"Enter choice [1-{len(folders)}]: ").strip()
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(folders):
+                return str(folders[idx])
+        except ValueError:
+            pass
+        print(f"Invalid choice. Enter a number between 1 and {len(folders)}.")
+
+
+def interactive_strategy_selection() -> str:
+    """Prompt user to select strategy."""
+    strategies = list_strategies()
+
+    print("\n📊 Select strategy:")
+    for i, (name, desc) in enumerate(strategies, 1):
+        print(f"  {i}. {name} - {desc}")
+    print()
+
+    while True:
+        choice = input(f"Enter choice [1-{len(strategies)}] (default: 1): ").strip()
+        if not choice:
+            return strategies[0][0]
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(strategies):
+                return strategies[idx][0]
+        except ValueError:
+            pass
+        print(f"Invalid choice. Enter a number between 1 and {len(strategies)}.")
 
 
 def run_cli() -> None:
-    """Parse arguments and run the appropriate command or launch the dashboard."""
-    from pathlib import Path
+    """Parse arguments and run the dashboard or server."""
+    import asyncio
 
     from bot.ui.dashboard import TradingDashboard
 
     parser = create_parser()
     args = parser.parse_args()
 
-    # Handle --list-sessions
-    if args.list_sessions:
-        handle_list_sessions()
+    # Handle list commands
+    if args.list_strategies:
+        show_strategies()
         return
 
-    # Handle --delete-session
-    if args.delete_session:
-        handle_delete_session(args.delete_session)
+    if args.list_historical:
+        show_historical_folders()
         return
 
-    # Historical mode doesn't require session name
-    if args.historical:
-        historical_path = Path(args.historical)
-        if not historical_path.exists():
-            print(f"\n❌ Historical data file not found: {args.historical}")
-            return
+    # Handle server mode
+    if args.server:
+        from bot.server.data_server import run_server
 
-        # Generate session name from filename if not provided
-        session_name = args.session or f"historical_{historical_path.stem}"
+        print("\n" + "=" * 50)
+        print("Starting Data Server")
+        print("=" * 50)
+        print(f"  Strategy: {args.strategy}")
+        print(f"  Coins: {', '.join(args.coins)}")
+        print("  State files: data/live-state/")
+        print("=" * 50)
+        print("\nPress Ctrl+C to stop\n")
 
-        print("\n📼 Historical Replay Mode")
-        print(f"   File: {historical_path.name}")
-        print(f"   Session: {session_name}")
-        print(f"   Speed: {args.speed}s per candle")
+        asyncio.run(
+            run_server(
+                coins=[c.upper() for c in args.coins],
+                strategy_name=args.strategy,
+            )
+        )
+        return
+
+    # Handle client mode (single-coin terminal)
+    if args.coin:
+        coin = args.coin.upper()
+        print("\n" + "=" * 50)
+        print(f"Starting {coin} Terminal (Client Mode)")
+        print("=" * 50)
+        print("  Reading from: data/live-state/")
+        print("  Make sure the data server is running!")
+        print("=" * 50)
         print()
 
         app = TradingDashboard(
-            starting_balance=args.balance,
-            coins=[c.upper() for c in args.coins],
-            resume=False,  # Don't resume in historical mode
-            session_name=session_name,
-            historical_file=str(historical_path),
-            historical_speed=args.speed,
+            mode="client",
+            strategy_name=args.strategy,
+            coins=[coin],
         )
         app.run()
         return
 
-    # Session name is required for live trading
-    if not args.session:
-        show_session_required_error()
-        return
+    # Determine mode for standard dashboard
+    mode: Literal["live", "historical"]
+    historical_folder: str | None = None
+    strategy_name: str = args.strategy
 
-    # Handle --fresh flag
-    if args.fresh:
-        handle_fresh_session(args.session)
+    if args.live:
+        mode = "live"
+    elif args.historical:
+        mode = "historical"
+        historical_folder = args.historical
 
-    # Show saved state info if available and not resuming
-    if not args.resume and not args.fresh:
-        show_existing_session_info(args.session)
+        # Validate historical folder
+        if not Path(args.historical).exists():
+            print(f"\n❌ Historical data folder not found: {historical_folder}")
+            show_historical_folders()
+            return
+    else:
+        # Interactive mode
+        mode = interactive_mode_selection()
 
-    # Launch the dashboard
+        if mode == "historical":
+            historical_folder = interactive_historical_selection()
+            if not historical_folder:
+                return
+
+        strategy_name = interactive_strategy_selection()
+
+    # Display startup info
+    print("\n" + "=" * 50)
+    print("Starting Trading Bot Dashboard v2")
+    print("=" * 50)
+    print(f"  Mode: {mode.upper()}")
+    print(f"  Strategy: {strategy_name}")
+    print(f"  Coins: {', '.join(args.coins)}")
+    if mode == "historical":
+        print(f"  Data: {historical_folder}")
+        print(f"  Speed: {args.speed}s/candle")
+    print("=" * 50)
+    print()
+
+    # Launch dashboard
     app = TradingDashboard(
-        starting_balance=args.balance,
+        mode=mode,
+        strategy_name=strategy_name,
         coins=[c.upper() for c in args.coins],
-        resume=args.resume,
-        session_name=args.session,
+        historical_folder=historical_folder,
+        replay_speed=args.speed,
     )
     app.run()
+
+
+if __name__ == "__main__":
+    run_cli()

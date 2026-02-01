@@ -1,6 +1,10 @@
 # Python project configuration
 # https://packaging.python.org/en/latest/guides/writing-pyproject-toml/
 
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "trading-bot"
 version = "0.1.0"
@@ -90,3 +94,10 @@ module = [
     "pyarrow.*",
 ]
 ignore_missing_imports = true
+
+# ============================================================
+# SETUPTOOLS - Package Discovery
+# ============================================================
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bot*"]

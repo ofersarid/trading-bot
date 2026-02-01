@@ -1,11 +1,12 @@
 # Trading Strategies
 
-This folder contains trading strategy definitions for the AI trader. Each strategy defines:
+This folder contains trading strategy definitions. Each strategy defines:
 
 1. **Signal Weights**: How important each signal type is to the strategy
 2. **Signal Threshold**: Minimum weighted score to consider a trade
 3. **Risk Config**: Position sizing, stop-loss, take-profit parameters
-4. **Prompt**: The AI's trading mindset and rules (used when AI mode enabled)
+
+Note: Strategies are **pure configuration** - no prompts or AI logic. AI position sizing is handled separately by `GoalBasedSizer`.
 
 ## Available Strategies
 
@@ -56,39 +57,15 @@ Result: 1.15 >= 0.7 → Proceed with trade
 ## Adding a Custom Strategy
 
 1. Create a new file in this folder (e.g., `my_strategy.py`)
-2. Define the prompt and strategy:
+2. Define the strategy configuration:
 
 ```python
 from bot.signals.base import SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType
 
-PROMPT = """You are a [describe trading style]...
-
-SIGNAL WEIGHTS:
-- SIGNAL_TYPE_1: [weight] (primary/supporting signal)
-- SIGNAL_TYPE_2: [weight] (primary/supporting signal)
-
-YOUR TRADING STYLE:
-- [Rule 1]
-- [Rule 2]
-
-ENTRY CRITERIA:
-- [Criterion 1]
-- [Criterion 2]
-
-EXIT CRITERIA:
-- [Criterion 1]
-- [Criterion 2]
-
-RISK RULES:
-- [Rule 1]
-- [Rule 2]
-"""
-
 MY_STRATEGY = Strategy(
     name="My Strategy",
     strategy_type=StrategyType.MOMENTUM_BASED,  # Pick closest type
-    prompt=PROMPT,
     risk=RiskConfig(
         max_position_pct=10.0,
         stop_loss_atr_multiplier=1.5,

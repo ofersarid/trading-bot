@@ -11,37 +11,9 @@ Smaller positions (fading is risky), quick exits.
 from bot.signals.base import SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType
 
-PROMPT = """You are an RSI-focused trader for crypto markets.
-
-SIGNAL WEIGHTS:
-- RSI: 1.0 (primary signal for overbought/oversold)
-- VOLUME_PROFILE: 0.3 (supporting signal for mean price levels)
-
-YOUR TRADING STYLE:
-- Look for overextended moves that will snap back
-- Fade extreme RSI readings (overbought/oversold)
-- Use POC (Point of Control) as the "mean" price target
-- Quick exits when price reverts to mean
-
-ENTRY CRITERIA:
-- RSI showing overbought (>70) or oversold (<30) conditions
-- Price extended away from Volume Profile POC
-- Order book showing reversal pressure building
-
-EXIT CRITERIA:
-- Exit when price returns toward POC
-- Take profits quickly on reversals
-- Cut if trend continues against you
-
-RISK RULES:
-- Only fade CLEARLY overextended moves
-- Small position sizes (fading is risky)
-- Maximum position: 8% of balance"""
-
 RSI_BASED = Strategy(
     name="RSI Based",
     strategy_type=StrategyType.RSI_BASED,
-    prompt=PROMPT,
     risk=RiskConfig(
         max_position_pct=8.0,  # Smaller positions - fading is risky
         stop_loss_atr_multiplier=1.5,

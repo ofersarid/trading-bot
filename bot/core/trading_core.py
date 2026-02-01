@@ -17,9 +17,8 @@ Architecture:
 
     TradingCore handles:
     - Candle buffering
-    - Signal detection
-    - Weighted scoring
-    - AI position sizing (optional)
+    - Signal detection via SignalsFactory (pure, no AI)
+    - AI position sizing via GoalBasedSizer
     - Stop/TP calculation
 
 Available Signal Detectors:
@@ -43,7 +42,7 @@ from collections import deque
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from bot.ai.models import AccountContext, MarketContext, PortfolioOpportunity, TradePlan
+from bot.ai.models import AccountContext, MarketContext, PortfolioOpportunity, TradePlan, UserGoal
 from bot.core.candle_aggregator import Candle
 from bot.indicators.atr import atr as calculate_atr
 from bot.signals import (
@@ -53,15 +52,16 @@ from bot.signals import (
     RSISignalDetector,
     Signal,
     SignalAggregator,
+    SignalsFactory,
     SignalValidator,
     VolumeProfileSignalDetector,
 )
 from bot.strategies import get_strategy
 
 if TYPE_CHECKING:
+    from bot.ai.goal_sizer import GoalBasedSizer
     from bot.ai.ollama_client import OllamaClient
     from bot.ai.portfolio_allocator import PortfolioAllocator
-    from bot.ai.signal_brain import SignalBrain
     from bot.indicators.volume_profile import VolumeProfile
     from bot.signals.detectors.prev_day_vp import PrevDayVPLevels
 
@@ -73,10 +73,9 @@ class TradingCore:
     Unified trading logic for both backtest and live trading.
 
     This class contains ALL the decision-making logic:
-    - Signal detection
-    - Weighted scoring
-    - AI position sizing
-    - Risk management (stops)
+    - Signal detection via SignalAggregator
+    - Signal processing via SignalsFactory (filtering, weighting, TP/SL)
+    - AI position sizing via GoalBasedSizer (optional)
 
     The only thing it doesn't handle is:
     - Where candles come from (backtest vs live)
@@ -116,7 +115,7 @@ class TradingCore:
         self.initial_balance = initial_balance
 
         self._ollama = ollama_client
-        self._brain: "SignalBrain | None" = None
+        self._goal_sizer: "GoalBasedSizer | None" = None
         self._portfolio_allocator: "PortfolioAllocator | None" = None
 
         # Signal detection
@@ -124,6 +123,9 @@ class TradingCore:
         self.detectors = self._create_detectors(detector_names)
         self.aggregator = SignalAggregator(self.detectors)
         self.validator = SignalValidator()
+
+        # Signal processing (pure - no AI)
+        self.signals_factory = SignalsFactory(self.strategy)
 
         # Candle buffers per coin
         self._candle_buffers: dict[str, deque[Candle]] = {}
@@ -252,7 +254,7 @@ class TradingCore:
 
     def calculate_market_context(self, coin: str, current_price: float) -> MarketContext:
         """
-        Calculate market context for AI decision making.
+        Calculate market context for signal processing and AI.
 
         Args:
             coin: Coin symbol
@@ -298,24 +300,23 @@ class TradingCore:
         coin: str,
         current_price: float,
         current_balance: float,
-        current_positions: dict | None = None,
+        current_positions: dict | None = None,  # noqa: ARG002 - kept for API compatibility
     ) -> TradePlan | None:
         """
         Evaluate signals and decide on a trade plan.
 
-        UNIFIED FLOW:
-        1. Signals fire with strength scores
-        2. Weighted scoring normalizes signals into one meaningful score
-        3. Threshold check determines direction (LONG/SHORT/WAIT)
-        4. Position setup calculated (entry, TP, SL from ATR)
-        5. Position SIZE determined by AI (0.5x-2.0x based on goals)
+        FLOW:
+        1. SignalsFactory filters and weights signals (pure, no AI)
+        2. If threshold met, signals are enriched with TP/SL
+        3. GoalBasedSizer determines position size (AI if enabled)
+        4. Returns TradePlan with all execution details
 
         Args:
             signals: Detected signals
             coin: Coin symbol
             current_price: Current price
             current_balance: Current account balance
-            current_positions: Dict of current positions
+            current_positions: Dict of current positions (unused, kept for API compat)
 
         Returns:
             TradePlan if trade should be taken, None otherwise
@@ -323,20 +324,88 @@ class TradingCore:
         if not signals:
             return None
 
-        positions = current_positions or {}
-
-        # Use SignalBrain for weighted scoring and AI position sizing
-        brain = await self._get_brain()
+        # Calculate market context
         market_context = self.calculate_market_context(coin, current_price)
-        account_context = self.create_account_context(current_balance)
 
-        plan = await brain.evaluate_signals(signals, positions, market_context, account_context)
+        # Process through SignalsFactory (pure - no AI)
+        factory_output = self.signals_factory.process_signals(signals, market_context)
 
-        # Count AI calls
+        if factory_output is None:
+            # Threshold not met
+            return TradePlan.wait(
+                coin, f"Signal threshold not met ({self.strategy.signal_threshold})"
+            )
+
+        # Get first signal for position info (all have same TP/SL)
+        primary_signal = factory_output.signals[0]
+
+        # Determine position size
         if self.ai_enabled:
+            # AI position sizing
+            sizer = await self._get_goal_sizer()
+            account_context = self.create_account_context(current_balance)
+            sizing = await sizer.size_position(factory_output, account_context)
             self._ai_calls += 1
 
-        return plan
+            if not sizing.should_trade:
+                return TradePlan.wait(coin, f"AI skipped: {sizing.reasoning}")
+
+            position_pct = sizing.position_size_pct
+            confidence = int(min(10, max(1, sizing.risk_percent * 2)))
+            reason = sizing.reasoning
+        else:
+            # Deterministic position sizing
+            position_pct = self._calculate_deterministic_size(
+                factory_output.weighted_score,
+                factory_output.threshold,
+                market_context.volatility_level,
+            )
+            confidence = int(factory_output.weighted_score * 10)
+            reason = f"Signal score: {factory_output.weighted_score:.2f}"
+
+        # Build TradePlan
+        return TradePlan(
+            action=factory_output.direction,
+            coin=coin,
+            size_pct=position_pct,
+            stop_loss=primary_signal.stop_loss or 0,
+            take_profit=primary_signal.take_profit or 0,
+            trail_activation=0,
+            trail_distance_pct=self.strategy.risk.trail_distance_pct,
+            confidence=confidence,
+            reason=reason,
+            signals_considered=[
+                f"{s.signal_type.value}:{s.direction}" for s in factory_output.signals
+            ],
+        )
+
+    def _calculate_deterministic_size(
+        self,
+        weighted_score: float,
+        threshold: float,
+        volatility_level: str,
+    ) -> float:
+        """
+        Calculate position size without AI (deterministic).
+
+        Args:
+            weighted_score: Score from SignalsFactory
+            threshold: Strategy threshold
+            volatility_level: Market volatility
+
+        Returns:
+            Position size as percentage
+        """
+        base_position = self.strategy.risk.max_position_pct
+
+        # Score strength multiplier
+        score_ratio = weighted_score / threshold if threshold > 0 else 1.0
+        score_mult = min(1.5, max(0.5, score_ratio))
+
+        # Volatility adjustment
+        vol_mult = {"high": 0.6, "medium": 0.8, "low": 1.0}.get(volatility_level, 0.8)
+
+        return base_position * score_mult * vol_mult
 
     def signals_to_opportunity(
         self,
@@ -346,6 +415,8 @@ class TradingCore:
     ) -> PortfolioOpportunity | None:
         """
         Convert signals to a portfolio opportunity for multi-asset allocation.
+
+        Uses SignalsFactory for consistent scoring.
 
         Args:
             signals: Detected signals
@@ -358,119 +429,57 @@ class TradingCore:
         if not signals:
             return None
 
-        # Calculate weighted scores
-        long_score = 0.0
-        short_score = 0.0
-        signal_names = []
+        market_context = self.calculate_market_context(coin, current_price)
+        factory_output = self.signals_factory.process_signals(signals, market_context)
 
-        for s in signals:
-            weight = self.strategy.signal_weights.get(s.signal_type, 0.0)
-            if weight <= 0:
-                continue
-            signal_names.append(s.signal_type.value)
-            if s.direction == "LONG":
-                long_score += s.strength * weight
-            else:
-                short_score += s.strength * weight
-
-        # Check threshold
-        winning_score = max(long_score, short_score)
-        if winning_score < self.strategy.signal_threshold:
+        if factory_output is None:
             return None
-
-        direction = "LONG" if long_score > short_score else "SHORT"
-        context = self.calculate_market_context(coin, current_price)
 
         return PortfolioOpportunity(
             coin=coin,
-            direction=direction,  # type: ignore[arg-type]
-            signal_score=winning_score,
-            signal_threshold=self.strategy.signal_threshold,
-            signals=list(set(signal_names)),
+            direction=factory_output.direction,
+            signal_score=factory_output.weighted_score,
+            signal_threshold=factory_output.threshold,
+            signals=[s.signal_type.value for s in factory_output.signals],
             current_price=current_price,
-            volatility=context.volatility_level,
-            atr_percent=context.atr_percent,
+            volatility=market_context.volatility_level,
+            atr_percent=market_context.atr_percent,
         )
 
-    def _signals_to_plan(
-        self,
-        signals: list[Signal],
-        coin: str,
-        current_price: float,
-    ) -> TradePlan | None:
+    async def _get_goal_sizer(self) -> "GoalBasedSizer":
         """
-        Convert signals directly to a trade plan (signals-only mode).
+        Get or create the GoalBasedSizer for AI position sizing.
 
-        Uses simple consensus and deterministic risk management.
+        Creates a UserGoal from account_goal and goal_timeframe_days if set,
+        otherwise uses default moderate goal.
         """
-        if not signals:
-            return None
-
-        # Calculate consensus
-        long_strength = sum(s.strength for s in signals if s.direction == "LONG")
-        short_strength = sum(s.strength for s in signals if s.direction == "SHORT")
-
-        if long_strength > short_strength:
-            direction = "LONG"
-        elif short_strength > long_strength:
-            direction = "SHORT"
-        else:
-            return TradePlan.wait(coin, "No signal consensus")
-
-        context = self.calculate_market_context(coin, current_price)
-        avg_strength = sum(s.strength for s in signals) / len(signals)
-
-        # Calculate position size based on signal strength
-        vol_factor = {"high": 0.6, "medium": 0.8, "low": 1.0}.get(context.volatility_level, 1.0)
-        position_pct = self.strategy.risk.max_position_pct * avg_strength * vol_factor
-
-        # ATR-based stops
-        atr_value = context.atr
-        stop_mult = self.strategy.risk.stop_loss_atr_multiplier
-        tp_mult = self.strategy.risk.take_profit_atr_multiplier
-
-        if direction == "LONG":
-            stop_loss = current_price - (atr_value * stop_mult)
-            take_profit = current_price + (atr_value * tp_mult)
-        else:
-            stop_loss = current_price + (atr_value * stop_mult)
-            take_profit = current_price - (atr_value * tp_mult)
-
-        return TradePlan(
-            action=direction,  # type: ignore[arg-type]
-            coin=coin,
-            size_pct=position_pct,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            trail_activation=0,
-            trail_distance_pct=0.3,
-            confidence=int(avg_strength * 10),
-            reason=f"Signal consensus: {direction} (strength: {avg_strength:.2f})",
-            signals_considered=[f"{s.signal_type.value}:{s.direction}" for s in signals],
-        )
-
-    async def _get_brain(self) -> "SignalBrain":
-        """
-        Get or create the SignalBrain for weighted scoring and position sizing.
-
-        The brain handles:
-        - Weighted scoring (using strategy's signal_weights)
-        - Threshold check (using strategy's signal_threshold)
-        - Position sizing (AI determines 0.5x-2.0x multiplier)
-        """
-        if self._brain is None:
+        if self._goal_sizer is None:
+            from bot.ai.goal_sizer import GoalBasedSizer
+            from bot.ai.models import RiskTolerance
             from bot.ai.ollama_client import OllamaClient
-            from bot.ai.signal_brain import SignalBrain
 
             if self._ollama is None:
                 self._ollama = OllamaClient()
 
-            self._brain = SignalBrain(
-                strategy=self.strategy,
-                ollama_client=self._ollama,
+            # Create UserGoal from settings
+            if self.account_goal and self.goal_timeframe_days:
+                # Calculate target multiplier
+                multiplier = self.account_goal / self.initial_balance
+                goal = UserGoal(
+                    description=f"Reach ${self.account_goal:,.0f} in {self.goal_timeframe_days} days",
+                    target_multiplier=multiplier,
+                    timeframe_days=self.goal_timeframe_days,
+                    risk_tolerance=RiskTolerance.MODERATE,
+                )
+            else:
+                goal = UserGoal.default()
+
+            self._goal_sizer = GoalBasedSizer(
+                ollama=self._ollama,
+                goal=goal,
             )
 
-        return self._brain
+        return self._goal_sizer
 
     async def _get_portfolio_allocator(self) -> "PortfolioAllocator":
         """Get or create the portfolio allocator."""
@@ -503,5 +512,5 @@ class TradingCore:
         self._signals_generated = 0
         self._ai_calls = 0
         self._start_time = None
-        if self._brain:
-            self._brain.reset_metrics()
+        if self._goal_sizer:
+            self._goal_sizer.reset_metrics()

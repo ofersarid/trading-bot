@@ -2,16 +2,32 @@
 
 AI-powered trading analysis and decision-making components.
 
+## Architecture
+
+```mermaid
+flowchart TD
+    Signals[Raw Signals] --> Factory[SignalsFactory]
+    Strategy[Strategy - weights only] --> Factory
+    Factory -->|Signals with TP/SL| Sizer[GoalBasedSizer]
+    Goal[UserGoal] --> Sizer
+    Sizer -->|SizingDecision| Execution[Position Execution]
+```
+
 ## Components
 
-### Core Components
+### Goal-Based Position Sizing
 
 | File | Description |
 |------|-------------|
-| `signal_brain.py` | Main AI decision maker - evaluates signals and produces trade plans |
+| `goal_sizer.py` | AI position sizer based on user goals |
+| `models.py` | UserGoal, RiskTolerance, SizingDecision models |
 | `ollama_client.py` | Client for Ollama local LLM API |
-| `prompts.py` | Prompt templates for AI evaluation |
-| `models.py` | Data models (TradePlan, MarketContext, etc.) |
+
+### Portfolio Allocation
+
+| File | Description |
+|------|-------------|
+| `portfolio_allocator.py` | Multi-asset AI allocation |
 
 ### Analysis & Feedback Loop
 
@@ -24,26 +40,62 @@ AI-powered trading analysis and decision-making components.
 
 | File | Description |
 |------|-------------|
-| `analyzer.py` | Legacy MarketAnalyzer (older approach) |
+| `analyzer.py` | Legacy MarketAnalyzer |
+| `prompts.py` | Legacy prompt templates |
 
-## Architecture
+## Usage
 
-```mermaid
-flowchart TB
-    subgraph "Signal Brain"
-        SB[SignalBrain] --> |evaluates| Signals
-        SB --> |uses| Ollama[OllamaClient]
-        SB --> |outputs| TradePlan
-    end
+### Standard Flow
 
-    subgraph "Feedback Loop"
-        SB --> |logs to| DL[DecisionLogger]
-        DL --> |saves| Log[DecisionLog JSON]
-        Log --> |analyzed by| DA[DecisionAnalyzer]
-        DA --> |produces| Report[AIAnalysisReport]
-    end
+```python
+from bot.signals import SignalsFactory
+from bot.ai import GoalBasedSizer, UserGoal, create_goal_sizer
+from bot.strategies import get_strategy
 
-    Report --> |improves| Prompts[prompts.py]
+# Setup
+strategy = get_strategy("momentum_based")
+factory = SignalsFactory(strategy)
+goal = UserGoal.aggressive_growth(multiplier=2.0, days=30)
+sizer = GoalBasedSizer(ollama_client, goal)
+
+# Process signals (pure - no AI)
+output = factory.process_signals(signals, market_context)
+
+if output:
+    # AI sizes position based on goal
+    sizing = await sizer.size_position(output, account_context)
+
+    if sizing.should_trade:
+        # sizing.risk_percent - % of account to risk
+        # sizing.position_size_pct - actual position size
+        execute_trade(output.direction, sizing)
+```
+
+### Deterministic Fallback (No AI)
+
+```python
+# Use deterministic sizing when AI unavailable
+sizing = sizer.size_position_deterministic(output, account_context)
+```
+
+### User Goals
+
+```python
+from bot.ai import UserGoal, RiskTolerance
+
+# Conservative goal
+goal = UserGoal.conservative(days=30)
+
+# Aggressive growth
+goal = UserGoal.aggressive_growth(multiplier=2.0, days=30)
+
+# Custom goal
+goal = UserGoal(
+    description="Triple my account in 2 months",
+    target_multiplier=3.0,
+    timeframe_days=60,
+    risk_tolerance=RiskTolerance.AGGRESSIVE,
+)
 ```
 
 ## Decision Logging
@@ -54,80 +106,31 @@ When `--log-decisions` is enabled during backtesting:
    - Input signals and their weights
    - Market context (price, volatility, ATR)
    - AI decision (confirm/reject, confidence, reason)
-   - Mode (AI or BYPASS)
 
-2. **Trade outcomes are linked** after trades close:
-   - WIN/LOSS/BREAKEVEN outcome
-   - P&L and hold duration
-   - Exit reason
+2. **Trade outcomes are linked** after trades close
 
-3. **Post-backtest analysis** produces:
-   - Confidence calibration (is AI over/under confident?)
-   - Pattern analysis (which signal combos work?)
-   - Rejection analysis (is AI rejecting good trades?)
-   - Few-shot examples for prompt improvement
+3. **Post-backtest analysis** produces insights
 
-## Usage
+## Key Concepts
 
-### Basic Usage (with AI)
+### Separation of Concerns
 
-```python
-from bot.ai import create_signal_brain
+- **SignalsFactory** (bot.signals.factory): Pure signal processing, no AI
+  - Filters signals by strategy weights
+  - Calculates weighted scores
+  - Checks threshold
+  - Enriches signals with TP/SL
 
-brain = create_signal_brain("momentum_based")
-plan = await brain.evaluate_signals(signals, positions, context)
-```
+- **GoalBasedSizer**: AI position sizing
+  - Receives enriched signals from factory
+  - Considers user goal and account progress
+  - Determines risk % and position size
 
-### With Decision Logging
+### Strategies Are Pure Configuration
 
-```python
-from bot.ai import create_signal_brain, AIDecisionLogger
+Strategies define only:
+- Signal weights (which signals matter and how much)
+- Thresholds (minimum score to trade)
+- Risk config (ATR multipliers, max position size)
 
-logger = AIDecisionLogger(strategy_name="momentum_based")
-brain = create_signal_brain("momentum_based", decision_logger=logger)
-
-# After backtest...
-log = logger.finalize()
-log.save("data/logs/decisions.json")
-```
-
-### Analyzing Decisions
-
-```python
-from bot.ai import analyze_decision_log
-
-report = analyze_decision_log("data/logs/decisions.json")
-report.print_summary()
-
-# Get prompt improvements
-prompt_addition = report.to_prompt_injection()
-few_shots = report.to_few_shot_examples()
-```
-
-## Backtest Modes
-
-| Mode | Flag | Description |
-|------|------|-------------|
-| Signals-Only | (none) | Pure signal-based trading, no AI |
-| AI Mode | `--ai` | AI determines position sizing (0.5x-2.0x) |
-| AI + Goals | `--ai --goal X --goal-days Y` | AI sizes based on goal progress |
-| Portfolio | `--ai --portfolio` | AI allocates across multiple assets |
-| With Logging | `--ai --log-decisions` | AI mode with decision logging for analysis |
-
-## Configuration
-
-### Strategy Settings (affect AI behavior)
-
-```python
-Strategy(
-    min_confidence=6,      # Minimum AI confidence to execute (1-10)
-    signal_threshold=0.7,  # Minimum weighted score to consider
-    signal_weights={...},  # Weight per signal type
-)
-```
-
-### Prompt Customization
-
-Edit `prompts.py` to customize:
-- `TRADING_SYSTEM_PROMPT` - System role and rules
-- `SIGNAL_EVALUATION_PROMPT` - Trade evaluation template
+They do NOT contain prompts or AI logic.

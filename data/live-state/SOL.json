@@ -1,0 +1,27 @@
+{
+  "coin": "SOL",
+  "timestamp": "2026-01-31T21:04:09.007582",
+  "price": 102.045,
+  "indicators": {
+    "session_vp": {
+      "poc": 102.10000000000001,
+      "vah": 102.10000000000001,
+      "val": 101.5,
+      "lvn": [
+        100.10000000000001,
+        100.7
+      ]
+    },
+    "momentum": {
+      "1m_pct": -0.0392
+    }
+  },
+  "signals": {
+    "active": [],
+    "combined": {
+      "direction": "WAIT",
+      "score": 0.0,
+      "threshold": 0.8
+    }
+  }
+}

@@ -231,6 +231,79 @@ class AIMetrics:
 # =============================================================================
 
 
+class RiskTolerance(Enum):
+    """Risk tolerance levels for trading goals."""
+
+    CONSERVATIVE = "conservative"  # Prioritize capital preservation
+    MODERATE = "moderate"  # Balanced risk/reward
+    AGGRESSIVE = "aggressive"  # Maximize growth, accept higher drawdowns
+
+
+@dataclass
+class UserGoal:
+    """
+    User's trading goal for AI position sizing.
+
+    The GoalBasedSizer uses this to determine how aggressively
+    to size positions based on goal progress.
+    """
+
+    description: str  # Natural language: "Double my account in 30 days"
+    target_multiplier: float  # Target as multiplier of initial (e.g., 2.0 = double)
+    timeframe_days: int  # Days to achieve the goal
+    risk_tolerance: RiskTolerance = RiskTolerance.MODERATE
+
+    @property
+    def target_return_pct(self) -> float:
+        """Target return as percentage."""
+        return (self.target_multiplier - 1.0) * 100
+
+    @property
+    def daily_return_needed(self) -> float:
+        """Simple linear daily return needed (not compounded)."""
+        if self.timeframe_days <= 0:
+            return 0.0
+        return self.target_return_pct / self.timeframe_days
+
+    @classmethod
+    def default(cls) -> "UserGoal":
+        """Create a default conservative goal."""
+        return cls(
+            description="Grow account steadily with controlled risk",
+            target_multiplier=1.1,  # 10% growth
+            timeframe_days=30,
+            risk_tolerance=RiskTolerance.MODERATE,
+        )
+
+    @classmethod
+    def aggressive_growth(cls, multiplier: float, days: int) -> "UserGoal":
+        """Create an aggressive growth goal."""
+        return cls(
+            description=f"{multiplier}x account in {days} days",
+            target_multiplier=multiplier,
+            timeframe_days=days,
+            risk_tolerance=RiskTolerance.AGGRESSIVE,
+        )
+
+    @classmethod
+    def conservative(cls, days: int = 30) -> "UserGoal":
+        """Create a conservative capital preservation goal."""
+        return cls(
+            description="Preserve capital while seeking modest gains",
+            target_multiplier=1.05,  # 5% growth
+            timeframe_days=days,
+            risk_tolerance=RiskTolerance.CONSERVATIVE,
+        )
+
+    def to_prompt_context(self) -> str:
+        """Format goal for AI prompt."""
+        return f"""USER GOAL: {self.description}
+- Target: {self.target_multiplier}x account ({self.target_return_pct:.1f}% return)
+- Timeframe: {self.timeframe_days} days
+- Risk tolerance: {self.risk_tolerance.value}
+- Required daily return: {self.daily_return_needed:.2f}%"""
+
+
 @dataclass
 class AccountContext:
     """

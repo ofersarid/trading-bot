@@ -4,9 +4,9 @@
   "starting_balance": 10000.0,
   "total_fees_paid": 31.6173357721925,
   "positions": {},
-  "total_trades": 195,
+  "total_trades": 200,
   "winning_trades": 0,
   "last_report_timestamp": null,
   "session_start": "2026-01-19T14:12:18.692666",
-  "last_update": "2026-01-21T09:09:34.763723"
+  "last_update": "2026-01-30T13:26:16.856193"
 }

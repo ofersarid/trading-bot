@@ -1,11 +1,11 @@
 """
 Backtest Engine - Orchestrates the 3-layer backtesting architecture.
 
-Flow: Historical Data → Indicators → Signals → AI Brain → Position Manager
+Flow: Historical Data → Indicators → Signals → SignalsFactory → GoalBasedSizer → Position Manager
 
 The engine processes historical candles, generates signals through the
-signal detectors, optionally passes them to the AI for evaluation, and
-executes trades through the position manager.
+signal detectors, processes them through SignalsFactory for filtering/weighting,
+and optionally uses GoalBasedSizer for AI position sizing.
 """
 
 import logging
@@ -25,9 +25,9 @@ from bot.ai.models import (
     PortfolioPosition,
     PortfolioState,
     TradePlan,
+    UserGoal,
 )
 from bot.ai.portfolio_allocator import PortfolioAllocator
-from bot.ai.signal_brain import SignalBrain
 from bot.backtest.breakout_analyzer import BreakoutAnalysis, BreakoutAnalyzer
 from bot.backtest.models import BacktestConfig, BacktestResult, EquityPoint, PrevDayVPLevels
 from bot.backtest.position_manager import PositionManager
@@ -41,6 +41,7 @@ from bot.signals import (
     RSISignalDetector,
     Signal,
     SignalAggregator,
+    SignalsFactory,
     SignalValidator,
     VolumeProfileSignalDetector,
 )
@@ -49,6 +50,7 @@ from bot.simulation.paper_trader import PaperTrader
 from bot.strategies import get_strategy
 
 if TYPE_CHECKING:
+    from bot.ai.goal_sizer import GoalBasedSizer
     from bot.ai.ollama_client import OllamaClient
     from bot.historical.trade_storage import TradeStorage
     from bot.indicators.volume_profile import Trade as VPTrade
@@ -65,8 +67,9 @@ class BacktestEngine:
     Processes historical data through:
     1. Indicators (pure math functions)
     2. Signal detectors (pattern recognition)
-    3. AI Brain (optional, for decision making)
-    4. Position Manager (execution with trailing stops)
+    3. SignalsFactory (filtering, weighting, TP/SL - pure, no AI)
+    4. GoalBasedSizer (AI position sizing, optional)
+    5. Position Manager (execution with trailing stops)
     """
 
     def __init__(
@@ -95,8 +98,12 @@ class BacktestEngine:
         # Signal validator - filters historically inaccurate signals
         self.validator = SignalValidator()
 
-        # AI Brain (lazy initialized)
-        self._brain: SignalBrain | None = None
+        # SignalsFactory for pure signal processing (no AI)
+        self._strategy = get_strategy(config.strategy_name)
+        self._signals_factory = SignalsFactory(self._strategy)
+
+        # GoalBasedSizer for AI position sizing (lazy initialized)
+        self._goal_sizer: "GoalBasedSizer | None" = None
 
         # Portfolio Allocator (lazy initialized, for portfolio mode)
         self._portfolio_allocator: PortfolioAllocator | None = None
@@ -291,29 +298,38 @@ class BacktestEngine:
 
         return current_trade
 
-    async def _get_brain(self) -> SignalBrain:
+    async def _get_goal_sizer(self) -> "GoalBasedSizer":
         """
-        Get or create the SignalBrain for weighted scoring and position sizing.
+        Get or create the GoalBasedSizer for AI position sizing.
 
-        The brain handles:
-        - Weighted scoring (using strategy's signal_weights)
-        - Threshold check (using strategy's signal_threshold)
-        - Position sizing (AI determines 0.5x-2.0x multiplier)
+        Creates a UserGoal from config settings if available.
         """
-        if self._brain is None:
+        if self._goal_sizer is None:
+            from bot.ai.goal_sizer import GoalBasedSizer
+            from bot.ai.models import RiskTolerance
             from bot.ai.ollama_client import OllamaClient
 
             if self._ollama is None:
                 self._ollama = OllamaClient()
 
-            strategy = get_strategy(self.config.strategy_name)
-            self._brain = SignalBrain(
-                strategy=strategy,
-                ollama_client=self._ollama,
-                decision_logger=self._decision_logger,
+            # Create UserGoal from config
+            if self.config.account_goal and self.config.goal_timeframe_days:
+                multiplier = self.config.account_goal / self.config.initial_balance
+                goal = UserGoal(
+                    description=f"Reach ${self.config.account_goal:,.0f} in {self.config.goal_timeframe_days} days",
+                    target_multiplier=multiplier,
+                    timeframe_days=self.config.goal_timeframe_days,
+                    risk_tolerance=RiskTolerance.MODERATE,
+                )
+            else:
+                goal = UserGoal.default()
+
+            self._goal_sizer = GoalBasedSizer(
+                ollama=self._ollama,
+                goal=goal,
             )
 
-        return self._brain
+        return self._goal_sizer
 
     async def _get_portfolio_allocator(self) -> PortfolioAllocator:
         """Get or create the portfolio allocator."""
@@ -617,14 +633,6 @@ class BacktestEngine:
                     if evaluated_plan and evaluated_plan.is_actionable:
                         self.position_manager.open_position(evaluated_plan, update.close)
 
-                        # Track decision ID for outcome linking
-                        if self._brain and self._brain.last_decision_id:
-                            position = self.trader.positions.get(update.coin)
-                            if position:
-                                self._pending_decision_ids[str(id(position))] = (
-                                    self._brain.last_decision_id
-                                )
-
             # Record equity periodically (every 10 candles to reduce memory)
             if candle_count % 10 == 0:
                 self._record_equity(update.timestamp, prices)
@@ -695,12 +703,11 @@ class BacktestEngine:
         """
         Evaluate signals and decide on action.
 
-        UNIFIED FLOW:
-        1. Signals fire with strength scores
-        2. Weighted scoring normalizes signals into one meaningful score
-        3. Threshold check determines direction (LONG/SHORT/WAIT)
-        4. Position setup calculated (entry, TP, SL from ATR)
-        5. Position SIZE determined by AI (0.5x-2.0x based on goals)
+        FLOW:
+        1. SignalsFactory filters and weights signals (pure, no AI)
+        2. If threshold met, signals are enriched with TP/SL
+        3. GoalBasedSizer determines position size (AI if enabled)
+        4. Returns TradePlan with all execution details
 
         Args:
             signals: List of detected signals
@@ -710,23 +717,88 @@ class BacktestEngine:
         Returns:
             TradePlan if action should be taken
         """
-        # Use SignalBrain for weighted scoring and AI position sizing
-        brain = await self._get_brain()
+        # Calculate market context
         context = self._calculate_market_context(coin, current_price)
 
-        # Get current positions from paper trader
-        positions = self.trader.positions
+        # Process through SignalsFactory (pure - no AI)
+        factory_output = self._signals_factory.process_signals(signals, context)
 
-        # Create account context for AI position sizing
-        account_context = self._create_account_context()
+        if factory_output is None:
+            # Threshold not met
+            return TradePlan.wait(
+                coin, f"Signal threshold not met ({self._strategy.signal_threshold})"
+            )
 
-        plan = await brain.evaluate_signals(signals, positions, context, account_context)
+        # Get first signal for position info (all have same TP/SL)
+        primary_signal = factory_output.signals[0]
 
-        # Count AI calls when AI is enabled
+        # Determine position size
         if self.config.ai_enabled:
+            # AI position sizing via GoalBasedSizer
+            sizer = await self._get_goal_sizer()
+            account_context = self._create_account_context()
+            sizing = await sizer.size_position(factory_output, account_context)
             self._ai_calls += 1
 
-        return plan
+            if not sizing.should_trade:
+                return TradePlan.wait(coin, f"AI skipped: {sizing.reasoning}")
+
+            position_pct = sizing.position_size_pct
+            confidence = int(min(10, max(1, sizing.risk_percent * 2)))
+            reason = sizing.reasoning
+        else:
+            # Deterministic position sizing
+            position_pct = self._calculate_deterministic_size(
+                factory_output.weighted_score,
+                factory_output.threshold,
+                context.volatility_level,
+            )
+            confidence = int(factory_output.weighted_score * 10)
+            reason = f"Signal score: {factory_output.weighted_score:.2f}"
+
+        # Build TradePlan
+        return TradePlan(
+            action=factory_output.direction,
+            coin=coin,
+            size_pct=position_pct,
+            stop_loss=primary_signal.stop_loss or 0,
+            take_profit=primary_signal.take_profit or 0,
+            trail_activation=0,
+            trail_distance_pct=self._strategy.risk.trail_distance_pct,
+            confidence=confidence,
+            reason=reason,
+            signals_considered=[
+                f"{s.signal_type.value}:{s.direction}" for s in factory_output.signals
+            ],
+        )
+
+    def _calculate_deterministic_size(
+        self,
+        weighted_score: float,
+        threshold: float,
+        volatility_level: str,
+    ) -> float:
+        """
+        Calculate position size without AI (deterministic).
+
+        Args:
+            weighted_score: Score from SignalsFactory
+            threshold: Strategy threshold
+            volatility_level: Market volatility
+
+        Returns:
+            Position size as percentage
+        """
+        base_position = self._strategy.risk.max_position_pct
+
+        # Score strength multiplier
+        score_ratio = weighted_score / threshold if threshold > 0 else 1.0
+        score_mult = min(1.5, max(0.5, score_ratio))
+
+        # Volatility adjustment
+        vol_mult = {"high": 0.6, "medium": 0.8, "low": 1.0}.get(volatility_level, 0.8)
+
+        return base_position * score_mult * vol_mult
 
     def _create_account_context(self) -> AccountContext:
         """
@@ -735,8 +807,6 @@ class BacktestEngine:
         Returns:
             AccountContext with current account state and goals
         """
-        strategy = get_strategy(self.config.strategy_name)
-
         # Calculate days elapsed (simplified - assumes backtest runs in chronological order)
         days_elapsed = 0
         if self._equity_curve:
@@ -750,7 +820,7 @@ class BacktestEngine:
             account_goal=self.config.account_goal,
             goal_timeframe_days=self.config.goal_timeframe_days,
             days_elapsed=days_elapsed,
-            base_position_pct=strategy.risk.max_position_pct,
+            base_position_pct=self._strategy.risk.max_position_pct,
         )
 
     def _signals_to_opportunity(
@@ -773,15 +843,13 @@ class BacktestEngine:
         if not signals:
             return None
 
-        strategy = get_strategy(self.config.strategy_name)
-
         # Calculate weighted scores
         long_score = 0.0
         short_score = 0.0
         signal_names = []
 
         for s in signals:
-            weight = strategy.signal_weights.get(s.signal_type, 0.0)
+            weight = self._strategy.signal_weights.get(s.signal_type, 0.0)
             if weight <= 0:
                 continue
             signal_names.append(s.signal_type.value)
@@ -792,7 +860,7 @@ class BacktestEngine:
 
         # Check threshold
         winning_score = max(long_score, short_score)
-        if winning_score < strategy.signal_threshold:
+        if winning_score < self._strategy.signal_threshold:
             return None
 
         direction = "LONG" if long_score > short_score else "SHORT"
@@ -804,7 +872,7 @@ class BacktestEngine:
             coin=coin,
             direction=direction,  # type: ignore[arg-type]
             signal_score=winning_score,
-            signal_threshold=strategy.signal_threshold,
+            signal_threshold=self._strategy.signal_threshold,
             signals=list(set(signal_names)),  # Dedupe
             current_price=current_price,
             volatility=context.volatility_level,
@@ -954,8 +1022,7 @@ class BacktestEngine:
         else:
             return TradePlan.wait(coin, "No signal consensus")
 
-        # Get strategy and context
-        strategy = get_strategy(self.config.strategy_name)
+        # Get context
         context = self._calculate_market_context(coin, current_price)
         atr_value = context.atr
 
@@ -963,7 +1030,9 @@ class BacktestEngine:
         avg_strength = sum(s.strength for s in signals) / len(signals)
 
         # DYNAMIC POSITION SIZING (based on signal strength and volatility)
-        risk_params = self._calculate_dynamic_risk(avg_strength, context.volatility_level, strategy)
+        risk_params = self._calculate_dynamic_risk(
+            avg_strength, context.volatility_level, self._strategy
+        )
 
         # STRUCTURE-AWARE TP/SL
         # Build structure levels from previous day VP if available
@@ -995,9 +1064,9 @@ class BacktestEngine:
 
         # Trail activation based on strategy
         if direction == "LONG":
-            trail_activation = current_price * (1 + strategy.risk.trail_activation_pct / 100)
+            trail_activation = current_price * (1 + self._strategy.risk.trail_activation_pct / 100)
         else:
-            trail_activation = current_price * (1 - strategy.risk.trail_activation_pct / 100)
+            trail_activation = current_price * (1 - self._strategy.risk.trail_activation_pct / 100)
 
         return TradePlan(
             action=direction,  # type: ignore[arg-type]
@@ -1006,7 +1075,7 @@ class BacktestEngine:
             stop_loss=stop_loss,
             take_profit=take_profit,
             trail_activation=trail_activation,
-            trail_distance_pct=strategy.risk.trail_distance_pct,
+            trail_distance_pct=self._strategy.risk.trail_distance_pct,
             confidence=int(avg_strength * 10),
             reason=f"Signal consensus: {direction} (strength: {avg_strength:.2f}) | {tp_sl_reason}",
             signals_considered=[f"{s.signal_type.value}:{s.direction}" for s in signals],

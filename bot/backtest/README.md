@@ -51,8 +51,9 @@ flowchart LR
     PARQUET[Trade Parquet] --> ENGINE
 
     ENGINE --> SIGNALS[Signal Detectors]
-    SIGNALS --> BRAIN[SignalBrain]
-    BRAIN --> PM[Position Manager]
+    SIGNALS --> FACTORY[SignalsFactory]
+    FACTORY --> SIZER[GoalBasedSizer]
+    SIZER --> PM[Position Manager]
     PM --> TRADER[Paper Trader]
 
     TRADER --> RESULT[BacktestResult]
@@ -65,7 +66,8 @@ sequenceDiagram
     participant CSV as Historical Data
     participant Engine as BacktestEngine
     participant Signals as SignalDetectors
-    participant Brain as SignalBrain
+    participant Factory as SignalsFactory
+    participant Sizer as GoalBasedSizer
     participant PM as PositionManager
     participant Trader as PaperTrader
 
@@ -74,8 +76,12 @@ sequenceDiagram
         Engine->>PM: Check exits (SL/TP/Trailing)
         Engine->>Signals: Process candle
         Signals-->>Engine: Detected signals
-        Engine->>Brain: Evaluate signals
-        Brain-->>Engine: TradePlan
+        Engine->>Factory: Filter, weight, enrich signals
+        Factory-->>Engine: FactoryOutput (or None)
+        alt threshold met
+            Engine->>Sizer: Size position (AI)
+            Sizer-->>Engine: SizingDecision
+        end
         Engine->>PM: Open/manage position
         PM->>Trader: Execute trade
     end

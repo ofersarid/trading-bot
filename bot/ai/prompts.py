@@ -301,25 +301,23 @@ ACTION meanings:
 Only output ONE action per response."""
 
 
-def get_strategy_prompt(strategy: "StrategyType") -> str:
+def get_strategy_prompt(strategy: "StrategyType") -> str:  # noqa: ARG001
     """
     Get the full trading prompt for a strategy type.
 
+    NOTE: In the refactored architecture, strategies no longer contain prompts.
+    AI prompting is now handled by GoalBasedSizer. This function returns the
+    base trading prompt for backwards compatibility.
+
     Args:
-        strategy: The strategy type enum value
+        strategy: The strategy type enum value (kept for API compatibility)
 
     Returns:
-        The strategy's prompt string
+        The base trading prompt string
     """
-    from bot.strategies import MOMENTUM_BASED
-    from bot.strategies import get_strategy as get_strategy_instance
-
-    try:
-        strategy_obj = get_strategy_instance(strategy.value)
-        return strategy_obj.prompt
-    except (ValueError, AttributeError):
-        # Fallback to momentum_based if strategy not found
-        return MOMENTUM_BASED.prompt
+    # Strategies are now pure configuration (weights, thresholds, risk).
+    # GoalBasedSizer handles all AI prompting for position sizing.
+    return AI_TRADING_PROMPT
 
 
 def format_ai_trading_prompt(

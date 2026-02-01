@@ -77,34 +77,28 @@ sequenceDiagram
     autonumber
     participant Candles as Candles<br/>(OHLCV)
     participant Detectors as Signal Detectors<br/>signals/detectors/*.py
-    participant Scoring as Weighted Scoring<br/>ai/signal_brain.py
-    participant Decision as Direction Decision<br/>ai/signal_brain.py
-    participant TPSL as TP/SL Calculator<br/>core/levels.py
-    participant Sizing as Position Sizing<br/>ai/signal_brain.py
+    participant Factory as SignalsFactory<br/>signals/factory.py
+    participant Sizer as GoalBasedSizer<br/>ai/goal_sizer.py
     participant Plan as TradePlan<br/>ai/models.py
 
     Candles->>Detectors: OHLCV data
     Note over Detectors: Momentum, RSI, MACD,<br/>Volume Profile analyze patterns
-    Detectors->>Scoring: Signals (direction + strength)
+    Detectors->>Factory: Raw Signals (direction + strength)
 
-    Note over Scoring: long_score = Σ(weight × strength)<br/>short_score = Σ(weight × strength)
-    Scoring->>Decision: long_score, short_score
+    Note over Factory: Filters by strategy weights<br/>Calculates weighted scores<br/>Enriches with TP/SL
 
     alt score >= threshold
-        Decision->>TPSL: Direction (LONG/SHORT)
-        Note over TPSL: Find nearest support/resistance<br/>from VP levels (VAL, VAH, POC, HVN)
-        TPSL->>Sizing: SL price, TP price
+        Factory->>Sizer: FactoryOutput (signals + TP/SL)
+        Note over Sizer: AI decides position size<br/>based on goal progress
 
-        Note over Sizing: AI decides 0.5x-2.0x<br/>based on goal progress
-
-        Sizing->>Plan: Position size %
+        Sizer->>Plan: SizingDecision
         Note over Plan: Complete TradePlan<br/>ready for execution
     else score < threshold
-        Decision->>Plan: WAIT (no trade)
+        Factory->>Plan: WAIT (no trade)
     end
 ```
 
-**Key Insight:** The AI never decides direction. Direction is deterministic from weighted scoring. The AI only decides **how much** to risk on a trade that's already been decided.
+**Key Insight:** The AI never decides direction. Direction is determined by SignalsFactory through weighted scoring. The AI (GoalBasedSizer) only decides **how much** to risk on a trade that's already been decided.
 
 ## Running Modes
 

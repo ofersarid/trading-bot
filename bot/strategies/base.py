@@ -51,10 +51,11 @@ class RiskConfig:
 @dataclass
 class Strategy:
     """
-    A complete trading strategy that defines how the AI trades.
+    A trading strategy configuration.
 
-    Combines the trading prompt (mindset/style) with risk parameters,
-    signal weights, and confidence thresholds.
+    Defines signal weights and risk parameters for trading decisions.
+    The strategy is ONLY configuration - no prompts or AI logic.
+    AI position sizing is handled separately by GoalBasedSizer.
 
     Signal Weighting:
         Each signal type has a weight (0.0-1.0) that determines its importance.
@@ -64,7 +65,6 @@ class Strategy:
 
     name: str
     strategy_type: StrategyType
-    prompt: str  # The AI's trading mindset/style
     risk: RiskConfig = field(default_factory=RiskConfig)
 
     # Signal weighting - maps SignalType to importance weight (0.0-1.0)

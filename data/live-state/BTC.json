@@ -1,0 +1,38 @@
+{
+  "coin": "BTC",
+  "timestamp": "2026-01-31T21:04:09.005360",
+  "price": 77900.5,
+  "indicators": {
+    "session_vp": {
+      "poc": 77880.0,
+      "vah": 78070.0,
+      "val": 77720.0,
+      "lvn": [
+        77640.0,
+        77350.0
+      ]
+    },
+    "momentum": {
+      "1m_pct": 0.0026
+    }
+  },
+  "signals": {
+    "active": [
+      {
+        "type": "RSI",
+        "direction": "SHORT",
+        "strength": 0.32
+      },
+      {
+        "type": "RSI",
+        "direction": "LONG",
+        "strength": 0.929
+      }
+    ],
+    "combined": {
+      "direction": "LONG",
+      "score": 0.279,
+      "threshold": 0.8
+    }
+  }
+}
