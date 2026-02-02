@@ -9,6 +9,7 @@ Data storage for historical data, trading sessions, and feedback.
 | `historical/` | Historical candle data (CSV) and trade data (Parquet) |
 | `sessions/` | Saved trading session states for resumption |
 | `feedback/` | Trade feedback data for analysis |
+| `live-state/` | Real-time market state files for multi-terminal mode |
 
 ## Session Persistence
 
