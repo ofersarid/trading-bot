@@ -24,21 +24,19 @@ class MarketColumn(Container):
     has_data: reactive[bool] = reactive(True)
     price: reactive[float | None] = reactive(None)
 
-    def __init__(self, coin: str, **kwargs) -> None:
+    def __init__(self, coin: str, strategy=None, **kwargs) -> None:
         """
         Initialize the market column.
 
         Args:
             coin: Coin symbol (BTC, ETH, SOL)
+            strategy: Strategy object for displaying weights
         """
         super().__init__(**kwargs)
         self.coin = coin
+        self.strategy = strategy
 
     def compose(self) -> ComposeResult:
-        yield Static(
-            self._format_header(), id=f"{self.coin.lower()}-header", classes="market-header"
-        )
-
         if not self.has_data:
             # Show missing data warning
             with Vertical(classes="missing-data-container"):
@@ -58,6 +56,7 @@ class MarketColumn(Container):
                     yield IndicatorSubColumn(
                         self.coin,
                         ind,
+                        strategy=self.strategy,
                         id=f"{self.coin.lower()}-{ind}",
                         classes="indicator-subcolumn",
                     )
@@ -98,6 +97,7 @@ class MarketColumn(Container):
                     yield IndicatorSubColumn(
                         self.coin,
                         ind,
+                        strategy=self.strategy,
                         id=f"{self.coin.lower()}-{ind}",
                         classes="indicator-subcolumn",
                     )

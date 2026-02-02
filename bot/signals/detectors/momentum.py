@@ -5,12 +5,15 @@ Generates LONG signals when fast EMA crosses above slow EMA,
 and SHORT signals when fast EMA crosses below slow EMA.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from bot.indicators import ema_series
 
 from ..base import Signal, SignalType
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from bot.core.candle_aggregator import Candle
@@ -54,6 +57,7 @@ class MomentumSignalDetector:
         Returns:
             Signal if crossover detected, None otherwise
         """
+
         min_candles = self.config.slow_period + 2  # Need extra for crossover detection
         if len(candles) < min_candles:
             return None
@@ -110,6 +114,9 @@ class MomentumSignalDetector:
 
         # Check if difference exceeds threshold
         if diff_pct < self.config.threshold:
+            logger.info(
+                f"[{coin}] MOMENTUM: Crossover {crossover_direction} but diff too small ({diff_pct:.6f})"
+            )
             return None
 
         # Calculate signal strength based on EMA separation

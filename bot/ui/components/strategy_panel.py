@@ -4,7 +4,6 @@ Strategy Panel component.
 Displays current strategy configuration with:
 - Strategy name (selectable)
 - Signal threshold
-- Visual weight histogram for each indicator
 """
 
 from textual.app import ComposeResult
@@ -12,50 +11,7 @@ from textual.containers import Container, Horizontal
 from textual.reactive import reactive
 from textual.widgets import Static
 
-from bot.signals.base import SignalType
 from bot.strategies import Strategy, get_strategy, list_strategies
-
-# All signal types in display order
-ALL_SIGNAL_TYPES = [
-    SignalType.MOMENTUM,
-    SignalType.RSI,
-    SignalType.MACD,
-    SignalType.VOLUME_PROFILE,
-]
-
-# Short labels for display
-SIGNAL_LABELS = {
-    SignalType.MOMENTUM: "MOM",
-    SignalType.RSI: "RSI",
-    SignalType.MACD: "MACD",
-    SignalType.VOLUME_PROFILE: "VP",
-}
-
-
-class WeightBar(Static):
-    """A single weight bar showing indicator weight visually."""
-
-    weight: reactive[float] = reactive(0.0)
-
-    def __init__(self, signal_type: SignalType, weight: float = 0.0, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.signal_type = signal_type
-        self.weight = weight
-
-    def render(self) -> str:
-        """Render the weight as a visual bar."""
-        label = SIGNAL_LABELS.get(self.signal_type, "???")
-        # Create bar: 5 characters wide, filled proportionally
-        bar_width = 5
-        filled = int(self.weight * bar_width)
-        bar = "█" * filled + "░" * (bar_width - filled)
-        # Show weight value below
-        weight_str = f"{self.weight:.1f}" if self.weight > 0 else "---"
-        return f"{label}\n{bar}\n{weight_str}"
-
-    def watch_weight(self, _weight: float) -> None:
-        """Update display when weight changes."""
-        self.refresh()
 
 
 class StrategyPanel(Container):
@@ -65,7 +21,6 @@ class StrategyPanel(Container):
     Displays:
     - Strategy name (press 's' to cycle)
     - Signal threshold
-    - Weight histogram for each signal type
     """
 
     strategy_name: reactive[str] = reactive("momentum_based")
@@ -74,7 +29,6 @@ class StrategyPanel(Container):
         super().__init__(**kwargs)
         self._strategy = strategy
         self.strategy_name = self._get_strategy_key(strategy.name)
-        self._weight_bars: dict[SignalType, WeightBar] = {}
 
     def _get_strategy_key(self, name: str) -> str:
         """Convert strategy display name to key."""
@@ -99,19 +53,6 @@ class StrategyPanel(Container):
                 classes="strategy-hint",
             )
 
-        # Weight bars row
-        with Horizontal(classes="weight-bars"):
-            for signal_type in ALL_SIGNAL_TYPES:
-                weight = self._strategy.signal_weights.get(signal_type, 0.0)
-                bar = WeightBar(
-                    signal_type,
-                    weight=weight,
-                    id=f"weight-{signal_type.value.lower()}",
-                    classes="weight-bar",
-                )
-                self._weight_bars[signal_type] = bar
-                yield bar
-
     def update_strategy(self, strategy: Strategy) -> None:
         """Update the panel with a new strategy."""
         self._strategy = strategy
@@ -126,10 +67,6 @@ class StrategyPanel(Container):
             threshold_widget.update(f"Threshold: {strategy.signal_threshold:.2f}")
         except Exception:
             pass
-
-        # Update weight bars
-        for signal_type, bar in self._weight_bars.items():
-            bar.weight = strategy.signal_weights.get(signal_type, 0.0)
 
     def get_next_strategy(self) -> Strategy:
         """Get the next strategy in the rotation."""
