@@ -34,7 +34,7 @@ Examples:
 
   # Multi-terminal mode:
   # 1. Start the data server (once, in background)
-  python -m bot.ui.cli --server --strategy momentum_based
+  python -m bot.ui.cli --server --strategy equal_weight
 
   # 2. Start individual market terminals (one per market)
   python -m bot.ui.cli --coin BTC
@@ -76,8 +76,8 @@ Examples:
         "--strategy",
         "-s",
         type=str,
-        default="momentum_based",
-        help="Strategy name (default: momentum_based)",
+        default="equal_weight",
+        help="Strategy name (default: equal_weight)",
     )
 
     # Coins

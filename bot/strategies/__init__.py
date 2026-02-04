@@ -10,6 +10,7 @@ Available strategies:
 - momentum_macd: MOMENTUM + MACD confirmation required
 - rsi_based: Primary RSI signal with VP support
 - multi_signal: Multiple signals must align (balanced weights)
+- equal_weight: All signals weighted equally at 0.5
 
 Usage:
     from bot.strategies import get_strategy, Strategy
@@ -20,8 +21,9 @@ Usage:
     print(strategy.risk.max_position_pct)  # 15.0
 """
 
-from bot.signals.base import SignalType
+from bot.signals.base import ExitLevelSource, SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType, TradingStrategy
+from bot.strategies.equal_weight import EQUAL_WEIGHT
 from bot.strategies.momentum_based import MOMENTUM_BASED
 from bot.strategies.momentum_macd import MOMENTUM_MACD
 from bot.strategies.multi_signal import MULTI_SIGNAL
@@ -33,6 +35,7 @@ _STRATEGIES: dict[str, Strategy] = {
     "momentum_macd": MOMENTUM_MACD,
     "rsi_based": RSI_BASED,
     "multi_signal": MULTI_SIGNAL,
+    "equal_weight": EQUAL_WEIGHT,
 }
 
 
@@ -74,6 +77,7 @@ def list_strategies() -> list[tuple[str, str]]:
         ("momentum_macd", "Primary: MOMENTUM (0.6) + MACD (0.4)"),
         ("rsi_based", "Primary: RSI (1.0) + VP (0.3)"),
         ("multi_signal", "Balanced: MOMENTUM (0.4) + RSI (0.3) + MACD (0.3)"),
+        ("equal_weight", "Equal: All signals at 0.5"),
     ]
 
 
@@ -104,8 +108,9 @@ __all__ = [
     "Strategy",
     "StrategyType",
     "TradingStrategy",
-    # Signal types for custom strategy creation
+    # Signal and exit types for custom strategy creation
     "SignalType",
+    "ExitLevelSource",
     # Registry functions
     "get_strategy",
     "list_strategies",
@@ -115,4 +120,5 @@ __all__ = [
     "MOMENTUM_MACD",
     "RSI_BASED",
     "MULTI_SIGNAL",
+    "EQUAL_WEIGHT",
 ]

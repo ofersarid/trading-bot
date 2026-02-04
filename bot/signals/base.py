@@ -23,6 +23,32 @@ class SignalType(Enum):
     VOLUME_PROFILE = "VOLUME_PROFILE"
 
 
+class ExitLevelSource(Enum):
+    """
+    Sources for exit level calculation.
+
+    These identify where TP/SL levels can be derived from.
+    Strategies configure which sources to use for structural exits.
+    """
+
+    # Current session Volume Profile levels
+    VP_VAH = "vp_vah"
+    VP_VAL = "vp_val"
+    VP_POC = "vp_poc"
+
+    # Previous day Volume Profile levels
+    PREV_DAY_VAH = "prev_day_vah"
+    PREV_DAY_VAL = "prev_day_val"
+    PREV_DAY_POC = "prev_day_poc"
+
+    # Previous day price levels
+    PREV_DAY_HIGH = "prev_day_high"
+    PREV_DAY_LOW = "prev_day_low"
+
+    # Fallback: ATR-based calculation
+    ATR_MULTIPLIER = "atr_multiplier"
+
+
 @dataclass
 class Signal:
     """

@@ -84,7 +84,7 @@ class TradingCore:
 
     def __init__(
         self,
-        strategy_name: str = "momentum_based",
+        strategy_name: str = "equal_weight",
         signal_detectors: list[str] | None = None,
         ai_enabled: bool = True,
         portfolio_mode: bool = False,

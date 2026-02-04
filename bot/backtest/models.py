@@ -25,7 +25,7 @@ class BacktestConfig:
     data_source: str  # Path to CSV file
     coins: list[str]  # Coins to trade (derived from data if not specified)
     initial_balance: float = 10000.0
-    strategy_name: str = "momentum_based"  # Name of strategy to use
+    strategy_name: str = "equal_weight"  # Name of strategy to use
     signal_detectors: list[str] = field(default_factory=lambda: ["momentum", "rsi", "macd"])
     ai_enabled: bool = True  # False = signals-only mode, True = AI decisions
     portfolio_mode: bool = False  # If True, AI allocates across all markets at once
@@ -70,7 +70,7 @@ class BacktestConfig:
             data_source=data["data_source"],
             coins=data.get("coins", []),
             initial_balance=data.get("initial_balance", 10000.0),
-            strategy_name=data.get("strategy_name", "momentum_based"),
+            strategy_name=data.get("strategy_name", "equal_weight"),
             signal_detectors=data.get("signal_detectors", ["momentum", "rsi", "macd"]),
             ai_enabled=data.get("ai_enabled", True),
             portfolio_mode=data.get("portfolio_mode", False),

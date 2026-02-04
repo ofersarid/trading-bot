@@ -5,7 +5,7 @@ Responsibilities:
 - Filter signals by strategy weights
 - Calculate weighted scores for LONG/SHORT directions
 - Check if scores meet strategy threshold
-- Enrich signals with TP/SL based on ATR
+- Enrich signals with TP/SL using structural levels or ATR fallback
 
 This is a pure transformation layer - no AI, no side effects.
 """
@@ -15,9 +15,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from bot.signals.base import Signal, SignalType
+from bot.signals.exit_levels import ExitLevelProvider, ExitLevels
 
 if TYPE_CHECKING:
     from bot.ai.models import MarketContext
+    from bot.backtest.models import PrevDayVPLevels
+    from bot.indicators.volume_profile import VolumeProfile
     from bot.strategies.base import Strategy
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,7 @@ class FactoryOutput:
     signals: list[Signal]  # Enriched with entry_price, stop_loss, take_profit
     weighted_score: float
     threshold: float
+    exit_levels: ExitLevels | None = None  # Detailed exit level info
 
     @property
     def is_long(self) -> bool:
@@ -44,6 +48,16 @@ class FactoryOutput:
     @property
     def is_short(self) -> bool:
         return self.direction == "SHORT"
+
+    @property
+    def uses_structural_exits(self) -> bool:
+        """True if exit levels are based on structural sources."""
+        return self.exit_levels is not None and self.exit_levels.is_structural
+
+    @property
+    def exit_confidence(self) -> float:
+        """Confidence in exit level calculation."""
+        return self.exit_levels.confidence if self.exit_levels else 0.0
 
 
 class SignalsFactory:
@@ -54,7 +68,7 @@ class SignalsFactory:
     1. Filters by strategy's signal_weights
     2. Calculates weighted scores
     3. Checks against threshold
-    4. Enriches winning signals with TP/SL
+    4. Enriches winning signals with TP/SL (using structural levels or ATR)
 
     No AI involvement - this is deterministic signal processing.
     """
@@ -67,6 +81,23 @@ class SignalsFactory:
             strategy: Strategy with signal_weights, threshold, and risk config
         """
         self.strategy = strategy
+        self._exit_provider = ExitLevelProvider(strategy)
+
+    def update_vp(self, vp: "VolumeProfile") -> None:
+        """
+        Update the current session's Volume Profile.
+
+        This allows structural exit level calculation using current VP.
+        """
+        self._exit_provider.update_vp(vp)
+
+    def update_prev_day_levels(self, levels: "PrevDayVPLevels") -> None:
+        """
+        Update the previous day's VP levels.
+
+        This allows structural exit level calculation using prev day levels.
+        """
+        self._exit_provider.update_prev_day_levels(levels)
 
     def process_signals(
         self,
@@ -92,34 +123,45 @@ class SignalsFactory:
             logger.debug(f"No valid signals for {coin}")
             return None
 
-        # Calculate weighted scores
-        long_score, short_score = self._calculate_weighted_scores(valid_signals)
+        # Calculate net conviction score
+        net_score = self._calculate_net_score(valid_signals)
 
         # Check threshold
-        meets_threshold, direction = self._meets_threshold(long_score, short_score)
+        meets_threshold, direction = self._meets_threshold(net_score)
 
         if not meets_threshold:
             logger.debug(
-                f"Signal scores below threshold: LONG={long_score:.2f}, "
-                f"SHORT={short_score:.2f}, threshold={self.strategy.signal_threshold}"
+                f"Signal scores below threshold: net={net_score:.2f}, "
+                f"threshold=±{self.strategy.signal_threshold}"
             )
             return None
 
         logger.info(
-            f"Signal threshold met: {direction} score={max(long_score, short_score):.2f} "
-            f">= {self.strategy.signal_threshold}"
+            f"Signal threshold met: {direction} net_score={net_score:.2f} "
+            f"(threshold=±{self.strategy.signal_threshold})"
         )
 
-        # Enrich signals with TP/SL
-        enriched_signals = self._enrich_signals(valid_signals, market_context, direction)
+        # Calculate exit levels using ExitLevelProvider
+        exit_levels = self._exit_provider.calculate_exit_levels(
+            valid_signals,
+            market_context,
+            direction,  # type: ignore[arg-type]
+        )
 
-        winning_score = long_score if direction == "LONG" else short_score
+        # Enrich signals with TP/SL from exit levels
+        enriched_signals = self._enrich_signals(
+            valid_signals, market_context, direction, exit_levels
+        )
+
+        # Conviction is always positive (absolute value of net score)
+        conviction = abs(net_score)
 
         return FactoryOutput(
             direction=direction,  # type: ignore[arg-type]
             signals=enriched_signals,
-            weighted_score=winning_score,
+            weighted_score=conviction,
             threshold=self.strategy.signal_threshold,
+            exit_levels=exit_levels,
         )
 
     def _filter_signals(self, signals: list[Signal], coin: str) -> list[Signal]:
@@ -159,58 +201,55 @@ class SignalsFactory:
 
         return filtered
 
-    def _calculate_weighted_scores(self, signals: list[Signal]) -> tuple[float, float]:
+    def _calculate_net_score(self, signals: list[Signal]) -> float:
         """
-        Calculate weighted scores for each direction.
+        Calculate NET conviction score.
 
-        Each signal contributes: weight * strength to its direction's score.
+        LONG signals contribute positive values, SHORT signals contribute negative.
+        Conflicting signals cancel out, resulting in low conviction.
 
         Args:
             signals: Filtered signals
 
         Returns:
-            Tuple of (long_score, short_score)
+            Net score (positive = LONG bias, negative = SHORT bias)
         """
-        long_score = 0.0
-        short_score = 0.0
+        net_score = 0.0
 
         for signal in signals:
             weight = self.strategy.signal_weights.get(signal.signal_type, 0.0)
             weighted_value = weight * signal.strength
 
             if signal.direction == "LONG":
-                long_score += weighted_value
+                net_score += weighted_value
             else:
-                short_score += weighted_value
+                net_score -= weighted_value
 
             logger.debug(
                 f"  {signal.signal_type.value} {signal.direction}: "
                 f"weight={weight:.2f} * strength={signal.strength:.2f} = {weighted_value:.2f}"
             )
 
-        return long_score, short_score
+        return net_score
 
-    def _meets_threshold(
-        self, long_score: float, short_score: float
-    ) -> tuple[bool, Literal["LONG", "SHORT", "WAIT"]]:
+    def _meets_threshold(self, net_score: float) -> tuple[bool, Literal["LONG", "SHORT", "WAIT"]]:
         """
-        Check if weighted scores meet the strategy's threshold.
+        Check if net conviction score meets the strategy's threshold.
 
         Args:
-            long_score: Total weighted score for LONG signals
-            short_score: Total weighted score for SHORT signals
+            net_score: Net conviction score (positive = LONG, negative = SHORT)
 
         Returns:
             Tuple of (meets_threshold, winning_direction)
         """
         threshold = self.strategy.signal_threshold
 
-        # LONG wins if it meets threshold and beats SHORT
-        if long_score >= threshold and long_score > short_score:
+        # LONG if net score meets positive threshold
+        if net_score >= threshold:
             return True, "LONG"
 
-        # SHORT wins if it meets threshold and beats LONG
-        if short_score >= threshold and short_score > long_score:
+        # SHORT if net score meets negative threshold
+        if net_score <= -threshold:
             return True, "SHORT"
 
         return False, "WAIT"
@@ -219,42 +258,29 @@ class SignalsFactory:
         self,
         signals: list[Signal],
         market_context: "MarketContext",
-        direction: str,
+        _direction: str,
+        exit_levels: ExitLevels,
     ) -> list[Signal]:
         """
         Enrich signals with entry price, stop loss, and take profit.
 
-        Uses ATR-based calculation from strategy's risk config.
+        Uses exit levels calculated by ExitLevelProvider (structural or ATR-based).
 
         Args:
             signals: Signals to enrich
             market_context: Market context with price and ATR
             direction: Winning direction (LONG or SHORT)
+            exit_levels: Calculated exit levels with TP/SL
 
         Returns:
             Signals with position info populated
         """
-        # Volatility adjustment for stops
-        vol_factor = {
-            "high": 1.5,
-            "medium": 1.0,
-            "low": 0.7,
-        }.get(market_context.volatility_level, 1.0)
-
-        atr = market_context.atr
         price = market_context.current_price
+        atr = market_context.atr
 
-        # Calculate SL/TP distances
-        sl_distance = atr * self.strategy.risk.stop_loss_atr_multiplier * vol_factor
-        tp_distance = atr * self.strategy.risk.take_profit_atr_multiplier * vol_factor
-
-        # Calculate actual levels based on direction
-        if direction == "LONG":
-            stop_loss = price - sl_distance
-            take_profit = price + tp_distance
-        else:
-            stop_loss = price + sl_distance
-            take_profit = price - tp_distance
+        # Use levels from ExitLevelProvider
+        stop_loss = exit_levels.stop_loss
+        take_profit = exit_levels.take_profit
 
         # Enrich each signal
         enriched = []

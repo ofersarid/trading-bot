@@ -12,7 +12,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bot.signals.base import SignalType
+    from bot.signals.base import ExitLevelSource, SignalType
 
 
 class StrategyType(Enum):
@@ -22,6 +22,7 @@ class StrategyType(Enum):
     MOMENTUM_MACD = "momentum_macd"  # Primary: MOMENTUM + MACD confirmation
     RSI_BASED = "rsi_based"  # Primary: RSI
     MULTI_SIGNAL = "multi_signal"  # Balanced: Multiple signals required
+    EQUAL_WEIGHT = "equal_weight"  # All signals weighted equally at 0.5
 
 
 # Backwards compatibility alias
@@ -57,10 +58,15 @@ class Strategy:
     The strategy is ONLY configuration - no prompts or AI logic.
     AI position sizing is handled separately by GoalBasedSizer.
 
-    Signal Weighting:
+    Signal Weighting (Entry):
         Each signal type has a weight (0.0-1.0) that determines its importance.
         The weighted score = sum(weight * signal_strength) for each direction.
         A trade is considered when the score meets the signal_threshold.
+
+    Exit Level Configuration:
+        exit_level_sources defines which structural levels to use for TP/SL.
+        The ExitLevelProvider finds confluent levels from these sources.
+        Falls back to ATR-based calculation if no structural levels found.
     """
 
     name: str
@@ -80,6 +86,21 @@ class Strategy:
     # AI confidence threshold (1-10)
     min_confidence: int = 6
 
+    # Exit level configuration
+    # Sources for exit level calculation, ordered by priority
+    # Default is ATR_MULTIPLIER only (current behavior)
+    exit_level_sources: list["ExitLevelSource"] = field(default_factory=list)
+
+    # How close levels must be to be considered confluent (as % of VA range)
+    confluence_distance_pct: float = 0.3
+
+    # Minimum number of sources that must agree for a confluent level
+    min_confluence_sources: int = 1
+
+    # Fallback ATR multipliers when no structural levels found
+    fallback_sl_atr_multiplier: float = 1.5
+    fallback_tp_atr_multiplier: float = 2.0
+
     def __post_init__(self) -> None:
         """Validate strategy configuration."""
         if not 0 <= self.signal_threshold <= 2.0:
@@ -88,6 +109,10 @@ class Strategy:
             raise ValueError("min_signal_strength must be between 0 and 1")
         if not 1 <= self.min_confidence <= 10:
             raise ValueError("min_confidence must be between 1 and 10")
+        if not 0 < self.confluence_distance_pct <= 1.0:
+            raise ValueError("confluence_distance_pct must be between 0 and 1.0")
+        if self.min_confluence_sources < 1:
+            raise ValueError("min_confluence_sources must be at least 1")
 
         # Validate weights are in valid range
         for signal_type, weight in self.signal_weights.items():
@@ -105,7 +130,21 @@ class Strategy:
                 stacklevel=2,
             )
 
+        # Default exit_level_sources to ATR_MULTIPLIER if not set
+        # This maintains backwards compatibility
+        if not self.exit_level_sources:
+            from bot.signals.base import ExitLevelSource
+
+            self.exit_level_sources = [ExitLevelSource.ATR_MULTIPLIER]
+
     @property
     def signal_types(self) -> list["SignalType"]:
         """Get list of signal types this strategy listens to (for compatibility)."""
         return list(self.signal_weights.keys())
+
+    @property
+    def uses_structural_exits(self) -> bool:
+        """True if strategy uses structural levels (VP, prev day) for exits."""
+        from bot.signals.base import ExitLevelSource
+
+        return any(source != ExitLevelSource.ATR_MULTIPLIER for source in self.exit_level_sources)

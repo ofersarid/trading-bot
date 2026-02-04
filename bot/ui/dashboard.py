@@ -14,8 +14,8 @@ Modes:
 - Client: Read from data server state files (for multi-terminal setup)
 
 Run with:
-    python -m bot.ui.dashboard --live --strategy momentum_based
-    python -m bot.ui.dashboard --historical data/historical/BTC_20260126 --strategy momentum_based
+    python -m bot.ui.dashboard --live --strategy equal_weight
+    python -m bot.ui.dashboard --historical data/historical/BTC_20260126 --strategy equal_weight
     python -m bot.ui.dashboard --coin BTC  # Client mode, reads from data server
 """
 
@@ -40,6 +40,8 @@ from textual.widgets import Footer, Static
 
 from bot.core.candle_aggregator import MultiCoinCandleManager
 from bot.hyperliquid.websocket_manager import ConnectionState, WebSocketConfig, WebSocketManager
+from bot.indicators.macd import macd
+from bot.indicators.rsi import rsi
 from bot.indicators.volume_profile import (
     Trade as VPTrade,
 )
@@ -379,10 +381,10 @@ class TradingDashboard(App):
             vp_data = state.get("indicators", {}).get("session_vp", {})
             if vp_data:
                 lines = []
-                if vp_data.get("poc"):
-                    lines.append(f"POC {vp_data['poc']:,.0f}")
                 if vp_data.get("vah"):
                     lines.append(f"VAH {vp_data['vah']:,.0f}")
+                if vp_data.get("poc"):
+                    lines.append(f"POC {vp_data['poc']:,.0f}")
                 if vp_data.get("val"):
                     lines.append(f"VAL {vp_data['val']:,.0f}")
                 for lvn_price in vp_data.get("lvn", [])[:2]:
@@ -642,10 +644,11 @@ class TradingDashboard(App):
 
         # Format values text
         lines = []
+        if va:
+            lines.append(f"VAH {va[1]:,.0f}")
         if poc:
             lines.append(f"POC {poc:,.0f}")
         if va:
-            lines.append(f"VAH {va[1]:,.0f}")
             lines.append(f"VAL {va[0]:,.0f}")
         if lvns:
             for lvn in lvns[:2]:
@@ -678,10 +681,11 @@ class TradingDashboard(App):
 
         # Format values text
         lines = []
+        if va:
+            lines.append(f"VAH {va[1]:,.0f}")
         if poc:
             lines.append(f"POC {poc:,.0f}")
         if va:
-            lines.append(f"VAH {va[1]:,.0f}")
             lines.append(f"VAL {va[0]:,.0f}")
         if lvns:
             for lvn in lvns[:2]:
@@ -703,24 +707,47 @@ class TradingDashboard(App):
         try:
             column = self.query_one(f"#{coin.lower()}-column", MarketColumn)
 
+            if not self._candle_manager:
+                return
+
+            candles = self._candle_manager.get_candles(coin)
+
             # Momentum
             momentum_col = column.get_indicator_subcolumn("momentum")
-            if momentum_col and self._candle_manager:
-                # Get recent price changes from candle manager
-                candles = self._candle_manager.get_candles(coin)
+            if momentum_col:
                 if candles and len(candles) >= 2:
                     pct_change = ((candles[-1].close - candles[-2].close) / candles[-2].close) * 100
                     momentum_col.update_values(f"1m: {pct_change:+.2f}%")
+                else:
+                    momentum_col.update_values("1m: --")
 
-            # RSI placeholder
+            # RSI - requires 15 candles (period 14 + 1)
             rsi_col = column.get_indicator_subcolumn("rsi")
             if rsi_col:
-                rsi_col.update_values("RSI: --")
+                if candles and len(candles) >= 15:
+                    prices = [c.close for c in candles]
+                    rsi_value = rsi(prices, period=14)
+                    if rsi_value is not None:
+                        rsi_col.update_values(f"RSI: {rsi_value:.1f}")
+                    else:
+                        rsi_col.update_values("RSI: --")
+                else:
+                    rsi_col.update_values("RSI: --")
 
-            # MACD placeholder
+            # MACD - requires 34 candles (slow 26 + signal 9 - 1)
             macd_col = column.get_indicator_subcolumn("macd")
             if macd_col:
-                macd_col.update_values("Line: --\nSig: --")
+                if candles and len(candles) >= 34:
+                    prices = [c.close for c in candles]
+                    macd_result = macd(prices, fast=12, slow=26, signal=9)
+                    if macd_result is not None:
+                        macd_col.update_values(
+                            f"Line: {macd_result.macd_line:.1f}\nSig: {macd_result.signal_line:.1f}"
+                        )
+                    else:
+                        macd_col.update_values("Line: --\nSig: --")
+                else:
+                    macd_col.update_values("Line: --\nSig: --")
 
         except Exception:
             pass
@@ -924,33 +951,32 @@ class TradingDashboard(App):
             return
 
         try:
-            # Get signal data from adapter
-            signals, long_score, short_score, threshold = (
-                self._signal_adapter.get_signal_display_data(coin)
-            )
+            # Get signal data from adapter (now uses net conviction scoring)
+            signals, net_score, threshold = self._signal_adapter.get_signal_display_data(coin)
 
-            if signals or (long_score > 0 or short_score > 0):
+            if signals or net_score != 0:
                 logger.debug(
                     f"{coin} signals: {len(signals)} total, "
-                    f"LONG:{long_score:.3f} SHORT:{short_score:.3f} threshold:{threshold:.2f}"
+                    f"net_score:{net_score:.3f} threshold:±{threshold:.2f}"
                 )
 
-            # Determine direction and score
-            if long_score > short_score and long_score > 0:
+            # Determine direction from sign of net_score
+            # Conviction is always positive (absolute value)
+            if net_score > 0:
                 direction = "LONG"
-                score = long_score
-            elif short_score > long_score and short_score > 0:
+            elif net_score < 0:
                 direction = "SHORT"
-                score = short_score
             else:
                 direction = "WAIT"
-                score = max(long_score, short_score)
+            conviction = abs(net_score)
 
-            # Build contributions dict
+            # Build contributions dict (signed: positive for LONG, negative for SHORT)
             contributions: dict[str, float] = {}
             for signal in signals:
                 weight = self.strategy.signal_weights.get(signal.signal_type, 0)
                 contrib = signal.strength * weight
+                if signal.direction == "SHORT":
+                    contrib = -contrib
                 key = signal.signal_type.value[:3].upper()
                 if key not in contributions:
                     contributions[key] = 0
@@ -976,24 +1002,29 @@ class TradingDashboard(App):
                         short_strength = signal.strength if signal.direction == "SHORT" else 0.0
                         subcolumn.update_signal_progress(long_strength, short_strength)
 
-            # Update progress bars for all indicators based on overall scores
+            # Update progress bars for all indicators based on net score
             # This shows "cooking" progress even before signals fire
+            # Positive net_score = LONG progress, negative = SHORT progress
             for indicator_key in ["session_vp", "prev_day_vp", "momentum", "rsi", "macd"]:
                 subcolumn = column.get_indicator_subcolumn(indicator_key)
                 if subcolumn:
-                    # Scale scores to 0-1 for progress bar (threshold is typically 0.7)
-                    long_progress = min(long_score / threshold, 1.0) if threshold > 0 else 0.0
-                    short_progress = min(short_score / threshold, 1.0) if threshold > 0 else 0.0
+                    # Scale conviction to 0-1 for progress bar
+                    if threshold > 0:
+                        long_progress = min(net_score / threshold, 1.0) if net_score > 0 else 0.0
+                        short_progress = min(-net_score / threshold, 1.0) if net_score < 0 else 0.0
+                    else:
+                        long_progress = 0.0
+                        short_progress = 0.0
                     subcolumn.update_signal_progress(long_progress, short_progress)
                     logger.debug(
                         f"{coin} {indicator_key}: long={long_progress:.2f}, short={short_progress:.2f}, "
-                        f"long_score={long_score:.2f}, short_score={short_score:.2f}, threshold={threshold:.2f}"
+                        f"net_score={net_score:.2f}, threshold={threshold:.2f}"
                     )
 
             # Update combined signal row
             combined_row = column.get_combined_row()
             if combined_row:
-                combined_row.update_signal(direction, score, threshold, contributions)
+                combined_row.update_signal(direction, conviction, threshold, contributions)
 
         except Exception as e:
             logger.debug(f"Error updating signal display for {coin}: {e}")
@@ -1077,7 +1108,7 @@ def main() -> None:
     parser.add_argument(
         "--coin", type=str, help="Client mode - single coin (reads from data server)"
     )
-    parser.add_argument("--strategy", type=str, default="momentum_based", help="Strategy name")
+    parser.add_argument("--strategy", type=str, default="equal_weight", help="Strategy name")
     parser.add_argument(
         "--coins", type=str, nargs="+", default=["BTC", "ETH", "SOL"], help="Coins to monitor"
     )

@@ -34,8 +34,7 @@ class CoinSignalState:
     """Cached signal state for a single coin."""
 
     signals: list[Signal] = field(default_factory=list)
-    long_score: float = 0.0
-    short_score: float = 0.0
+    net_score: float = 0.0  # Positive = LONG bias, Negative = SHORT bias
     last_update: datetime = field(default_factory=datetime.now)
 
 
@@ -130,13 +129,13 @@ class SignalBrainAdapter:
         state.signals = filtered_signals
         state.last_update = now
 
-        # Recalculate weighted scores
-        state.long_score, state.short_score = self._calculate_weighted_scores(filtered_signals)
+        # Recalculate net conviction score
+        state.net_score = self._calculate_net_score(filtered_signals)
 
         if new_signals:
             logger.debug(
                 f"SignalAdapter: {coin} detected {len(new_signals)} new signals, "
-                f"L:{state.long_score:.2f} S:{state.short_score:.2f}"
+                f"net_score:{state.net_score:.2f}"
             )
 
         return new_signals
@@ -161,26 +160,26 @@ class SignalBrainAdapter:
 
         return signals
 
-    def get_weighted_scores(self, coin: str) -> tuple[float, float, float]:
+    def get_signal_score(self, coin: str) -> tuple[float, float]:
         """
-        Get weighted scores and threshold for a coin.
+        Get net conviction score and threshold for a coin.
 
         Args:
             coin: Coin symbol
 
         Returns:
-            Tuple of (long_score, short_score, threshold)
+            Tuple of (net_score, threshold)
         """
         if coin not in self._state:
-            return 0.0, 0.0, self.strategy.signal_threshold
+            return 0.0, self.strategy.signal_threshold
 
         state = self._state[coin]
-        return state.long_score, state.short_score, self.strategy.signal_threshold
+        return state.net_score, self.strategy.signal_threshold
 
     def get_signal_display_data(
         self,
         coin: str,
-    ) -> tuple[list[Signal], float, float, float]:
+    ) -> tuple[list[Signal], float, float]:
         """
         Get all data needed for UI display in one call.
 
@@ -188,40 +187,40 @@ class SignalBrainAdapter:
             coin: Coin symbol
 
         Returns:
-            Tuple of (signals, long_score, short_score, threshold)
+            Tuple of (signals, net_score, threshold)
         """
         signals = self.get_signals_for_display(coin)
-        long_score, short_score, threshold = self.get_weighted_scores(coin)
-        return signals, long_score, short_score, threshold
+        net_score, threshold = self.get_signal_score(coin)
+        return signals, net_score, threshold
 
-    def _calculate_weighted_scores(
+    def _calculate_net_score(
         self,
         signals: list[Signal],
-    ) -> tuple[float, float]:
+    ) -> float:
         """
-        Calculate weighted scores for LONG and SHORT directions.
+        Calculate NET conviction score.
 
-        Each signal contributes: weight * strength to its direction's score.
+        LONG signals contribute positive values, SHORT signals contribute negative.
+        Conflicting signals cancel out.
 
         Args:
             signals: List of signals to score
 
         Returns:
-            Tuple of (long_score, short_score)
+            Net score (positive = LONG bias, negative = SHORT bias)
         """
-        long_score = 0.0
-        short_score = 0.0
+        net_score = 0.0
 
         for signal in signals:
             weight = self.strategy.signal_weights.get(signal.signal_type, 0.0)
             weighted_value = weight * signal.strength
 
             if signal.direction == "LONG":
-                long_score += weighted_value
+                net_score += weighted_value
             else:
-                short_score += weighted_value
+                net_score -= weighted_value
 
-        return long_score, short_score
+        return net_score
 
     def update_strategy(self, strategy: Strategy) -> None:
         """
@@ -234,7 +233,7 @@ class SignalBrainAdapter:
 
         # Recalculate scores for all cached coins
         for state in self._state.values():
-            state.long_score, state.short_score = self._calculate_weighted_scores(state.signals)
+            state.net_score = self._calculate_net_score(state.signals)
 
     def reset(self, coin: str | None = None) -> None:
         """

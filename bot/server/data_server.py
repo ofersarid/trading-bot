@@ -59,7 +59,7 @@ class DataServer:
     def __init__(
         self,
         coins: list[str] | None = None,
-        strategy_name: str = "momentum_based",
+        strategy_name: str = "equal_weight",
     ) -> None:
         """
         Initialize the data server.
@@ -244,25 +244,23 @@ class DataServer:
             pct_change = ((candles[-1].close - candles[-2].close) / candles[-2].close) * 100
             state["indicators"]["momentum"] = {"1m_pct": round(pct_change, 4)}
 
-        # Signals
-        signals, long_score, short_score, threshold = self._signal_adapter.get_signal_display_data(
-            coin
-        )
+        # Signals (using net conviction scoring)
+        signals, net_score, threshold = self._signal_adapter.get_signal_display_data(coin)
 
-        # Determine direction
-        if long_score > short_score and long_score > 0:
+        # Determine direction from sign of net_score
+        if net_score > 0:
             direction = "LONG"
-            score = long_score
-        elif short_score > long_score and short_score > 0:
+        elif net_score < 0:
             direction = "SHORT"
-            score = short_score
         else:
             direction = "WAIT"
-            score = max(long_score, short_score)
+
+        # Conviction is always positive (absolute value)
+        conviction = abs(net_score)
 
         state["signals"]["combined"] = {
             "direction": direction,
-            "score": round(score, 3),
+            "score": round(conviction, 3),
             "threshold": threshold,
         }
 
@@ -306,7 +304,7 @@ class DataServer:
 
 async def run_server(
     coins: list[str] | None = None,
-    strategy_name: str = "momentum_based",
+    strategy_name: str = "equal_weight",
 ) -> None:
     """Run the data server."""
     server = DataServer(coins=coins, strategy_name=strategy_name)
@@ -334,8 +332,8 @@ def main() -> None:
         "--strategy",
         "-s",
         type=str,
-        default="momentum_based",
-        help="Strategy name (default: momentum_based)",
+        default="equal_weight",
+        help="Strategy name (default: equal_weight)",
     )
 
     args = parser.parse_args()

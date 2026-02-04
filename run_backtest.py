@@ -6,7 +6,7 @@ Usage:
     python run_backtest.py                           # Signals-only mode (fast)
     python run_backtest.py --ai                      # With AI position sizing (requires Ollama)
     python run_backtest.py --ai --goal 50000 --goal-days 30  # AI with goal-aware sizing
-    python run_backtest.py --strategy momentum_based  # Use specific strategy
+    python run_backtest.py --strategy equal_weight  # Use specific strategy
     python run_backtest.py --data path/to/ohlcv.csv  # Custom OHLCV data file
     python run_backtest.py --vp                      # Auto-detect trade data for Volume Profile
     python run_backtest.py --trade-data path/to/trades.parquet  # Explicit trade data
@@ -93,9 +93,9 @@ async def main():
     parser.add_argument(
         "--strategy",
         "-p",
-        default="momentum_based",
+        default="equal_weight",
         choices=[name for name, _ in list_strategies()],
-        help="Trading strategy to use (default: momentum_based)",
+        help="Trading strategy to use (default: equal_weight)",
     )
     parser.add_argument(
         "--balance",

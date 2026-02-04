@@ -832,6 +832,9 @@ class BacktestEngine:
         """
         Convert signals to a portfolio opportunity for multi-asset allocation.
 
+        Uses net conviction scoring: LONG signals contribute positive values,
+        SHORT signals contribute negative. Conflicting signals cancel out.
+
         Args:
             signals: Detected signals for this coin
             coin: Coin symbol
@@ -843,9 +846,8 @@ class BacktestEngine:
         if not signals:
             return None
 
-        # Calculate weighted scores
-        long_score = 0.0
-        short_score = 0.0
+        # Calculate net conviction score
+        net_score = 0.0
         signal_names = []
 
         for s in signals:
@@ -854,16 +856,22 @@ class BacktestEngine:
                 continue
             signal_names.append(s.signal_type.value)
             if s.direction == "LONG":
-                long_score += s.strength * weight
+                net_score += s.strength * weight
             else:
-                short_score += s.strength * weight
+                net_score -= s.strength * weight
 
-        # Check threshold
-        winning_score = max(long_score, short_score)
-        if winning_score < self._strategy.signal_threshold:
+        # Check threshold (must exceed ± threshold)
+        threshold = self._strategy.signal_threshold
+        if net_score >= threshold:
+            direction = "LONG"
+        elif net_score <= -threshold:
+            direction = "SHORT"
+        else:
+            # Below threshold - conflicting signals or weak conviction
             return None
 
-        direction = "LONG" if long_score > short_score else "SHORT"
+        # Conviction is always positive (absolute value of net score)
+        conviction = abs(net_score)
 
         # Get market context for volatility
         context = self._calculate_market_context(coin, current_price)
@@ -871,7 +879,7 @@ class BacktestEngine:
         return PortfolioOpportunity(
             coin=coin,
             direction=direction,  # type: ignore[arg-type]
-            signal_score=winning_score,
+            signal_score=conviction,
             signal_threshold=self._strategy.signal_threshold,
             signals=list(set(signal_names)),  # Dedupe
             current_price=current_price,
@@ -1244,7 +1252,7 @@ class BacktestEngine:
 async def run_backtest(
     data_source: str,
     ai_enabled: bool = True,
-    strategy_name: str = "momentum_based",
+    strategy_name: str = "equal_weight",
     initial_balance: float = 10000.0,
 ) -> BacktestResult:
     """

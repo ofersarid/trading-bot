@@ -13,7 +13,7 @@ Usage:
 
     engine = LiveEngine(
         coins=["BTC", "ETH"],
-        strategy_name="momentum_based",
+        strategy_name="equal_weight",
         ai_enabled=True,
         account_goal=50000,
         goal_timeframe_days=30,

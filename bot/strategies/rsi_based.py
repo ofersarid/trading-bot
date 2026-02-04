@@ -6,9 +6,10 @@ Supporting signal: VOLUME_PROFILE (weight 0.3)
 
 Focuses on overbought/oversold conditions with VP level support.
 Smaller positions (fading is risky), quick exits.
+Uses POC as primary target (mean reversion).
 """
 
-from bot.signals.base import SignalType
+from bot.signals.base import ExitLevelSource, SignalType
 from bot.strategies.base import RiskConfig, Strategy, StrategyType
 
 RSI_BASED = Strategy(
@@ -28,4 +29,15 @@ RSI_BASED = Strategy(
     signal_threshold=0.8,  # High bar - only fade clearly overextended moves
     min_signal_strength=0.6,  # Need strong RSI signals
     min_confidence=7,  # Need higher confidence to fade
+    # Exit configuration - POC is key target for mean reversion
+    exit_level_sources=[
+        ExitLevelSource.VP_POC,  # Primary target - mean price
+        ExitLevelSource.PREV_DAY_POC,
+        ExitLevelSource.VP_VAH,
+        ExitLevelSource.VP_VAL,
+    ],
+    confluence_distance_pct=0.35,  # Wider for mean reversion
+    min_confluence_sources=1,  # Single level target is typical
+    fallback_sl_atr_multiplier=1.5,
+    fallback_tp_atr_multiplier=1.5,
 )

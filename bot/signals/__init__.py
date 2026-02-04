@@ -8,10 +8,11 @@ Key Components:
 - SignalsFactory: Processes raw signals through strategy weights (no AI)
 - SignalAggregator: Collects and batches signals from detectors
 - Signal: Data class representing a trading signal with optional position info
+- ExitLevelProvider: Calculates structural exit levels (TP/SL) from VP data
 """
 
 from .aggregator import SignalAggregator
-from .base import Signal, SignalDetector, SignalType
+from .base import ExitLevelSource, Signal, SignalDetector, SignalType
 from .detectors import (
     MACDConfig,
     MACDSignalDetector,
@@ -24,6 +25,7 @@ from .detectors import (
     VolumeProfileConfig,
     VolumeProfileSignalDetector,
 )
+from .exit_levels import ExitLevelProvider, ExitLevels
 from .factory import FactoryOutput, SignalsFactory
 from .validator import SignalValidator, ValidatorConfig
 
@@ -32,6 +34,10 @@ __all__ = [
     "Signal",
     "SignalType",
     "SignalDetector",
+    # Exit level calculation
+    "ExitLevelSource",
+    "ExitLevels",
+    "ExitLevelProvider",
     # Factory (signal processing)
     "SignalsFactory",
     "FactoryOutput",

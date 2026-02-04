@@ -5,7 +5,7 @@ This engine uses the SAME logic as BacktestEngine, only the data source differs.
 Backtest results are now predictive of live performance.
 
 Usage:
-    python -m bot.live.engine --balance 10000 --strategy momentum_based --ai
+    python -m bot.live.engine --balance 10000 --strategy equal_weight --ai
 
 Architecture:
     WebSocket → Candle Aggregator → TradingCore → Paper Trader
@@ -47,7 +47,7 @@ class LiveEngine:
     def __init__(
         self,
         coins: list[str] | None = None,
-        strategy_name: str = "momentum_based",
+        strategy_name: str = "equal_weight",
         initial_balance: float = 10000.0,
         ai_enabled: bool = False,
         portfolio_mode: bool = False,
@@ -464,9 +464,9 @@ Examples:
     parser.add_argument(
         "--strategy",
         "-s",
-        default="momentum_based",
+        default="equal_weight",
         choices=[name for name, _ in list_strategies()],
-        help="Strategy to use (default: momentum_based)",
+        help="Strategy to use (default: equal_weight)",
     )
     parser.add_argument(
         "--ai",

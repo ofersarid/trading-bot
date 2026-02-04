@@ -33,7 +33,7 @@ fi
 if [ "$1" = "--historical" ] || [ "$1" = "-H" ]; then
     FOLDER="$2"
     SPEED="0.5"
-    STRATEGY="momentum_based"
+    STRATEGY="equal_weight"
 
     # Parse remaining arguments
     shift 2
@@ -78,7 +78,7 @@ if [ "$1" = "--historical" ] || [ "$1" = "-H" ]; then
 fi
 
 # Default: Live mode with hot reload
-STRATEGY="momentum_based"
+STRATEGY="equal_weight"
 COINS=""
 
 # Parse arguments

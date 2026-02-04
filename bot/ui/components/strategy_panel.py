@@ -23,7 +23,7 @@ class StrategyPanel(Container):
     - Signal threshold
     """
 
-    strategy_name: reactive[str] = reactive("momentum_based")
+    strategy_name: reactive[str] = reactive("equal_weight")
 
     def __init__(self, strategy: Strategy, **kwargs) -> None:
         super().__init__(**kwargs)
